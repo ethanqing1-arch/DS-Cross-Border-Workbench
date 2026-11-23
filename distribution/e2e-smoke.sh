@@ -33,7 +33,7 @@ for arg in "$@"; do
   case "$arg" in
     --keep) KEEP=1 ;;
     -h|--help) sed -n '3,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "未知参数：$arg（可用 --keep）" >&2; exit 2 ;;
+    *) echo "未知参数：${arg}（可用 --keep）" >&2; exit 2 ;;
   esac
 done
 
@@ -89,7 +89,7 @@ REAL_WS="$HOME/ds-bot-workspace"
 REAL_MTIME=""
 if [ -d "$REAL_WS" ]; then
   REAL_MTIME="$(stat -f %m "$REAL_WS" 2>/dev/null || stat -c %Y "$REAL_WS" 2>/dev/null || true)"
-  [ -n "$REAL_MTIME" ] && ok "真工作区 mtime 快照（$REAL_MTIME）" || warn "读不到真工作区 mtime，跳过边界校验"
+  [ -n "$REAL_MTIME" ] && ok "真工作区 mtime 快照（${REAL_MTIME}）" || warn "读不到真工作区 mtime，跳过边界校验"
 else
   warn "本机没有 ~/ds-bot-workspace，跳过边界校验"
 fi
@@ -104,9 +104,9 @@ install_pkg() {
   out="$("$@" 2>&1)"; rc=$?
   w="$(printf '%s\n' "$out" | sed -n 's/^== 汇总: write=\([0-9]*\) skip=\([0-9]*\) fail=\([0-9]*\) ==/\1 \2 \3/p' | tail -1)"
   if [ "$rc" -eq 0 ] && [ "$w" = "$expect" ]; then
-    ok "$label（write/skip/fail=$w）"
+    ok "${label}（write/skip/fail=${w}）"
   else
-    bad "$label（rc=$rc 汇总='${w:-无}'）"
+    bad "${label}（rc=$rc 汇总='${w:-无}'）"
     printf '%s\n' "$out" | tail -8 | sed 's/^/    /'
   fi
 }
@@ -366,9 +366,9 @@ if [ -f "$REPORT" ]; then
   while IFS=$'\t' read -r okf name detail; do
     [ -n "$name" ] || continue
     if [ "$okf" = "1" ]; then
-      ok "$name${detail:+（$detail）}"
+      ok "$name${detail:+（${detail}）}"
     else
-      bad "$name${detail:+（$detail）}"
+      bad "$name${detail:+（${detail}）}"
     fi
   done < <(node -e '
     const r = require(process.argv[1]);
@@ -390,12 +390,12 @@ if [ -f "$REPORT" ]; then
       " transfer_size=" + (r.nav && r.nav.transfer_size) + " cache_hit=" + (r.nav && r.nav.cache_hit) +
       " generated_at=" + r.generated_at);
   ' "$REPORT" 2>&1)"; then
-    ok "report 字段齐（$FIELDS）"
+    ok "report 字段齐（${FIELDS}）"
   else
-    bad "report 字段不齐（$FIELDS）"
+    bad "report 字段不齐（${FIELDS}）"
   fi
 else
-  bad "report.json 缺失（$REPORT）"
+  bad "report.json 缺失（${REPORT}）"
 fi
 
 # ---------------------------------------------------------------- 5. 取页器本地 fixture（四态契约）
@@ -437,7 +437,7 @@ for _ in $(seq 1 50); do [ -s "$FX/port" ] && { FXPORT="$(cat "$FX/port")"; brea
 if [ -z "$FXPORT" ]; then
   bad "本地 fixture 服务器未就绪（127.0.0.1）"
 else
-  ok "本地 fixture 服务器就绪（127.0.0.1:$FXPORT）"
+  ok "本地 fixture 服务器就绪（127.0.0.1:${FXPORT}）"
   FXACC="${E2E_ACCOUNT:-e2e-smoke}"
   cat > "$FX/preset-good.json" <<JSON
 {"id":"fx-local","name":"e2e 本地 fixture","search_url_template":"http://127.0.0.1:$FXPORT/normal",
@@ -461,7 +461,7 @@ JSON
   ' "$TMP/probe.json" 2>/dev/null; then
     ok "本地 fixture 正常页 → ok（$(node -e 'const r=require(process.argv[1]);console.log("item_count="+r.item_count+" container_count="+r.container_count)' "$TMP/probe.json")）"
   else
-    bad "本地 fixture 正常页（RC=$RC）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-"))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
+    bad "本地 fixture 正常页（RC=${RC}）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-"))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
   fi
   # 5.1b --out 产物：JSONL 恰好 3 行、一行一条 item，meta 字段齐且 preset.verified 在
   if node -e '
@@ -491,7 +491,7 @@ JSON
   ' "$TMP/probe.json" 2>/dev/null; then
     ok "本地 fixture 机器人墙 → blocked（matched 含 robot_or_human）"
   else
-    bad "本地 fixture 机器人墙（RC=$RC）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" matched="+JSON.stringify((r.evidence&&r.evidence.matched)||[])+" code="+((r.error&&r.error.code)||"-"))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
+    bad "本地 fixture 机器人墙（RC=${RC}）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" matched="+JSON.stringify((r.evidence&&r.evidence.matched)||[])+" code="+((r.error&&r.error.code)||"-"))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
   fi
   # 5.2b --out 产物：没有数据也能解释为什么——JSONL 0 行，但 meta=blocked 且带 matched
   if node -e '
@@ -513,7 +513,7 @@ JSON
   ' "$TMP/probe.json" 2>/dev/null; then
     ok "--platform 缺 list_selector → E_PLATFORM_INCOMPLETE（EXIT=1，未退回单页模式）"
   else
-    bad "--platform 缺 list_selector（RC=$RC）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-")+" list="+JSON.stringify(r.list))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
+    bad "--platform 缺 list_selector（RC=${RC}）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-")+" list="+JSON.stringify(r.list))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
   fi
   # 5.4 离网（127.0.0.1:1 必失败）：Chromium 错误页必须报 E_GOTO，不许伪装成 E_CACHE_HIT
   RC="$(probe_run --url 'http://127.0.0.1:1/' --cache-bust --out "$TMP/probe-offline.jsonl")"
@@ -529,7 +529,7 @@ JSON
   ' "$TMP/probe.json" "$TMP/probe-offline.jsonl.meta.json" "$TMP/probe-offline.jsonl" 2>/dev/null; then
     ok "离网 127.0.0.1:1 → E_GOTO（不是 E_CACHE_HIT）、meta.cache_hit=false、JSONL 0 行"
   else
-    bad "离网分类异常（RC=$RC）$(node -e 'try{const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const m=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-")+" final_url="+(r.final_url||"-")+" cache_hit="+m.cache_hit)}catch(e){console.log("无产物")}' "$TMP/probe.json" "$TMP/probe-offline.jsonl.meta.json" 2>/dev/null)"
+    bad "离网分类异常（RC=${RC}）$(node -e 'try{const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const m=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-")+" final_url="+(r.final_url||"-")+" cache_hit="+m.cache_hit)}catch(e){console.log("无产物")}' "$TMP/probe.json" "$TMP/probe-offline.jsonl.meta.json" 2>/dev/null)"
   fi
   kill "$FXPID" 2>/dev/null || true; FXPID=""
 fi
@@ -552,17 +552,17 @@ ALIVE="$(printf '%s' "$SESS_JSON" | node -e '
 case "$ALIVE" in
   0) ok "会话已删除（account *:${E2E_ACCOUNT:-e2e-smoke} 无 alive）" ;;
   -1) warn "读不到 /v1/sessions，跳过会话存活校验" ;;
-  *) bad "会话仍存活（alive=$ALIVE，account *:${E2E_ACCOUNT:-e2e-smoke}）" ;;
+  *) bad "会话仍存活（alive=${ALIVE}，account *:${E2E_ACCOUNT:-e2e-smoke}）" ;;
 esac
 if [ -n "$REAL_MTIME" ]; then
   REAL_MTIME2="$(stat -f %m "$REAL_WS" 2>/dev/null || stat -c %Y "$REAL_WS" 2>/dev/null || true)"
-  [ "$REAL_MTIME" = "$REAL_MTIME2" ] && ok "真工作区 mtime 未变（$REAL_MTIME）" || bad "真工作区 mtime 变了（$REAL_MTIME -> $REAL_MTIME2）"
+  [ "$REAL_MTIME" = "$REAL_MTIME2" ] && ok "真工作区 mtime 未变（${REAL_MTIME}）" || bad "真工作区 mtime 变了（$REAL_MTIME -> ${REAL_MTIME2}）"
 fi
 FARM_DIRTY2="$(git -C "$ROOT" status --porcelain farm | wc -l | tr -d ' ')"
 if [ "$FARM_DIRTY2" -le "$FARM_DIRTY1" ]; then
-  ok "farm/ 未新增改动（跑前 $FARM_DIRTY1 → 跑后 $FARM_DIRTY2）"
+  ok "farm/ 未新增改动（跑前 $FARM_DIRTY1 → 跑后 ${FARM_DIRTY2}）"
 else
-  bad "farm/ 跑后多了 $((FARM_DIRTY2 - FARM_DIRTY1)) 行改动（$FARM_DIRTY1 → $FARM_DIRTY2，e2e 不许写 farm/）"
+  bad "farm/ 跑后多了 $((FARM_DIRTY2 - FARM_DIRTY1)) 行改动（$FARM_DIRTY1 → ${FARM_DIRTY2}，e2e 不许写 farm/）"
 fi
 if grep -rqF -- "$TOKEN" "$WS" 2>/dev/null; then
   bad "临时工作区出现 token 明文"

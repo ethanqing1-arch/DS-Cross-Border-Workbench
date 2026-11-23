@@ -46,7 +46,7 @@ fi
 if [ -z "$DB" ]; then DB="${FARM_DB:-$SRC/state/farm.db}"; fi
 DB="$(cd "$(dirname "$DB")" 2>/dev/null && pwd)/$(basename "$DB")" \
   || { echo "用法错：台账目录不存在" >&2; exit 2; }
-[ -f "$DB" ] || { echo "台账不存在：$DB（服务实际用 $SRC/state/farm.db）" >&2; exit 2; }
+[ -f "$DB" ] || { echo "台账不存在：${DB}（服务实际用 $SRC/state/farm.db）" >&2; exit 2; }
 command -v sqlite3 >/dev/null 2>&1 || { echo "找不到 sqlite3（macOS 自带 /usr/bin/sqlite3）" >&2; exit 2; }
 
 echo "台账：$DB"
@@ -61,7 +61,7 @@ for pair in "gateway:$GATEWAY_PORT" "control:$CONTROL_PORT"; do
     pids="(nc)"
   fi
   if [ -n "${pids// /}" ]; then
-    echo "拒绝：$name 还在跑（端口 $port，pid: ${pids% }）。先 bash scripts/start-gateway.sh --stop" >&2
+    echo "拒绝：$name 还在跑（端口 ${port}，pid: ${pids% }）。先 bash scripts/start-gateway.sh --stop" >&2
     exit 1
   fi
 done
@@ -101,7 +101,7 @@ case "$total_before$matched" in
   ''|*[!0-9]*) echo "读台账失败（accounts 表不可读）" >&2; exit 1 ;;
 esac
 
-echo "匹配：$matched 行（清理前 accounts 总数 $total_before）"
+echo "匹配：$matched 行（清理前 accounts 总数 ${total_before}）"
 if [ "$matched" = "0" ]; then
   echo "没有匹配行，什么都不做"
   exit 0
@@ -125,6 +125,6 @@ echo "备份：$BAK"
 sqlite3 "$DB" "DELETE FROM accounts WHERE $WHERE" || { echo "删除失败；备份留在 $BAK" >&2; exit 1; }
 total_after="$(sqlite3 "$DB" "SELECT count(*) FROM accounts")"
 deleted=$((total_before - total_after))
-echo "已删除：$deleted 行（清理后 accounts 总数 $total_after）"
+echo "已删除：$deleted 行（清理后 accounts 总数 ${total_after}）"
 echo "checks 历史保留（按账号仍可回查）"
 exit 0

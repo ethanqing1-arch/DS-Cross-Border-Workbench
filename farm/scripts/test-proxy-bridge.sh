@@ -89,7 +89,7 @@ wait_log() { # wait_log <file> <pattern> [tries]
 echo "== 0. 前置 =="
 code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$GATEWAY_URL/v1/health" 2>/dev/null || true)"
 if [ "$code" != "200" ]; then
-  echo "FAIL 网关不可达 $GATEWAY_URL/v1/health（HTTP=$code）；先 bash scripts/start-gateway.sh --daemon"
+  echo "FAIL 网关不可达 $GATEWAY_URL/v1/health（HTTP=${code}）；先 bash scripts/start-gateway.sh --daemon"
   exit 2
 fi
 ok "网关可达（$GATEWAY_URL/v1/health 200）"
@@ -186,7 +186,7 @@ env -i PATH="$PATH" FAKE_PORT="$UPORT" EXPECTED_AUTH="$EXPECTED_AUTH" RECEIPT="$
   node "$TMP/fake-upstream.js" >"$TMP/fake.log" 2>&1 &
 UPID=$!
 if wait_log "$TMP/fake.log" '^READY'; then
-  ok "假上游已起（127.0.0.1:$UPORT，缺失/错误 Proxy-Authorization 一律 407）"
+  ok "假上游已起（127.0.0.1:${UPORT}，缺失/错误 Proxy-Authorization 一律 407）"
 else
   no "假上游未起"; cat "$TMP/fake.log" 2>/dev/null; echo "== 汇总: PASS=$PASS FAIL=$FAIL =="; echo "RESULT: FAILED"; exit 1
 fi
@@ -196,7 +196,7 @@ env -i PATH="$PATH" UPSTREAM_PROXY="$UP_URL" node "$SRC/proxy-bridge.js" --port 
   >"$TMP/bridge.log" 2>&1 &
 BPID=$!
 if wait_log "$TMP/bridge.log" 'listen 127.0.0.1'; then
-  ok "bridge 已起（127.0.0.1:$BPORT）"
+  ok "bridge 已起（127.0.0.1:${BPORT}）"
 else
   no "bridge 未起"; cat "$TMP/bridge.log" 2>/dev/null; echo "== 汇总: PASS=$PASS FAIL=$FAIL =="; echo "RESULT: FAILED"; exit 1
 fi
@@ -214,7 +214,7 @@ fi
 
 c2="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 25 -x "http://127.0.0.1:$BPORT" http://example.com/ 2>"$TMP/c2.err" || true)"
 case "$c2" in
-  2??|3??) ok "curl -x 桥 http://example.com/ → HTTP $c2（绝对 URI）" ;;
+  2??|3??) ok "curl -x 桥 http://example.com/ → HTTP ${c2}（绝对 URI）" ;;
   *) no "curl http 失败：HTTP=$c2 $(head -c 160 "$TMP/c2.err" 2>/dev/null)" ;;
 esac
 if grep -q 'HDR_OK GET example.com' "$RECEIPT"; then
@@ -350,7 +350,7 @@ env -i PATH="$PATH" SOCKS_PORT="$SPORT" SOCKS_USER="$SOCKS_USER" SOCKS_PASS="$SO
   node "$TMP/fake-socks.js" >"$TMP/fake-socks.log" 2>&1 &
 UPID2=$!
 if wait_log "$TMP/fake-socks.log" '^READY'; then
-  ok "假 SOCKS5 已起（127.0.0.1:$SPORT，强制用户名密码）"
+  ok "假 SOCKS5 已起（127.0.0.1:${SPORT}，强制用户名密码）"
 else
   no "假 SOCKS5 未起"; cat "$TMP/fake-socks.log" 2>/dev/null; echo "== 汇总: PASS=$PASS FAIL=$FAIL =="; echo "RESULT: FAILED"; exit 1
 fi
@@ -363,12 +363,12 @@ env -i PATH="$PATH" UPSTREAM_PROXY="$SOCKS_URL" node "$SRC/proxy-bridge.js" --po
   >"$TMP/bridge-socks.log" 2>&1 &
 BPID3=$!
 if wait_log "$TMP/bridge-socksh.log" 'listen 127.0.0.1'; then
-  ok "socks5h 桥已起（127.0.0.1:$BPORT2）"
+  ok "socks5h 桥已起（127.0.0.1:${BPORT2}）"
 else
   no "socks5h 桥未起"; cat "$TMP/bridge-socksh.log" 2>/dev/null
 fi
 if wait_log "$TMP/bridge-socks.log" 'listen 127.0.0.1'; then
-  ok "socks5 桥已起（127.0.0.1:$BPORT3）"
+  ok "socks5 桥已起（127.0.0.1:${BPORT3}）"
 else
   no "socks5 桥未起"; cat "$TMP/bridge-socks.log" 2>/dev/null
 fi
@@ -385,7 +385,7 @@ grep -q 'SOCKS_CONNECT example.com:443 atyp=3' "$RECEIPT" \
 
 s2="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 25 -x "http://127.0.0.1:$BPORT2" http://example.com/ 2>"$TMP/s2.err" || true)"
 case "$s2" in
-  2??|3??) ok "curl -x socks5h 桥 http://example.com/ → HTTP $s2（普通 HTTP 也走 SOCKS）" ;;
+  2??|3??) ok "curl -x socks5h 桥 http://example.com/ → HTTP ${s2}（普通 HTTP 也走 SOCKS）" ;;
   *) no "curl socks5h http 失败：HTTP=$s2 $(head -c 160 "$TMP/s2.err" 2>/dev/null)" ;;
 esac
 grep -q 'SOCKS_CONNECT example.com:80 atyp=3' "$RECEIPT" \
@@ -552,15 +552,15 @@ cat "$TMP/mcp.json" 2>/dev/null | sed 's/^/  [mcp] /'
 if [ "$MRC" -eq 0 ]; then
   ok "产品路径：farm_session_create(proxy=桥) → farm_task goto → farm_session_delete"
 else
-  no "产品路径失败（exit=$MRC）"; sed 's/^/  [mcp:err] /' "$TMP/mcp.err" 2>/dev/null | head -40
+  no "产品路径失败（exit=${MRC}）"; sed 's/^/  [mcp:err] /' "$TMP/mcp.err" 2>/dev/null | head -40
 fi
 
 after_browser="$(grep -c 'HDR_OK CONNECT example.com:443' "$RECEIPT" 2>/dev/null || true)"
 [ -n "$after_browser" ] || after_browser=0
 if [ "$after_browser" -gt "$before_browser" ]; then
-  ok "浏览器那一路也让假上游收到 Proxy-Authorization（CONNECT 次数 $before_browser → $after_browser）"
+  ok "浏览器那一路也让假上游收到 Proxy-Authorization（CONNECT 次数 $before_browser → ${after_browser}）"
 else
-  no "浏览器那一路没有经过 bridge（CONNECT 次数 $before_browser → $after_browser）"
+  no "浏览器那一路没有经过 bridge（CONNECT 次数 $before_browser → ${after_browser}）"
   echo "  --- bridge.log（末尾 20 行）---"
   tail -20 "$TMP/bridge.log" 2>/dev/null | sed 's/^/  /'
   echo "  --- receipt（全部）---"
@@ -581,15 +581,15 @@ sed 's/^/  [mcp-socks] /' "$TMP/mcp-socks.json" 2>/dev/null
 if [ "$MSRC" -eq 0 ]; then
   ok "产品路径（socks5h 桥）：farm_session_create(proxy=桥) → farm_task goto → farm_session_delete"
 else
-  no "产品路径（socks5h 桥）失败（exit=$MSRC）"; sed 's/^/  [mcp-socks:err] /' "$TMP/mcp-socks.err" 2>/dev/null | head -40
+  no "产品路径（socks5h 桥）失败（exit=${MSRC}）"; sed 's/^/  [mcp-socks:err] /' "$TMP/mcp-socks.err" 2>/dev/null | head -40
 fi
 
 after_socks="$(grep -c 'SOCKS_CONNECT example.com:443' "$RECEIPT" 2>/dev/null || true)"
 [ -n "$after_socks" ] || after_socks=0
 if [ "$after_socks" -gt "$before_socks" ]; then
-  ok "浏览器经 socks5h 桥也让假 SOCKS5 收到连接（CONNECT 次数 $before_socks → $after_socks）"
+  ok "浏览器经 socks5h 桥也让假 SOCKS5 收到连接（CONNECT 次数 $before_socks → ${after_socks}）"
 else
-  no "浏览器没有经过 socks5h 桥（CONNECT 次数 $before_socks → $after_socks）"
+  no "浏览器没有经过 socks5h 桥（CONNECT 次数 $before_socks → ${after_socks}）"
   echo "  --- bridge-socksh.log（末尾 20 行）---"
   tail -20 "$TMP/bridge-socksh.log" 2>/dev/null | sed 's/^/  /'
   echo "  --- receipt（全部）---"

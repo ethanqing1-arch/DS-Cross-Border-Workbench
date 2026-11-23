@@ -72,7 +72,7 @@ if [ -n "${CAMOUFOX_PY:-}" ]; then
     echo "CAMOUFOX_PY_VERSION=$CFX_PYVER"
     case "$CFX_PYVER" in
       3.13.*) ;;
-      *) echo "警告：camoufox 只在 3.13 上能生成指纹，3.14+ 会 TargetClosedError；当前解释器 $CAMOUFOX_PY 是 $CFX_PYVER，engine=camoufox 的任务会失败（其余引擎不受影响）" >&2 ;;
+      *) echo "警告：camoufox 只在 3.13 上能生成指纹，3.14+ 会 TargetClosedError；当前解释器 $CAMOUFOX_PY 是 ${CFX_PYVER}，engine=camoufox 的任务会失败（其余引擎不受影响）" >&2 ;;
     esac
   fi
 fi

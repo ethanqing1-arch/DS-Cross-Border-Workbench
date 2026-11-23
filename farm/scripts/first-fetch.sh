@@ -104,12 +104,12 @@ else
     if ! kill -0 "$BRIDGE_PID" 2>/dev/null; then
       printf '桥启动退出，日志末 5 行：\n' >&2
       tail -5 "$BRIDGE_LOG" >&2 2>/dev/null || true
-      die "代理桥启动失败（日志：$BRIDGE_LOG）"
+      die "代理桥启动失败（日志：${BRIDGE_LOG}）"
     fi
     sleep 0.1
   done
-  [ "$READY" = "1" ] || die "代理桥 5s 内未监听 127.0.0.1:$BRIDGE_PORT（日志：$BRIDGE_LOG）"
-  say "桥已起 pid=$BRIDGE_PID port=$BRIDGE_PORT（只停自己起的）"
+  [ "$READY" = "1" ] || die "代理桥 5s 内未监听 127.0.0.1:${BRIDGE_PORT}（日志：${BRIDGE_LOG}）"
+  say "桥已起 pid=$BRIDGE_PID port=${BRIDGE_PORT}（只停自己起的）"
 fi
 
 # ---- 会话兜底清理（仅探针被硬杀时才有事可做） ----
@@ -133,7 +133,7 @@ trap cleanup EXIT INT TERM
 META="$OUT_DIR/$PLATFORM.jsonl.meta.json"
 PROBE_OUT="$OUT_DIR/$PLATFORM.probe.json"
 PROBE_ERR="$OUT_DIR/$PLATFORM.probe.err"
-say "探针：platform=$PLATFORM engine=$ENGINE account=$ACCOUNT proxy=http://127.0.0.1:$BRIDGE_PORT（值不回显）"
+say "探针：platform=$PLATFORM engine=$ENGINE account=$ACCOUNT proxy=http://127.0.0.1:${BRIDGE_PORT}（值不回显）"
 SESSION_TOUCHED=1
 node "$ROOT/distribution/connectors/farm-probe.js" \
   --platform "$PLATFORM" --query "$QUERY" --engine "$ENGINE" \
@@ -185,6 +185,6 @@ for (const r of rows) {
 }
 NODE
 fi
-say "产物：$OUT_DIR/$PLATFORM.jsonl（JSONL）/ $META（meta）"
-say "RESULT: $([ "$PROBE_RC" -eq 0 ] && echo 'ok' || echo "exit=$PROBE_RC（0=ok 2=blocked 3=empty 1=error）")"
+say "产物：$OUT_DIR/$PLATFORM.jsonl（JSONL）/ ${META}（meta）"
+say "RESULT: $([ "$PROBE_RC" -eq 0 ] && echo 'ok' || echo "exit=${PROBE_RC}（0=ok 2=blocked 3=empty 1=error）")"
 exit "$PROBE_RC"

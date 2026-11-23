@@ -30,7 +30,7 @@ for arg in "$@"; do
     --force) FORCE=1 ;;
     --list) LIST=1 ;;
     -h|--help) usage; exit 0 ;;
-    -*) echo "未知参数：$arg（可用 --list / --check / --force）" >&2; exit 2 ;;
+    -*) echo "未知参数：${arg}（可用 --list / --check / --force）" >&2; exit 2 ;;
     *) if [ -z "$PLATFORM" ]; then PLATFORM="$arg"; else TARGET="$arg"; fi ;;
   esac
 done
@@ -49,7 +49,7 @@ fi
 
 [ -n "$PLATFORM" ] && [ -n "$TARGET" ] || { usage; exit 2; }
 case "$PLATFORM" in
-  *[!a-z0-9-]*) echo "FAIL 平台 id 非法：$PLATFORM（只允许小写字母/数字/连字符）" >&2; exit 2 ;;
+  *[!a-z0-9-]*) echo "FAIL 平台 id 非法：${PLATFORM}（只允许小写字母/数字/连字符）" >&2; exit 2 ;;
 esac
 PLATFORM_DIR="$SRC/platforms/$PLATFORM"
 if [ ! -d "$PLATFORM_DIR" ]; then
@@ -137,7 +137,7 @@ copy_file() { # src rel
     if [ "$FORCE" -eq 1 ]; then
       if cp "$src" "$dest"; then echo "  overwrite $rel"; WROTE=$((WROTE+1)); else echo "  FAIL      $rel"; FAILED=$((FAILED+1)); fi
     else
-      echo "  skip      $rel（已存在，--force 覆盖）"; SKIPPED=$((SKIPPED+1))
+      echo "  skip      ${rel}（已存在，--force 覆盖）"; SKIPPED=$((SKIPPED+1))
     fi
     return
   fi

@@ -24,7 +24,7 @@ for arg in "$@"; do
   case "$arg" in
     --keep) KEEP=1 ;;
     -h|--help) sed -n '3,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "未知参数：$arg（可用 --keep）" >&2; exit 2 ;;
+    *) echo "未知参数：${arg}（可用 --keep）" >&2; exit 2 ;;
   esac
 done
 
@@ -98,7 +98,7 @@ OUT="$(bash "$SRC/l1/install.sh" "$L1T" --check 2>&1)"; RC=$?
 LINE="$(printf '%s\n' "$OUT" | grep '^== CHECK' | tail -1)"
 L1SUM2="$(shasum "$MARKER" 2>/dev/null | cut -d' ' -f1)"
 if [ "$RC" -eq 0 ] && printf '%s' "$LINE" | grep -q 'would-write=0 '; then
-  ok "L1 --check 幂等（$LINE）"
+  ok "L1 --check 幂等（${LINE}）"
 else
   bad "L1 --check（rc=$RC ${LINE:-无 CHECK 行}）"
 fi
@@ -107,12 +107,12 @@ if [ -z "$L1SUM1" ] || [ -z "$L1SUM2" ]; then
 elif [ "$L1SUM1" = "$L1SUM2" ]; then
   ok "L1 --check 未改标记文件（shasum 一致 ${L1SUM1:0:12}…）"
 else
-  bad "L1 --check 改了标记文件（$L1SUM1 -> $L1SUM2）"
+  bad "L1 --check 改了标记文件（$L1SUM1 -> ${L1SUM2}）"
 fi
 L1NEG="$TMP/l1-negative"; EMPTY_FARM="$TMP/empty-farm"
 mkdir -p "$L1NEG" "$EMPTY_FARM"
 OUT="$(bash "$SRC/l1/install.sh" "$L1NEG" --farm "$EMPTY_FARM" 2>&1)"; RC=$?
-[ "$RC" -ne 0 ] && ok "L1 负例 --farm 空目录退出码 $RC（非 0）" || bad "L1 负例 --farm 空目录退出码 0（应 FAIL）"
+[ "$RC" -ne 0 ] && ok "L1 负例 --farm 空目录退出码 ${RC}（非 0）" || bad "L1 负例 --farm 空目录退出码 0（应 FAIL）"
 printf '%s' "$OUT" | grep -q 'farm-mcp.js 不存在' \
   && ok "L1 负例失败原因正确（farm-mcp.js 不存在）" \
   || bad "L1 负例失败原因不符"
@@ -165,9 +165,9 @@ for p in $PLATFORMS; do
     [ "$SK" -eq 23 ] && ok "平台 $p skills=23" || bad "平台 $p skills=${SK}（期望 23）"
   fi
   if [ "$RC" -eq 0 ] && [ "$W" = "$EXPECTED 0 0" ] && [ "$LANDED" -eq "$EXPECTED" ]; then
-    ok "平台 $p 安装（write=$EXPECTED skip=0 fail=0，落点 $EXPECTED）"
+    ok "平台 $p 安装（write=$EXPECTED skip=0 fail=0，落点 ${EXPECTED}）"
   else
-    bad "平台 $p 安装（rc=$RC 汇总='${W:-无}' 落点=$LANDED）"
+    bad "平台 $p 安装（rc=$RC 汇总='${W:-无}' 落点=${LANDED}）"
   fi
 done
 DIRS="$(find "$WS/95-engine/platforms" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
@@ -187,7 +187,7 @@ for p in $PLATFORMS; do
   OUT="$(bash "$SRC/l3/install.sh" "$p" "$WS" --check 2>&1)"; RC=$?
   LINE="$(printf '%s\n' "$OUT" | grep '^== CHECK' | tail -1)"
   if [ "$RC" -eq 0 ] && printf '%s' "$LINE" | grep -q 'would-write=0 '; then
-    ok "平台 $p --check 幂等（$LINE）"
+    ok "平台 $p --check 幂等（${LINE}）"
   else
     bad "平台 $p --check（rc=$RC ${LINE:-无 CHECK 行}）"
   fi
@@ -196,7 +196,7 @@ SUM_AFTER="$(cd "$WS" && find . -type f -print0 | sort -z | xargs -0 shasum | sh
 if [ "$SUM_BEFORE" = "$SUM_AFTER" ]; then
   ok "--check 未改任何文件（shasum 一致 ${SUM_BEFORE:0:12}…）"
 else
-  bad "--check 改了文件（$SUM_BEFORE -> $SUM_AFTER）"
+  bad "--check 改了文件（$SUM_BEFORE -> ${SUM_AFTER}）"
 fi
 
 # ---------------------------------------------------------------- 5. 空目录负例
@@ -204,7 +204,7 @@ echo "-- 5. 负例：空目录装平台必须 FAIL 且 0 写入"
 E="$TMP/empty"
 mkdir -p "$E"
 OUT="$(bash "$SRC/l3/install.sh" ebay "$E" 2>&1)"; RC=$?
-[ "$RC" -ne 0 ] && ok "空目录装 ebay 退出码 $RC（非 0）" || bad "空目录装 ebay 退出码 0（应 FAIL）"
+[ "$RC" -ne 0 ] && ok "空目录装 ebay 退出码 ${RC}（非 0）" || bad "空目录装 ebay 退出码 0（应 FAIL）"
 printf '%s' "$OUT" | grep -q 'FAIL 目标目录未装 L2' \
   && ok "空目录失败原因正确（未装 L2）" \
   || bad "空目录失败原因不符：$(printf '%s\n' "$OUT" | grep FAIL | tail -1 || echo 无 FAIL 行)"
@@ -253,7 +253,7 @@ for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".json")).sort()) {
 while IFS=$'\t' read -r pname verdict detail; do
   [ -n "$pname" ] || continue
   if [ "$verdict" = "1" ]; then
-    ok "L3 $pname 接上取数预设（browser-farm.probe_preset=$detail）"
+    ok "L3 $pname 接上取数预设（browser-farm.probe_preset=${detail}）"
   else
     bad "L3 $pname 取数预设未接上：$detail"
   fi
@@ -280,7 +280,7 @@ if [ -n "$REAL_MTIME" ]; then
   if [ "$NOW" = "$REAL_MTIME" ]; then
     ok "真工作区未被写（mtime 未变）"
   else
-    bad "真工作区 mtime 变了（$REAL_MTIME -> $NOW）"
+    bad "真工作区 mtime 变了（$REAL_MTIME -> ${NOW}）"
   fi
 fi
 

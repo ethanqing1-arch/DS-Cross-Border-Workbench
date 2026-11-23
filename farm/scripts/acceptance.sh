@@ -90,7 +90,7 @@ if [ "$CLEAN_RC1" -eq 0 ] && printf '%s' "$CLEAN_OUT1" | grep -q 'probe:health:1
    && [ "$(sqlite3 "$CLEAN_DB" 'SELECT count(*) FROM accounts')" = "2" ]; then
   ok "ledger-clean dry-run 只列不删（2 行）"
 else
-  no "ledger-clean dry-run 异常（EXIT=$CLEAN_RC1）"
+  no "ledger-clean dry-run 异常（EXIT=${CLEAN_RC1}）"
 fi
 CLEAN_OUT2="$(GATEWAY_PORT=19672 CONTROL_PORT=19572 bash "$SRC/scripts/ledger-clean.sh" --db "$CLEAN_DB" --account 'probe:health:%' --apply 2>&1)"; CLEAN_RC2=$?
 CLEAN_BAK=0; for f in "$CLEAN_DB".bak-*; do [ -s "$f" ] && CLEAN_BAK=1; done
@@ -98,15 +98,15 @@ if [ "$CLEAN_RC2" -eq 0 ] && [ "$CLEAN_BAK" = "1" ] \
    && [ "$(sqlite3 "$CLEAN_DB" 'SELECT count(*) FROM accounts')" = "0" ]; then
   ok "ledger-clean --apply 备份后删除（2→0）"
 else
-  no "ledger-clean --apply 异常（EXIT=$CLEAN_RC2）"
+  no "ledger-clean --apply 异常（EXIT=${CLEAN_RC2}）"
 fi
 sqlite3 "$CLEAN_DB" "INSERT INTO accounts (account,status,created_at,updated_at) VALUES ('live:acc','running','t','t')"
 CLEAN_OUT3="$(GATEWAY_PORT=19672 CONTROL_PORT=19572 bash "$SRC/scripts/ledger-clean.sh" --db "$CLEAN_DB" --all-stopped --apply 2>&1)"; CLEAN_RC3=$?
 if [ "$CLEAN_RC3" -ne 0 ] && printf '%s' "$CLEAN_OUT3" | grep -q 'running' \
    && [ "$(sqlite3 "$CLEAN_DB" 'SELECT count(*) FROM accounts')" = "1" ]; then
-  ok "ledger-clean 拒删 running 行（EXIT=$CLEAN_RC3）"
+  ok "ledger-clean 拒删 running 行（EXIT=${CLEAN_RC3}）"
 else
-  no "ledger-clean 未拒绝 running 行（EXIT=$CLEAN_RC3）"
+  no "ledger-clean 未拒绝 running 行（EXIT=${CLEAN_RC3}）"
 fi
 
 echo "== 5. 控制面 + 网关 =="
@@ -138,7 +138,7 @@ if [ "$NEG1_CODE" = "400" ] && grep -q 'E_PROXY_CREDENTIALS' /tmp/acc-p1.json \
    && ! grep -q 'user:secret' /tmp/acc-p1.json; then
   ok "proxy 带凭据 → 400 E_PROXY_CREDENTIALS（不回显）"
 else
-  no "proxy 带凭据未被拦（HTTP=$NEG1_CODE）"
+  no "proxy 带凭据未被拦（HTTP=${NEG1_CODE}）"
 fi
 NEG2_CODE="$(curl -s -o /tmp/acc-p2.json -w '%{http_code}' -X POST "localhost:$ACCEPT_PORT/v1/sessions" \
   -H 'Authorization: Bearer T' -H 'Idempotency-Key: acc-neg-proxy-scheme' -H 'Content-Type: application/json' \
@@ -146,7 +146,7 @@ NEG2_CODE="$(curl -s -o /tmp/acc-p2.json -w '%{http_code}' -X POST "localhost:$A
 if [ "$NEG2_CODE" = "400" ] && grep -q 'E_PROXY_SCHEME' /tmp/acc-p2.json; then
   ok "proxy scheme 不支持 → 400 E_PROXY_SCHEME"
 else
-  no "proxy scheme 未被拦（HTTP=$NEG2_CODE）"
+  no "proxy scheme 未被拦（HTTP=${NEG2_CODE}）"
 fi
 NEG_SESSIONS="$(curl -s -H 'Authorization: Bearer T' "localhost:$ACCEPT_PORT/v1/sessions")"
 if ! printf '%s' "$NEG_SESSIONS" | grep -q 'neg-proxy'; then
@@ -163,9 +163,9 @@ FF_OUT="$(env -u PROXY_URL -u DSH_SECRET_PROXY_URL GATEWAY_TOKEN=T FARM_DB="$FF_
   bash "$SRC/scripts/first-fetch.sh" --platform amazon --query test --out "$TMP/ff-out" 2>&1)"; FF_RC=$?
 FF_AFTER="$(sqlite3 "$FF_DB" 'SELECT count(*) FROM accounts')"
 if [ "$FF_RC" -eq 2 ] && [ "$FF_BEFORE" = "$FF_AFTER" ] && printf '%s' "$FF_OUT" | grep -q 'data-fetch-runbook'; then
-  ok "first-fetch 无 PROXY_URL → exit 2 且不建会话（台账 $FF_BEFORE→$FF_AFTER）"
+  ok "first-fetch 无 PROXY_URL → exit 2 且不建会话（台账 ${FF_BEFORE}→${FF_AFTER}）"
 else
-  no "first-fetch 负例异常（EXIT=$FF_RC 台账 $FF_BEFORE→$FF_AFTER）"
+  no "first-fetch 负例异常（EXIT=$FF_RC 台账 ${FF_BEFORE}→${FF_AFTER}）"
 fi
 
 if [ "$WITH_BROWSER" = "1" ]; then

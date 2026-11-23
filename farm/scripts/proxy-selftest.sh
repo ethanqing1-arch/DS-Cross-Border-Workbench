@@ -104,8 +104,8 @@ probe_summary() { # probe_summary <json> → status<TAB>item_count<TAB>matched<T
 }
 
 echo "== 0. 前置 =="
-[ -f "$BRIDGE" ] && ok "proxy-bridge.js 存在（$BRIDGE）" || { no "缺 $BRIDGE"; }
-[ -f "$PROBE" ]  && ok "farm-probe.js 存在（$PROBE）"  || { no "缺 $PROBE"; }
+[ -f "$BRIDGE" ] && ok "proxy-bridge.js 存在（${BRIDGE}）" || { no "缺 $BRIDGE"; }
+[ -f "$PROBE" ]  && ok "farm-probe.js 存在（${PROBE}）"  || { no "缺 $PROBE"; }
 if [ "$WORKER_PROXY" = "1" ]; then
   echo "  INFO worker-proxy 模式：不经网关，不需要 token（只验 worker → 桥 → 上游）"
 else
@@ -116,7 +116,7 @@ else
   ok "token 已从环境变量读取（长度 ${#TOKEN}，不打印值）"
   [ "${#TOKEN}" -lt 32 ] && warn "token 长度 ${#TOKEN} < 32（建议 openssl rand -hex 32；本次照跑）"
   hcode="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$GATEWAY_URL/v1/health" 2>/dev/null || true)"
-  [ "$hcode" = "200" ] && ok "网关可达（$GATEWAY_URL/v1/health 200）" || { no "网关不可达（HTTP=$hcode）；先 bash farm/scripts/start-gateway.sh --daemon"; }
+  [ "$hcode" = "200" ] && ok "网关可达（$GATEWAY_URL/v1/health 200）" || { no "网关不可达（HTTP=${hcode}）；先 bash farm/scripts/start-gateway.sh --daemon"; }
   [ "$FAIL" -gt 0 ] && { echo "== 汇总: PASS=$PASS FAIL=$FAIL WARN=$WARN INFO=$INFO =="; echo "RESULT: FAILED"; exit 2; }
 fi
 
@@ -218,7 +218,7 @@ FAKE_JS
     node "$TMP/fake-upstream.js" >"$TMP/upstream.log" 2>&1 &
   UPID=$!
   if wait_log "$TMP/upstream.log" '^READY'; then
-    ok "假上游已起（127.0.0.1:$UPORT，要求 Basic 鉴权）"
+    ok "假上游已起（127.0.0.1:${UPORT}，要求 Basic 鉴权）"
   else
     no "假上游未起"; cat "$TMP/upstream.log" 2>/dev/null
     echo "== 汇总: PASS=$PASS FAIL=$FAIL WARN=$WARN INFO=$INFO =="; echo "RESULT: FAILED"; exit 1
@@ -250,7 +250,7 @@ env -i PATH="$PATH" UPSTREAM_PROXY="$UPSTREAM_URL" node "$BRIDGE" --port "$PORT"
   >"$TMP/bridge.log" 2>&1 &
 BPID=$!
 if wait_log "$TMP/bridge.log" 'listen 127.0.0.1'; then
-  ok "bridge 已起（127.0.0.1:$PORT）"
+  ok "bridge 已起（127.0.0.1:${PORT}）"
   sed -n '1p' "$TMP/bridge.log" | sed 's/^/  INFO /' | head -2
 else
   no "bridge 未起（日志见下）"; cat "$TMP/bridge.log" 2>/dev/null
@@ -273,7 +273,7 @@ if [ "$WORKER_PROXY" = "1" ]; then
     node -e 'const fs=require("fs");let d;try{d=JSON.parse(fs.readFileSync(process.argv[1],"utf8").trim().split("\n").filter(Boolean).pop())}catch(e){process.stdout.write("bad");process.exit(0)}const u=process.argv[2]||"";process.stdout.write(d.ok===true&&d.result&&d.result.readyState==="complete"&&(!u||d.result.url===u)?"ok":"bad")' "$1" "${2:-}" 2>/dev/null || printf 'bad'
   }
   if [ ! -x "$PY" ]; then
-    warn "worker-proxy 跳过：camoufox venv 不存在（$PY；camoufox 是可选引擎，不判 FAIL）"
+    warn "worker-proxy 跳过：camoufox venv 不存在（${PY}；camoufox 是可选引擎，不判 FAIL）"
   elif ! "$PY" -c 'import camoufox' >/dev/null 2>&1; then
     warn "worker-proxy 跳过：$PY 里 import camoufox 失败（可选引擎，不判 FAIL）"
   else
@@ -307,7 +307,7 @@ if [ "$WORKER_PROXY" = "1" ]; then
     if [ "$RCD" = "0" ]; then
       info "对照竟然加载成功（EXIT=0）——$FIXTURE_URL 本应只有代理能应答，反向对照说服力下降"
     else
-      info "对照按预期失败（EXIT=$RCD，该域名只有代理能应答）"
+      info "对照按预期失败（EXIT=${RCD}，该域名只有代理能应答）"
     fi
   fi
 else
@@ -326,7 +326,7 @@ env -u UPSTREAM_PROXY HOME="${HOME:-/tmp}" PATH="$PATH" GATEWAY_TOKEN="$TOKEN" \
 rc1=$?
 IFS=$'\t' read -r ps1 pi1 pm1 pe1 <<<"$(probe_summary "$TMP/probe1.json")"
 if [ "$ps1" = "ok" ] && [ "${pi1:-0}" -ge 1 ]; then
-  ok "farm-probe 经桥 example.com → ok（item_count=$pi1，EXIT=$rc1）"
+  ok "farm-probe 经桥 example.com → ok（item_count=${pi1}，EXIT=${rc1}）"
 else
   no "farm-probe 经桥 example.com 未 ok：status=${ps1:-?} item_count=${pi1:-0} code=${pe1:-none} EXIT=$rc1 $(head -c 160 "$TMP/probe1.err" 2>/dev/null)"
 fi
@@ -339,11 +339,11 @@ env -u UPSTREAM_PROXY HOME="${HOME:-/tmp}" PATH="$PATH" GATEWAY_TOKEN="$TOKEN" \
 rc2=$?
 IFS=$'\t' read -r ps2 pi2 pm2 pe2 <<<"$(probe_summary "$TMP/probe2.json")"
 case "$ps2" in
-  ok)      ok "目标站经桥取到数据（item_count=$pi2，EXIT=$rc2）" ;;
-  blocked) info "目标站被拦（matched=${pm2:-none}，EXIT=$rc2）——如实报，不算 FAIL" ;;
-  empty)   warn "目标站可达但没取到条目（item_count=0，EXIT=$rc2）" ;;
-  error)   warn "目标站经桥探失败（code=${pe2:-none}，EXIT=$rc2）——检查目标站/出口，不算桥故障" ;;
-  *)       warn "目标站结果无法解析（status=${ps2:-?}，EXIT=$rc2）" ;;
+  ok)      ok "目标站经桥取到数据（item_count=${pi2}，EXIT=${rc2}）" ;;
+  blocked) info "目标站被拦（matched=${pm2:-none}，EXIT=${rc2}）——如实报，不算 FAIL" ;;
+  empty)   warn "目标站可达但没取到条目（item_count=0，EXIT=${rc2}）" ;;
+  error)   warn "目标站经桥探失败（code=${pe2:-none}，EXIT=${rc2}）——检查目标站/出口，不算桥故障" ;;
+  *)       warn "目标站结果无法解析（status=${ps2:-?}，EXIT=${rc2}）" ;;
 esac
 fi
 

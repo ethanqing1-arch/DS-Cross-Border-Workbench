@@ -156,7 +156,7 @@ fi
 echo "-- 6. 网关可达（只读 /v1/health）"
 GW_CODE="$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' "${GATEWAY_URL%/}/v1/health" 2>/dev/null || true)"
 if [ "$GW_CODE" = "200" ]; then
-  ok "网关可达：$GATEWAY_URL（/v1/health 200）"
+  ok "网关可达：${GATEWAY_URL}（/v1/health 200）"
 else
   warn "网关不可达或未就绪（$GATEWAY_URL HTTP=${GW_CODE:-无}），只 WARN 不挡安装"
 fi
@@ -187,9 +187,9 @@ const out = {
 process.stdout.write(JSON.stringify(out, null, 2) + "\n");
 ')"
 if [ -f "$MARKER" ] && [ "$(cat "$MARKER")" = "$NEW_JSON" ]; then
-  echo "  skip      $MARKER_REL（已存在且一致）"; SKIPPED=$((SKIPPED+1))
+  echo "  skip      ${MARKER_REL}（已存在且一致）"; SKIPPED=$((SKIPPED+1))
 elif [ "$CHECK" -eq 1 ]; then
-  echo "  missing   $MARKER_REL（安装时会写）"; WROTE=$((WROTE+1))
+  echo "  missing   ${MARKER_REL}（安装时会写）"; WROTE=$((WROTE+1))
 else
   if mkdir -p "$TARGET/.dsh" && printf '%s' "$NEW_JSON" > "$MARKER"; then
     echo "  write     $MARKER_REL"; WROTE=$((WROTE+1))
