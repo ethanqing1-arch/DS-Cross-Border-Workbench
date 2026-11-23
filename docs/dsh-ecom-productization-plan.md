@@ -193,6 +193,33 @@ fork 后保留 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app` 两层，加
 
 M1 和 M2 可以并行。M3 先做 Amazon 不是因为它优先，而是因为它供给最全、能当模板；M4 用同一套模板铺开其余平台。
 
+### 5.1 交付层与取数通路（2026-11-23 追加，均已自证）
+
+计划表之外的落地，按依赖顺序：
+
+| 项 | 内容 | 入口 | 自证 |
+|---|---|---|---|
+| L1 核心包 | capability 载荷 + 品牌占位 + 安装器 + 种子剧本 | [`distribution/l1/`](../distribution/l1/) | 装 / `--check` 幂等 / 负例 FAIL / 网关不可达只 WARN（commit `d9b43c4`） |
+| 总装验收 | L1→L2→7 平台全链 + 负例 + 真工作区边界 | [`distribution/verify.sh`](../distribution/verify.sh) | 连跑两次 `PASS=40 FAIL=0 WARN=0` / `READY`（commit `ac8f61c`） |
+| e2e 冒烟 | 装链 + 真 MCP 往返 + 产物落工作区 + 真上网断言 | [`distribution/e2e-smoke.sh`](../distribution/e2e-smoke.sh) | `PASS=26`，`transferSize>0` 反缓存假绿（commits `55d141e`、`3840787`） |
+| 取页探针 | 四态契约 `ok/blocked/empty/error`，0 条不许报 ok | [`distribution/connectors/`](../distribution/connectors/) | example.com `ok`、eBay `blocked`、缺选择器 `empty`、缓存命中 `E_CACHE_HIT`（commits `9c002f8`、`4b51c3f`） |
+| 代理桥 | 凭据不进 Chromium argv：本地桥注入 Basic 头；HTTP 与 SOCKS5/SOCKS5H 上游 | [`farm/proxy-bridge.js`](../farm/proxy-bridge.js) + [runbook](proxy-runbook.md) | 桥测试 `PASS=35`（含浏览器产品路径）、acceptance `PASS=54`（commits `9eb8d8f`、`092c310`） |
+
+**代理的两条硬事实**
+
+1. Chromium 只认 `--proxy-server=<url>`，URL 里的 `user:pass` 它不认证（`farm/farm.js:143`）——所以带账号密码的代理必须走本地桥，会话指向 `http://127.0.0.1:18080`。
+2. 本机 DNS 是 fake-IP（`example.com → 198.18.0.37`），所以 `socks5://`（本地解析）在真远程上游会连不上 fake-IP 段；**生产用 `socks5h://`（远程 DNS）**。
+
+### 5.2 当前闸门（需用户本人动手）
+
+| 闸门 | 现状 | 影响 |
+|---|---|---|
+| 代理 | 尚无可用代理；桥与探针只经假上游验证 | 没有代理，电商搜索页一律被拦（eBay 实测 `Error Page`），真数据取不到 |
+| `GATEWAY_TOKEN` | 仍 8 位，启动与多处自检报 WARN | 低于 32 位门槛，不能对外 |
+| 台账测试账号 | 10 行（含 `default:e2e-smoke`），待批准后清理 | 只影响台账整洁，不影响功能 |
+| `cbec-selection-master` | 本机不存在 | M3 的 Amazon 仍是名义 full，只有引用声明 |
+| camoufox 解释器 | 探针 import 失败（`/tmp/cfx` 随重启丢失） | health 里 camoufox 恒 `ok:false`，不挡主链路 |
+
 ## 6 未决
 
 1. ~~第一个平台~~ **已定：全部平台开放**（2026-11-23 用户拍板）。L3 不再挑一个先做，按多平台并行设计
