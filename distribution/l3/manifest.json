@@ -49,7 +49,7 @@
   "notes": [
     "install.sh 只写 <目标目录>/95-engine/platforms/<id>/，不碰 ~/ds-bot-workspace、不碰 DS Bot 状态、不安装 bundle。",
     "平台包里的费率/佣金一律为 null + _note 待业务确认，框架不编数字；install.sh 不校验业务数值。",
-    "amazon 的 23 个 skill 只做引用声明（platforms/amazon/skills/REFERENCES.md），内容不随包分发。",
+    "amazon 随包安装 8 层 23 个 skill 及其附属文件，来源与授权见 platforms/amazon/skills/REFERENCES.md。",
     "数据源 tier 优先级与降级链（计划第 4 节落地条款）本切未进 schema：还没有消费方，等有读取方再加，避免先冻错形状。"
   ]
 }

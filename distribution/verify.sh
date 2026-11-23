@@ -140,8 +140,14 @@ for p in $PLATFORMS; do
   OUT="$(bash "$SRC/l3/install.sh" "$p" "$WS" 2>&1)"; RC=$?
   W="$(printf '%s\n' "$OUT" | sed -n 's/^== 汇总: write=\([0-9]*\) skip=\([0-9]*\) fail=\([0-9]*\) ==/\1 \2 \3/p' | tail -1)"
   LANDED="$(find "$WS/95-engine/platforms/$p" -type f 2>/dev/null | wc -l | tr -d ' ')"
-  if [ "$RC" -eq 0 ] && [ "$W" = "4 0 0" ] && [ "$LANDED" -eq 4 ]; then
-    ok "平台 $p 安装（write=4 skip=0 fail=0，落点 4）"
+  EXPECTED=4
+  if [ "$p" = "amazon" ]; then
+    EXPECTED="$(find "$SRC/l3/platforms/$p" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"
+    SK="$(find "$WS/95-engine/platforms/$p/skills" -type f -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
+    [ "$SK" -eq 23 ] && ok "平台 $p skills=23" || bad "平台 $p skills=${SK}（期望 23）"
+  fi
+  if [ "$RC" -eq 0 ] && [ "$W" = "$EXPECTED 0 0" ] && [ "$LANDED" -eq "$EXPECTED" ]; then
+    ok "平台 $p 安装（write=$EXPECTED skip=0 fail=0，落点 $EXPECTED）"
   else
     bad "平台 $p 安装（rc=$RC 汇总='${W:-无}' 落点=$LANDED）"
   fi

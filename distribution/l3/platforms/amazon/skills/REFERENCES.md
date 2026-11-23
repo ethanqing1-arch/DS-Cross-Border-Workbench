@@ -1,35 +1,19 @@
-# Amazon 专项 skill 引用声明（不随包分发）
+# Amazon 专项 skill 来源与授权
 
-本目录只放「引用声明」，**不含任何 SKILL.md 内容**。
+- 来源绝对路径为 `/Users/xavier/Desktop/cbec-selection-master/skills/`。
+- 抽取日期为 2026-11-23。
+- 本包保留来源的 8 层目录，共 23 个 skill。每个 skill 的入口为 `<层>/<skill-name>/SKILL.md`，附属文件保留在原相对路径。
+- 授权归属待定，对外分发前需确认。
 
-## 声明
+## Skill 清单
 
-| 项 | 值 |
-|---|---|
-| 来源包 | `cbec-selection-master` |
-| 层结构 | `00-router` `01-data` `02-market` `03-demand` `04-competitor` `05-product` `06-delivery` `07-system` |
-| skill 总数 | 23（依据：`docs/dsh-ecom-productization-plan.md:132`「现有 8 层 23 个」） |
-| 每层各几个 | **未统计**：源码不在本机，不猜 |
-| 授权归属 | 待定（计划第 6 节第 3 条），确认前不得随产品分发 |
-
-## 本机核对原文（2026-11-23）
-
-```
-$ find ~/.dsh ~/ds-bot-workspace ~/Projects/DS-Cross-Border-Workbench -maxdepth 4 -iname "*cbec*"
-（无输出）
-```
-
-=> 本机没有 `cbec-selection-master` 副本。
-
-## 要真装这 23 个 skill，还差什么
-
-1. 把 `cbec-selection-master` 源码放到本机（现在没有）。
-2. 按 `skills/<NN>-<layer>/<skill-name>/SKILL.md` 拷进本目录。
-3. 把 `manifest.json` 的 `skills.mode` 从 `referenced` 改成 `bundled`，并补每层实际数量。
-4. 确认授权归属（计划第 6 节），否则不分发。
-
-## 为什么现在只声明
-
-1. 内容不在本机，拷不了，也不凭印象造。
-2. 授权归属未定，随包分发有法律风险。
-3. 基线档的价值是先跑通「装一个平台」这个动作，skill 后补不影响这件事。
+| 层目录 | 数量 | Skill |
+|---|---:|---|
+| `00-router` | 1 | `cbec-command` |
+| `01-data` | 4 | `amz-keyword-harvest`、`amz-listing-scrape`、`amz-review-harvest`、`web-trend-scan` |
+| `02-market` | 3 | `market-entry`、`market-sizing`、`market-trend` |
+| `03-demand` | 3 | `demand-priority`、`jtbd-map`、`voc-mining` |
+| `04-competitor` | 4 | `competitor-deconstruct`、`negative-review-gap`、`pricing-ladder`、`visual-strategy` |
+| `05-product` | 4 | `compliance-gate`、`decision-control`、`profit-model`、`supply-verify` |
+| `06-delivery` | 2 | `deck-report`、`excel-report` |
+| `07-system` | 2 | `skill-creator`、`toolchain-dispatch` |

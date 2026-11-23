@@ -13,7 +13,7 @@ l3/
 ├── install.sh                    安装器
 ├── platform-template/            新平台复制骨架（id=example，可直接跑通校验）
 └── platforms/
-    ├── amazon/                   完整档 full：23 skill 只做引用声明
+    ├── amazon/                   完整档 full：随包安装 8 层 23 个 skill
     ├── aliexpress/               基线档 baseline：复用 L2 skill，只换平台参数
     ├── ebay/                     基线档 baseline
     ├── lazada/                   基线档 baseline
@@ -55,7 +55,7 @@ bash install.sh <id> <目标目录> --check
 ## 硬规则
 
 - **费率/佣金一律 `null` + `"_note": "待业务确认"`**，框架不编数字，`install.sh` 也不校验业务数值。
-- Amazon 的 23 个 skill 只写引用声明（`platforms/amazon/skills/REFERENCES.md`），**内容不随包分发**：本机没有源码，授权归属也待定。
+- Amazon 的 23 个 skill 及其附属文件随包安装，保留 8 层目录。授权归属待定，对外分发前需确认。见 [来源与授权](platforms/amazon/skills/REFERENCES.md)。
 - `install.sh` 只写 `<目标目录>`；不碰 `~/ds-bot-workspace`、不碰 DS Bot 状态、不安装 bundle。
 - 平台包里没有 `bundle/`：本切是文件系统落点，不是 DSH bundle。要变成可 `install_bundle` 的包是下一刀的事。
 

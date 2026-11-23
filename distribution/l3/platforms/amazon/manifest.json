@@ -8,11 +8,11 @@
     "browser-farm": ">=1.1.0"
   },
   "skills": {
-    "mode": "referenced",
+    "mode": "bundled",
     "count": 23,
     "layers": ["00-router", "01-data", "02-market", "03-demand", "04-competitor", "05-product", "06-delivery", "07-system"],
-    "source": "cbec-selection-master",
-    "note": "只声明引用，内容不随包分发；本机未找到该源码，见 skills/REFERENCES.md；授权归属待定（计划第 6 节第 3 条）"
+    "source": "/Users/xavier/Desktop/cbec-selection-master/skills/",
+    "note": "随包安装 8 层 23 个 skill 及其附属文件，来源与授权说明见 skills/REFERENCES.md"
   },
   "connectors": [
     {
@@ -45,6 +45,7 @@
   },
   "notes": [
     "tier=full 依据计划第 3 节与第 5 节：Amazon 供给最全（存量 23 skill），当模板用。",
-    "本包不含任何费率数字，也不含 23 个 skill 的内容。"
+    "本包随附 23 个 skill 的内容，费率字段仍待业务确认。",
+    "授权归属待定，对外分发前需确认。"
   ]
 }

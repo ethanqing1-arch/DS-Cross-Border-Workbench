@@ -112,10 +112,13 @@ install_pkg() {
 }
 install_pkg "L1 安装" "1 0 0" bash "$SRC/l1/install.sh" "$WS"
 install_pkg "L2 安装" "53 0 0" bash "$SRC/l2/install.sh" "$WS"
-install_pkg "L3 amazon 安装" "4 0 0" bash "$SRC/l3/install.sh" amazon "$WS"
+AMAZON_FILES="$(find "$SRC/l3/platforms/amazon" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"
+install_pkg "L3 amazon 安装" "$AMAZON_FILES 0 0" bash "$SRC/l3/install.sh" amazon "$WS"
 install_pkg "L3 ebay 安装" "4 0 0" bash "$SRC/l3/install.sh" ebay "$WS"
 [ -f "$WS/.dsh/ecom-l1.json" ] && ok "L1 标记文件存在" || bad "L1 标记文件缺失"
 [ -f "$WS/95-engine/platforms/amazon/manifest.json" ] && ok "L3 amazon 落点存在" || bad "L3 amazon 落点缺失"
+AMAZON_SKILLS="$(find "$WS/95-engine/platforms/amazon/skills" -type f -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
+[ "$AMAZON_SKILLS" -eq 23 ] && ok "L3 amazon skills=23" || bad "L3 amazon skills=${AMAZON_SKILLS}（期望 23）"
 [ -f "$WS/95-engine/platforms/ebay/manifest.json" ] && ok "L3 ebay 落点存在" || bad "L3 ebay 落点缺失"
 
 # ---------------------------------------------------------------- 3. MCP stdio
