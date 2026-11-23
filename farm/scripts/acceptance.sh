@@ -16,7 +16,7 @@ wn(){ printf "  \033[33mWARN\033[0m %s\n" "$1"; WARN=$((WARN+1)); }
 
 echo "== 1. 文件完整性 =="
 for f in farm.js control.js ledger.js driver.js contract.js proxy-bridge.js gateway/server.js mcp/farm-mcp.js docker/Dockerfile docker/entry.sh \
-         scripts/mock-ip-echo.js scripts/verify-dual-env.sh scripts/test-proxy-bridge.sh camoufox_worker.py \
+         scripts/mock-ip-echo.js scripts/verify-dual-env.sh scripts/test-proxy-bridge.sh scripts/proxy-selftest.sh camoufox_worker.py \
          docs/dsbot-workbench-architecture.md docs/dsbot-workbench-review.md; do
   [ -f "$f" ] && ok "$f" || no "缺文件 $f"
 done
@@ -28,6 +28,7 @@ done
 python3 -c "import ast;ast.parse(open('camoufox_worker.py').read())" 2>/dev/null && ok "camoufox_worker.py" || no "camoufox_worker.py 语法错"
 bash -n scripts/verify-dual-env.sh 2>/dev/null && ok "verify-dual-env.sh" || no "verify-dual-env.sh 语法错"
 bash -n scripts/test-proxy-bridge.sh 2>/dev/null && ok "test-proxy-bridge.sh" || no "test-proxy-bridge.sh 语法错"
+bash -n scripts/proxy-selftest.sh 2>/dev/null && ok "proxy-selftest.sh" || no "proxy-selftest.sh 语法错"
 # bridge 配置校验：无上游 / 坏格式 / socks5 缺端口 / 不支持的协议都必须拒绝启动（exit 2；不联网不监听）
 # 注意：这里不断言 socks5 不可用——socks5/socks5h 是受支持的上游，只校验坏配置会退出。
 node -e '

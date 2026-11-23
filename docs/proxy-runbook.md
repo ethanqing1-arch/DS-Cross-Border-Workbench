@@ -52,6 +52,39 @@ echo $! > /tmp/proxy-bridge.pid
 - SOCKS5 认证走 RFC 1929（用户名密码）；上游没配凭据时只报 NO AUTH。
 - 停：`kill "$(cat /tmp/proxy-bridge.pid)"`（SIGTERM，正常退出 0）。
 
+## 1.5 拿到代理先跑这条（一条命令验通）
+
+`farm/scripts/proxy-selftest.sh` 自动挑空闲端口起桥，按四步验到「探针真能经桥取数」，收尾自己停桥、清临时文件、扫凭据。
+
+```bash
+export PATH="/opt/homebrew/bin:$PATH"
+export UPSTREAM_PROXY='socks5h://user:pass@host:1080'   # 凭据只走环境变量，别写进命令行
+GATEWAY_TOKEN=... bash farm/scripts/proxy-selftest.sh
+```
+
+```bash
+# 换目标站（默认一个 eBay 搜索页）
+bash farm/scripts/proxy-selftest.sh --target-url 'https://www.ebay.com/sch/i.html?_nkw=usb+cable'
+
+# 没有真代理：用内置假上游把四步走一遍，证明脚本本身是对的
+GATEWAY_TOKEN=... bash farm/scripts/proxy-selftest.sh --self-test
+```
+
+四步含义与判定：
+
+| 步骤 | 判据 | 失败时 |
+|---|---|---|
+| 1 起桥 | 日志出现 `listen 127.0.0.1:<port> ... auth=yes`（上游带账号密码时必须 `auth=yes`；无凭据则 `auth=no`） | `FAIL`，退出码 1 |
+| 2 curl | `curl -x 桥 https://example.com/` → `HTTP 200` | `FAIL`，退出码 1 |
+| 3 探针 | `farm-probe --proxy 桥 --cache-bust` 取 example.com → `status=ok` 且 `item_count ≥ 1` | `FAIL`，退出码 1 |
+| 4 目标站 | 默认 eBay 搜索页：`ok`=PASS / `blocked`=**INFO（如实报，不算 FAIL）** / `empty`=WARN / `error`=WARN | 不影响退出码 |
+
+- 退出码：`0` 全通（第 4 步被拦也算全通）；`1` 桥或上游不通（1–3 有 FAIL、或凭据泄漏）；`2` 用法/前置不满足（缺 `UPSTREAM_PROXY` / `GATEWAY_TOKEN` / 网关不可达）。
+- 第 4 步 `blocked` **不是失败**：它说明出口能通、只是目标站反爬；要换出口或登录态，别去改桥。
+- `--self-test` 的内置假上游会给 `robot-wall.test` 返回一页 `Robot or human?`，专门验证「blocked 记 INFO」这一支；但它需要本机能直连 `example.com`（假上游真转发），且**不代表真代理出口可用**。
+- 收尾会 `grep` 桥日志、探针输出、curl stderr、假上游记录，凭据命中数必须是 0；`--keep-tmp` 可保留临时目录排查。
+- 输出里的 token 长度 `WARN`（<32）照跑，但按群规该换成 `openssl rand -hex 32`。
+
 ## 2. 先自检桥（不依赖目标站）
 
 ```bash
@@ -138,5 +171,6 @@ GATEWAY_TOKEN="换成你的令牌" bash farm/scripts/test-proxy-bridge.sh
 |---|---|
 | `farm/proxy-bridge.js` | 桥本体（零依赖） |
 | `farm/scripts/test-proxy-bridge.sh` | 假上游 + curl + 真实浏览器产品路径自测 |
+| `farm/scripts/proxy-selftest.sh` | 拿到代理后一条命令验通（四步 + 收尾）；`--self-test` 无真代理也能验脚本 |
 | `farm/scripts/acceptance.sh` | 收编桥：文件清单、`node --check`、无上游/坏上游拒绝启动的静态检查 |
 | `distribution/connectors/farm-probe.js` | 取页探针；`--proxy` 指向桥，`--cache-bust` 防缓存假绿 |
