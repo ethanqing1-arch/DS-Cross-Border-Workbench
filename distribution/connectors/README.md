@@ -12,6 +12,7 @@
 node distribution/connectors/farm-probe.js \
   --url 'https://example.com/' \
   --selectors title,price \
+  --cache-bust \
   --account e2e-smoke
 
 # 列表模式（容器内循环出多条）+ 出口代理
@@ -28,6 +29,7 @@ node distribution/connectors/farm-probe.js \
 | `--selectors` | `title` | 逗号分隔字段；`name` 用内置选择器，`name=css` 显式指定 |
 | `--list` | 空（不启用） | 列表模式容器 CSS；容器内按 `--selectors` 循环出多条 |
 | `--proxy` | 空（直连） | 出口代理，透传给 `farm_session_create`；值不打印、不进日志，只报「已设置/未设置」 |
+| `--cache-bust` | 关 | 给 URL 追加唯一 `_cb` query，绕过磁盘缓存；不加时命中缓存会判 `E_CACHE_HIT`（见下） |
 | `--account` | `e2e-smoke` | 农场账号名；复用现有账号，台账按 account 主键 upsert，不新增行 |
 | `--engine` | `chromium` | 引擎名（linux150 需 attach，不在本探针范围） |
 | `--timeout-ms` | `45000` | goto / extract / 列表 eval 的等待上限 |
@@ -56,6 +58,8 @@ stdout **只有一段 JSON**（诊断信息一律走 stderr）：
   "selectors": { "title": "title", "price": "..." },
   "list": "article.product_pod | null",
   "proxy_set": false,
+  "cache_bust": false,
+  "nav": { "transfer_size": 634, "decoded_body_size": 577, "duration": 1457, "cache_hit": false },
   "fields": { "title": "...", "price": null },
   "missing": ["price"],
   "items": [ { "title": "...", "price": null } ],
@@ -74,9 +78,10 @@ stdout **只有一段 JSON**（诊断信息一律走 stderr）：
 | `ok` | 页面未命中拦截特征，且至少一条记录取到非空字段（`item_count ≥ 1`） | `0` |
 | `blocked` | 页面标题或正文命中拦截特征（SORRY / Error Page / Access Denied / captcha，大小写不敏感）；`evidence.matched` 给出命中项，`body_snippet` 给原文片段 | `2` |
 | `empty` | 页面未命中拦截特征，但所有字段都为空（`item_count = 0`） | `3` |
-| `error` | 探针自身没跑完：token 缺失、网关不可达、会话建/删失败、导航超时、MCP 协议错 | `1` |
+| `error` | 探针自身没跑完：token 缺失、网关不可达、会话建/删失败、导航超时、MCP 协议错、**缓存命中（`E_CACHE_HIT`）** | `1` |
 
 - **禁止返回 `ok` + `items: []`**；取不到东西必须落到 `blocked`（有证据）或 `empty`。
+- **缓存不算取数**：页面来自磁盘缓存时 `performance.getEntriesByType('navigation')[0].transferSize === 0`。此时不做 `blocked/empty` 判定，直接 `status: "error"`、`error.code = "E_CACHE_HIT"`、退出码 1；加 `--cache-bust` 重跑（`final_url` 会带 `_cb=` 参数，属正常）。这样「没真上网也返回 ok」的假绿被堵死。
 - **单页模式**（无 `--list`）：`items` 是一条记录（`[fields]` 或 `[]`），`fields/missing` 是抽取结果。
 - **列表模式**（`--list <容器CSS>`）：`items` 是多条记录；`item_count` 是真正取到字段的条数，`container_count` 是容器命中数（全空卡片被剔除，所以两者可能不同）；`fields/missing` 为 `null`。
 - 命中拦截时不再取数（被拦页面取出来的也是空值，跑了只会混淆）；`fields/items` 为 `null/[]`。
@@ -98,14 +103,17 @@ stdout **只有一段 JSON**（诊断信息一律走 stderr）：
 # 1) 列表页：ok 且 item_count ≥ 10（books.toscrape.com 公开列表页，非电商反爬）
 node distribution/connectors/farm-probe.js \
   --url 'https://books.toscrape.com/' --list 'article.product_pod' \
-  --selectors 'title=h3 a, price=.price_color'
+  --selectors 'title=h3 a, price=.price_color' --cache-bust
 
 # 2) 单页：ok 且 item_count ≥ 1（example.com 有文档标题，price 取不到会进 missing）
-node distribution/connectors/farm-probe.js --url 'https://example.com/' --selectors title,price
+node distribution/connectors/farm-probe.js --url 'https://example.com/' --selectors title,price --cache-bust
 
 # 3) 被拦页：blocked 且带证据原文（无代理下的 eBay 搜索页）
 node distribution/connectors/farm-probe.js \
-  --url 'https://www.ebay.com/sch/i.html?_nkw=usb+cable' --selectors title,price
+  --url 'https://www.ebay.com/sch/i.html?_nkw=usb+cable' --selectors title,price --cache-bust
+
+# 4) 缓存反证：同一 URL 连跑两次、第二次不加 --cache-bust → error + E_CACHE_HIT（退出码 1）
+#    （前提：该 profile 里已有这个 URL 的磁盘缓存；example.com 带 max-age=86000）
 ```
 
-预期：第 1 条 `status=ok`、`item_count ≥ 10`、退出码 `0`；第 2 条 `status=ok`、`item_count ≥ 1`、退出码 `0`；第 3 条 `status=blocked`、`evidence.matched` 非空、退出码 `2`。
+预期：第 1 条 `status=ok`、`item_count ≥ 10`、退出码 `0`；第 2 条 `status=ok`、`item_count ≥ 1`、退出码 `0`；第 3 条 `status=blocked`、`evidence.matched` 非空、退出码 `2`；第 4 条 `status=error`、`error.code=E_CACHE_HIT`、退出码 `1`。

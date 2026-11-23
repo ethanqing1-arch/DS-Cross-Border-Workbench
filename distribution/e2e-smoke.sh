@@ -14,7 +14,8 @@
 #
 # 流程：mktemp 工作区 → L1 → L2 → L3(amazon + ebay) → stdio 起 farm/mcp/farm-mcp.js
 #       initialize → tools/list(7) → farm_health(ok:true) → farm_session_create
-#       → farm_task goto https://example.com/ → farm_task extract title
+#       → farm_task goto（唯一 query URL）→ farm_task eval（transferSize 验真上网）
+#       → farm_task extract title
 #       → farm_session_delete → 写 95-engine/smoke/report.json 并断言字段。
 #
 # 边界：只写 mktemp 工作区；farm 只新增/更新一行默认租户会话（收尾删除，台账保留）。
@@ -144,6 +145,7 @@ const report = {
   health_ok: null,
   session: { account: ACCOUNT, session_id: null, created: false, deleted: false, status: null, data_retained: null },
   goto: { ok: null, url: null, readyState: null },
+  nav: { transfer_size: null, decoded_body_size: null, duration: null, cache_hit: null },
   extract: { ok: null, selector_map: { title: 'title' }, fields: null, missing: null },
   title: null,
 };
@@ -258,17 +260,36 @@ async function callTool(mcp, name, args) {
     addCheck('farm_session_create', created, 'session_id=' + sessionId + ' status=' + (cdata.status || '-'));
 
     if (created) {
-      console.error('  → farm_task goto');
+      /* 唯一 query：example.com 带 max-age=86000，固定 URL 会吃 profile 磁盘缓存（transferSize=0） */
+      const GOTO_URL = 'https://example.com/?e2e-smoke=' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      console.error('  → farm_task goto（cache-bust）');
       const goto = await callTool(mcp, 'farm_task', {
         session_id: sessionId, type: 'goto',
-        params: { url: 'https://example.com/' }, wait_ms: 60000,
+        params: { url: GOTO_URL }, wait_ms: 60000,
       });
       const g = goto.data || {};
       report.goto.ok = g.status === 'succeeded' && !!(g.result && g.result.ok === true);
       report.goto.url = (g.result && g.result.url) || null;
       report.goto.readyState = (g.result && g.result.readyState) || null;
-      addCheck('farm_task goto https://example.com/', report.goto.ok === true,
+      addCheck('farm_task goto（cache-bust URL）', report.goto.ok === true,
         'status=' + (g.status || '-') + ' url=' + report.goto.url + ' readyState=' + report.goto.readyState);
+
+      /* 真上网断言：缓存命中时 transferSize=0，堵住「goto succeeded 但其实没联网」 */
+      console.error('  → farm_task eval（navigation transferSize）');
+      const navExpr = "(() => { const es = performance.getEntriesByType('navigation'); const n = es && es[0]; return { has_entry: !!n, transfer_size: n ? n.transferSize : null, decoded_body_size: n ? n.decodedBodySize : null, duration: n ? Math.round(n.duration) : null, cache_hit: !(n && n.transferSize > 0) }; })()";
+      const nav = await callTool(mcp, 'farm_task', {
+        session_id: sessionId, type: 'eval',
+        params: { expr: navExpr }, wait_ms: 60000,
+      });
+      const nv = (nav.data && nav.data.result) || {};
+      report.nav.transfer_size = nv.transfer_size === undefined ? null : nv.transfer_size;
+      report.nav.decoded_body_size = nv.decoded_body_size === undefined ? null : nv.decoded_body_size;
+      report.nav.duration = nv.duration === undefined ? null : nv.duration;
+      report.nav.cache_hit = nv.cache_hit === undefined ? null : nv.cache_hit;
+      const netOk = nv.cache_hit === false && typeof nv.transfer_size === 'number' && nv.transfer_size > 0;
+      addCheck('页面真上网（transferSize>0）', netOk,
+        'transfer_size=' + report.nav.transfer_size + ' decoded_body_size=' + report.nav.decoded_body_size +
+        ' duration_ms=' + report.nav.duration + ' cache_hit=' + report.nav.cache_hit);
 
       console.error('  → farm_task extract（selector_map.title=title）');
       const ext = await callTool(mcp, 'farm_task', {
@@ -348,8 +369,12 @@ if [ -f "$REPORT" ]; then
     if (!r.title || !String(r.title).trim()) miss.push("title");
     if (!sid) miss.push("session.session_id");
     if (!r.session || r.session.deleted !== true) miss.push("session.deleted=true");
+    if (!(r.nav && typeof r.nav.transfer_size === "number" && r.nav.transfer_size > 0)) miss.push("nav.transfer_size>0");
+    if (!r.nav || r.nav.cache_hit !== false) miss.push("nav.cache_hit=false");
     if (miss.length) { console.error("缺/不符：" + miss.join(",")); process.exit(1); }
-    console.log("tool_count=" + r.tool_count + " title=" + JSON.stringify(r.title) + " session_id=" + sid + " generated_at=" + r.generated_at);
+    console.log("tool_count=" + r.tool_count + " title=" + JSON.stringify(r.title) + " session_id=" + sid +
+      " transfer_size=" + (r.nav && r.nav.transfer_size) + " cache_hit=" + (r.nav && r.nav.cache_hit) +
+      " generated_at=" + r.generated_at);
   ' "$REPORT" 2>&1)"; then
     ok "report 字段齐（$FIELDS）"
   else

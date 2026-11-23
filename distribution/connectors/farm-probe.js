@@ -45,6 +45,7 @@ function parseArgs(argv) {
     selectors: 'title',
     list: '',
     proxy: '',
+    cacheBust: false,
     account: 'e2e-smoke',
     engine: 'chromium',
     timeoutMs: 45000,
@@ -62,13 +63,14 @@ function parseArgs(argv) {
       case '--selectors': a.selectors = next(); break;
       case '--list': a.list = next(); break;
       case '--proxy': a.proxy = next(); break;
+      case '--cache-bust': a.cacheBust = true; break;
       case '--account': a.account = next(); break;
       case '--engine': a.engine = next(); break;
       case '--timeout-ms': a.timeoutMs = Math.max(5000, parseInt(next(), 10) || 45000); break;
       case '--mcp': a.mcp = path.resolve(next()); break;
       case '--verbose': a.verbose = true; break;
       case '-h': case '--help':
-        process.stderr.write('用法：node farm-probe.js --url <url> [--selectors title,price] [--list <容器CSS>] [--proxy <url>] [--account e2e-smoke]\n');
+        process.stderr.write('用法：node farm-probe.js --url <url> [--selectors title,price] [--list <容器CSS>] [--proxy <url>] [--cache-bust] [--account e2e-smoke]\n');
         process.exit(0);
         break;
       default:
@@ -81,6 +83,13 @@ function parseArgs(argv) {
     throw new Error('--proxy 格式不支持（只接受 http(s):// 或 socks5://，值不打印）');
   }
   return a;
+}
+
+/* 唯一 query：绕过磁盘缓存，保证 transferSize>0（命中缓存时是 0） */
+function addCacheBust(rawUrl) {
+  const u = new URL(rawUrl);
+  u.searchParams.set('_cb', Date.now() + '-' + Math.random().toString(36).slice(2, 8));
+  return u.toString();
 }
 
 function buildSelectorMap(list) {
@@ -187,6 +196,8 @@ function splitHttp(text) {
     selectors: {},
     list: null,
     proxy_set: false,
+    cache_bust: false,
+    nav: null,
     fields: null,
     missing: null,
     items: [],
@@ -220,6 +231,7 @@ function splitHttp(text) {
     out.selectors = buildSelectorMap(args.selectors);
     out.list = args.list || null;
     out.proxy_set = !!args.proxy;
+    out.cache_bust = !!args.cacheBust;
     if (args.proxy) redact = (s) => String(s).split(args.proxy).join('[redacted]');
     log('proxy: ' + (args.proxy ? '已设置' : '未设置'));
 
@@ -274,11 +286,12 @@ function splitHttp(text) {
     out.session_id = create.data.session_id;
     created = true;
 
-    log('farm_task goto ' + args.url);
+    const gotoUrl = args.cacheBust ? addCacheBust(args.url) : args.url;
+    log('farm_task goto ' + gotoUrl);
     const goto = await callTool(mcp, 'farm_task', {
       session_id: out.session_id,
       type: 'goto',
-      params: { url: args.url },
+      params: { url: gotoUrl },
       timeout_ms: args.timeoutMs,
       wait_ms: args.timeoutMs + 15000,
     });
@@ -289,6 +302,38 @@ function splitHttp(text) {
       return;
     }
     out.final_url = (g.result && g.result.url) || null;
+
+    /* 真上网校验：缓存命中时 transferSize=0。缓存页不能当 ok 返回（会把假绿传下去）。 */
+    log('farm_task eval（navigation timing）');
+    const navExpr = "(() => { const es = performance.getEntriesByType('navigation'); const n = es && es[0]; return { has_entry: !!n, transfer_size: n ? n.transferSize : null, decoded_body_size: n ? n.decodedBodySize : null, duration: n ? Math.round(n.duration) : null, cache_hit: !(n && n.transferSize > 0) }; })()";
+    const navRes = await callTool(mcp, 'farm_task', {
+      session_id: out.session_id,
+      type: 'eval',
+      params: { expr: navExpr },
+      timeout_ms: args.timeoutMs,
+      wait_ms: args.timeoutMs + 15000,
+    });
+    const nv = (navRes.data && navRes.data.result) || null;
+    if (navRes.isError || !navRes.data || navRes.data.status !== 'succeeded' || !nv) {
+      out.error = { code: 'E_NAV_TIMING', message: 'navigation timing 取不到', detail: redact(navRes.text).slice(0, 800) };
+      finish('error', EXIT.error);
+      return;
+    }
+    out.nav = {
+      transfer_size: nv.transfer_size === undefined ? null : nv.transfer_size,
+      decoded_body_size: nv.decoded_body_size === undefined ? null : nv.decoded_body_size,
+      duration: nv.duration === undefined ? null : nv.duration,
+      cache_hit: nv.cache_hit === undefined ? null : nv.cache_hit,
+    };
+    if (out.nav.cache_hit) {
+      out.error = {
+        code: 'E_CACHE_HIT',
+        message: '页面来自缓存（transferSize=0），没有真正取数；加 --cache-bust 或换 URL 重试',
+        detail: 'transfer_size=' + out.nav.transfer_size + ' decoded_body_size=' + out.nav.decoded_body_size + ' duration_ms=' + out.nav.duration,
+      };
+      finish('error', EXIT.error);
+      return;
+    }
 
     log('farm_task eval（取页面证据）');
     const evidenceExpr =
