@@ -12,6 +12,8 @@
 # 边界：只写 mktemp 目录；不碰 ~/ds-bot-workspace、不碰 DS Bot 状态、不碰 farm。
 # =============================================================================
 set -uo pipefail
+# macOS Bash 3.2 在 UTF-8 locale 下可能把变量后的全角标点读进变量名。
+export LC_ALL=C
 
 SRC="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SRC/.." && pwd)"
@@ -118,18 +120,34 @@ L1NFILES="$(find "$L1NEG" -type f | wc -l | tr -d ' ')"
 
 # ---------------------------------------------------------------- 2. L2
 echo "-- 2. L2 版本包 dsh-ecom-cbec"
+L2_WORKSPACE="$SRC/l2/workspace"
+L2_SKILLS="$SRC/l2/skills"
+L2_FILES="$(find "$L2_WORKSPACE" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"
+L2_DIRS="$(find "$L2_WORKSPACE" -mindepth 1 -type d | wc -l | tr -d ' ')"
+L2_SKILL_FILES="$(find "$L2_SKILLS" -mindepth 2 -type f | wc -l | tr -d ' ')"
+EXPECTED_FILES=$((L2_FILES+L2_SKILL_FILES))
+EXPECTED_WRITES=$((EXPECTED_FILES+L2_DIRS))
 OUT="$(bash "$SRC/l2/install.sh" "$WS" 2>&1)"; RC=$?
 printf '%s\n' "$OUT" | grep -E '^(== 汇总|INSTALL)' | sed 's/^/    /'
 [ "$RC" -eq 0 ] && ok "L2 install 退出码 0" || bad "L2 install 退出码 $RC"
-if printf '%s' "$OUT" | grep -q '== 汇总: write=53 skip=0 fail=0 =='; then
-  ok "L2 汇总 write=53 skip=0 fail=0"
+if printf '%s\n' "$OUT" | grep -Fxq "== 汇总: write=$EXPECTED_WRITES skip=0 fail=0 =="; then
+  ok "L2 汇总 write=$EXPECTED_WRITES skip=0 fail=0"
 else
   bad "L2 汇总不符：$(printf '%s\n' "$OUT" | grep '== 汇总' | tail -1 || echo 无汇总行)"
 fi
 FILES="$(find "$WS" -type f | wc -l | tr -d ' ')"
-[ "$FILES" -eq 30 ] && ok "L2 落点文件数 30" || bad "L2 落点文件数 $FILES（期望 30）"
-SK="$(find "$WS/.dsh/skills" -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
-[ "$SK" -eq 4 ] && ok "L2 skills=4" || bad "L2 skills=$SK（期望 4）"
+[ "$FILES" -eq "$EXPECTED_FILES" ] && ok "L2 落点文件数 $FILES" || bad "L2 落点文件数 ${FILES}（期望 ${EXPECTED_FILES}）"
+SK="$(find "$WS/.dsh/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
+if EXPECTED_SKILLS="$(node -p 'const skills = require(process.argv[1]).contents.skills; if (!Array.isArray(skills)) process.exit(1); skills.length' "$SRC/l2/manifest.json" 2>/dev/null)"; then
+  [ "$SK" -eq "$EXPECTED_SKILLS" ] && ok "L2 skills=$SK" || bad "L2 skills=${SK}（期望 ${EXPECTED_SKILLS}）"
+else
+  bad "L2 manifest 无法读取 contents.skills"
+fi
+if DIFF="$(diff -qr "$L2_SKILLS" "$WS/.dsh/skills" 2>&1)"; then
+  ok "L2 skills 落点与源目录一致（含附属文件）"
+else
+  bad "L2 skills 落点与源目录不一致：$DIFF"
+fi
 
 # ---------------------------------------------------------------- 3. 平台逐个装
 echo "-- 3. L3 平台包（逐个装）"
@@ -157,7 +175,14 @@ DIRS="$(find "$WS/95-engine/platforms" -mindepth 1 -maxdepth 1 -type d 2>/dev/nu
 
 # ---------------------------------------------------------------- 4. 全量 --check
 echo "-- 4. 全量 --check（不写）"
-SUM_BEFORE="$(cd "$WS" && find . -type f | sort | xargs shasum | shasum | cut -d' ' -f1)"
+SUM_BEFORE="$(cd "$WS" && find . -type f -print0 | sort -z | xargs -0 shasum | shasum | cut -d' ' -f1)"
+OUT="$(bash "$SRC/l2/install.sh" "$WS" --check 2>&1)"; RC=$?
+LINE="$(printf '%s\n' "$OUT" | grep '^== CHECK' | tail -1)"
+if [ "$RC" -eq 0 ] && printf '%s\n' "$LINE" | grep -q 'would-write=0 '; then
+  ok "L2 --check 幂等（${LINE}）"
+else
+  bad "L2 --check（rc=$RC ${LINE:-无 CHECK 行}）"
+fi
 for p in $PLATFORMS; do
   OUT="$(bash "$SRC/l3/install.sh" "$p" "$WS" --check 2>&1)"; RC=$?
   LINE="$(printf '%s\n' "$OUT" | grep '^== CHECK' | tail -1)"
@@ -167,7 +192,7 @@ for p in $PLATFORMS; do
     bad "平台 $p --check（rc=$RC ${LINE:-无 CHECK 行}）"
   fi
 done
-SUM_AFTER="$(cd "$WS" && find . -type f | sort | xargs shasum | shasum | cut -d' ' -f1)"
+SUM_AFTER="$(cd "$WS" && find . -type f -print0 | sort -z | xargs -0 shasum | shasum | cut -d' ' -f1)"
 if [ "$SUM_BEFORE" = "$SUM_AFTER" ]; then
   ok "--check 未改任何文件（shasum 一致 ${SUM_BEFORE:0:12}…）"
 else

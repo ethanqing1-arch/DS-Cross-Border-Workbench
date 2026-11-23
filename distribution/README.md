@@ -21,7 +21,7 @@ cd farm && bash scripts/start-gateway.sh --daemon
 #    注册参数见 distribution/l1/capability/browser-farm.json，
 #    五步见 distribution/l1/SEED-L1.md
 
-# 2) L2：工作区骨架 + 4 个业务 skill
+# 2) L2 安装工作区骨架、业务 skills 及其附属文件
 bash distribution/l2/install.sh ~/ds-bot-workspace
 
 # 3) L3：装平台（可多个，重复装是幂等的）
@@ -43,14 +43,14 @@ bash distribution/verify.sh --keep     # 保留临时目录看现场
 
 它会在 `mktemp` 目录里依次跑：L1 安装 → L2 安装 → 7 个平台逐个安装 → 全量 `--check`（前后 shasum 对比）→ L1 负例（`--farm` 指空目录必须 FAIL 且目标 0 写入）→ 空目录装平台负例（必须 FAIL 且 0 写入）→ 真工作区 mtime 边界校验，最后打 `PASS/FAIL/WARN` 汇总、`RESULT: READY / NOT_READY` 与退出码（0 / 1）。
 
-依赖：`bash` + `node`（L3 的 manifest 校验用 node；脚本会把 `/opt/homebrew/bin` 补进 PATH）。
+依赖 `bash` 和 `node`。L2、L3 的 manifest 校验使用 node，脚本会把 `/opt/homebrew/bin` 补进 PATH。
 
 ## 当前真实 vs 占位
 
 **真的（已验过）**
 
 - L1：`l1/install.sh` 校验 node 绝对路径 / `farm/mcp/farm-mcp.js` 存在且语法过 / 载荷无明文 secret / 品牌占位 / 网关可达（只 WARN），写 `.dsh/ecom-l1.json` 标记，`--check` 幂等，`--farm` 空目录负例 FAIL 且 0 写入。
-- L2：30 个工作区文件 + 4 个业务 skill + 10 bot / 4 group 预设 + SEED 剧本，安装幂等。
+- L2 安装工作区文件和 `manifest.json` 所列业务 skills，保留 skill 附属文件的目录结构。包内另有 10 个 bot、4 个群的预设和 SEED 剧本。
 - L3：schema + 可复制模板（`example` 可直接跑通）+ 安装器（前置双证、非破坏、`--check`、`--force`）。
 - 7 个平台包都能装进已装 L2 的目录，每包 4 个文件，重复装/`--check` 都是 0 写入。
 

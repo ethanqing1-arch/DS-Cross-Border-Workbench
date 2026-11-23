@@ -1,7 +1,7 @@
 {
   "name": "dsh-ecom-cbec",
   "version": "0.1.0",
-  "description": "跨境电商版 DS Bot 的 L2 版本包：工作区骨架 + 4 个业务 skill + 10 个 bot 预设 + 4 个群预设。装完由 Main Bot 按 SEED.md 播种。",
+  "description": "跨境电商版 DS Bot 的 L2 版本包：工作区骨架 + 业务 skills + 10 个 bot 预设 + 4 个群预设。装完由 Main Bot 按 SEED.md 播种。",
   "requires": {
     "browser-farm": ">=1.1.0"
   },
@@ -10,7 +10,8 @@
       "ecom-selection",
       "ecom-listing",
       "ecom-ops",
-      "ecom-cs"
+      "ecom-cs",
+      "ecom-guardrails"
     ],
     "bots": [
       "Chief",

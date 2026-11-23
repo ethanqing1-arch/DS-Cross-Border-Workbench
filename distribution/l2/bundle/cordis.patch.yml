@@ -2,7 +2,7 @@
 #
 # 只插一行：把本包 skills/ 挂成一个独立 skill provider（providerName: ecom-cbec）。
 # includeDefaultRoots: false —— 不重复扫项目/用户 skill 根；基础 profile 已有一个
-# 默认 skill-filesystem，这里只补充包内自带的 4 个业务 skill。
+# 默认 skill-filesystem，这里只补充包内自带的业务 skills。
 #
 # 路径解析用现装 bundle（archify / open-design）同款写法：
 #   baseUrl 是 profile 的模块基准 → createRequire(baseUrl).resolve('<包名>/package.json')

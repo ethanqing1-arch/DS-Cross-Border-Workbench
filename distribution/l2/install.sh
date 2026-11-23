@@ -24,7 +24,7 @@ for arg in "$@"; do
     --check) CHECK=1 ;;
     --force) FORCE=1 ;;
     -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
-    -*) echo "未知参数：$arg（可用 --check / --force）" >&2; exit 2 ;;
+    -*) echo "未知参数：${arg}（可用 --check / --force）" >&2; exit 2 ;;
     *) TARGET="$arg" ;;
   esac
 done
@@ -92,7 +92,7 @@ copy_file() { # src rel
     if [ "$FORCE" -eq 1 ]; then
       if cp "$src" "$dest"; then echo "  overwrite $rel"; WROTE=$((WROTE+1)); else echo "  FAIL      $rel"; FAILED=$((FAILED+1)); fi
     else
-      echo "  skip      $rel（已存在，--force 覆盖）"; SKIPPED=$((SKIPPED+1))
+      echo "  skip      ${rel}（已存在，--force 覆盖）"; SKIPPED=$((SKIPPED+1))
     fi
     return
   fi
@@ -123,15 +123,20 @@ echo "== dsh-ecom-cbec $(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\
 echo "目标：$TARGET"
 echo "模式：$([ "$CHECK" -eq 1 ] && echo '只校验（--check）' || { [ "$FORCE" -eq 1 ] && echo '安装（--force）' || echo '安装（非破坏）'; })"
 
-if command -v node >/dev/null 2>&1; then
-  if node -e 'const m=require(process.argv[1]);if(!m.name||!m.version||!m.requires||!m.requires["browser-farm"])process.exit(1)' "$SRC/manifest.json" 2>/dev/null; then
-    echo "PASS manifest 可解析（name/version/requires.browser-farm）"
-  else
-    echo "FAIL manifest 不可解析或字段不全"; FAILED=$((FAILED+1))
-  fi
-else
-  echo "WARN 没有 node，跳过 manifest 结构校验"
+if ! command -v node >/dev/null 2>&1; then
+  echo "FAIL 缺 node，无法校验 manifest" >&2
+  exit 2
 fi
+if ! EXPECTED_SKILLS="$(node -e '
+const m = require(process.argv[1]);
+if (!m.name || !m.version || !m.requires || !m.requires["browser-farm"] ||
+    !m.contents || !Array.isArray(m.contents.skills)) process.exit(1);
+console.log(m.contents.skills.length);
+' "$SRC/manifest.json" 2>/dev/null)"; then
+  echo "FAIL manifest 不可解析或字段不全" >&2
+  exit 2
+fi
+echo "PASS manifest 可解析（name/version/requires.browser-farm/contents.skills）"
 
 echo "-- 网关版本闸"
 gw_probe
@@ -157,24 +162,26 @@ done < <(cd "$SRC/workspace" && find . -type f ! -name '.DS_Store' | sed 's|^\./
 
 echo "-- 业务 skills"
 SKILL_COUNT=0
-for d in "$SRC"/skills/*/; do
+for d in "$SRC"/skills/*; do
   [ -d "$d" ] || continue
   name="$(basename "$d")"; SKILL_COUNT=$((SKILL_COUNT+1))
-  rel=".dsh/skills/$name/SKILL.md"
-  if [ "$CHECK" -eq 1 ]; then probe_file "$rel"; else copy_file "$d/SKILL.md" "$rel"; fi
+  if [ ! -f "$d/SKILL.md" ]; then
+    echo "  FAIL      skills/$name/SKILL.md 缺失"; FAILED=$((FAILED+1))
+  fi
+  while IFS= read -r -d '' file; do
+    rel=".dsh/skills/$name/${file#./}"
+    if [ "$CHECK" -eq 1 ]; then probe_file "$rel"; else copy_file "$d/$file" "$rel"; fi
+  done < <(cd "$d" && find . -type f -print0 | sort -z)
 done
-[ "$SKILL_COUNT" -eq 4 ] && echo "PASS skills=$SKILL_COUNT（期望 4）" || { echo "FAIL skills=$SKILL_COUNT（期望 4）"; FAILED=$((FAILED+1)); }
+[ "$SKILL_COUNT" -eq "$EXPECTED_SKILLS" ] && echo "PASS skills=${SKILL_COUNT}（期望 ${EXPECTED_SKILLS}）" || { echo "FAIL skills=${SKILL_COUNT}（期望 ${EXPECTED_SKILLS}）"; FAILED=$((FAILED+1)); }
 
 echo "-- bundle 镜像一致性"
-DRIFT=0
-for d in "$SRC"/skills/*/; do
-  [ -d "$d" ] || continue
-  name="$(basename "$d")"
-  if ! cmp -s "$d/SKILL.md" "$SRC/bundle/skills/$name/SKILL.md"; then
-    echo "WARN bundle/skills/$name/SKILL.md 与 skills/ 不一致"; DRIFT=$((DRIFT+1))
-  fi
-done
-[ "$DRIFT" -eq 0 ] && echo "PASS bundle/skills 与 skills/ 一致" || echo "WARN 有 $DRIFT 个 skill 镜像漂移"
+if DRIFT="$(diff -qr "$SRC/skills" "$SRC/bundle/skills" 2>&1)"; then
+  echo "PASS bundle/skills 与 skills/ 一致"
+else
+  echo "WARN bundle/skills 与 skills/ 不一致"
+  printf '%s\n' "$DRIFT"
+fi
 
 echo
 if [ "$CHECK" -eq 1 ]; then
@@ -184,7 +191,7 @@ else
   echo "== 汇总: write=$WROTE skip=$SKIPPED fail=$FAILED =="
   if [ "$FAILED" -eq 0 ]; then
     echo "INSTALL OK"
-    echo "下一步：把 DS Bot 工作区指到 $TARGET；再由 Main Bot 按 SEED.md 播种 bot 与群。"
+    echo "下一步：把 DS Bot 工作区指到 ${TARGET}；再由 Main Bot 按 SEED.md 播种 bot 与群。"
   else
     echo "INSTALL FAILED"
   fi
