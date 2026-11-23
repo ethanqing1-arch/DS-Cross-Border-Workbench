@@ -42,7 +42,7 @@ const log = (s) => { if (process.env.FARM_MCP_DEBUG === '1') process.stderr.writ
 const TOOLS = [
   {
     name: 'farm_health',
-    description: '农场健康：GET /v1/health（免鉴权）。不带参数只报 control 面通断；probe=true 会真起临时实例跑一次 goto，慢但真实（linux150 标 unverified，camoufox 标 degraded/up 由探针决定）。',
+    description: '农场健康：GET /v1/health（health 本身免鉴权）。不带参数只报 control 面通断；probe=true 会真起临时实例跑一次 goto，慢但真实（linux150 标 unverified，camoufox 标 degraded/up 由探针决定）。注意 ?probe=1 分支要 Bearer：网关配了 TOKEN 时无 token 会 401 E_UNAUTH。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -83,7 +83,7 @@ const TOOLS = [
         tz: { type: 'string', description: '时区，默认 Asia/Shanghai' },
         lang: { type: 'string', description: '语言，默认 zh-CN' },
         fp_seed: { type: 'string', description: '指纹种子（可复现）' },
-        proxy: { type: 'string', description: '代理，如 http://user:pass@host:port' },
+        proxy: { type: 'string', description: '只填本地桥地址，如 http://127.0.0.1:18080（无凭据）；带账号密码的代理写在桥的 UPSTREAM_PROXY，不要写进这里——网关会 400 E_PROXY_CREDENTIALS（Chromium 不认证会悄悄直连）' },
         headless: { type: 'boolean', description: '默认 true' },
         require_check: { type: 'boolean', description: '是否建完立刻做首检，默认 true' },
         idempotency_key: { type: 'string', description: '不传则自动生成 UUID' },
@@ -252,7 +252,7 @@ async function handle(msg) {
             protocolVersion,
             capabilities: { tools: { listChanged: false } },
             serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
-            instructions: `dsbot-gateway MCP 适配层（farm ${FARM_VERSION}）。网关地址 ${GATEWAY_URL}。farm_health 免鉴权；其余工具需 GATEWAY_TOKEN。`,
+            instructions: `dsbot-gateway MCP 适配层（farm ${FARM_VERSION}）。网关地址 ${GATEWAY_URL}。farm_health 免鉴权（仅 ?probe=1 真探针分支需 Bearer）；其余工具需 GATEWAY_TOKEN。`,
           },
         });
       }
