@@ -207,6 +207,11 @@ const server = http.createServer(async (req, res) => {
       if (probe !== '1' && probe !== 'true') {
         return send(res, 200, { ok: allUp, gateway: 'up', control: allUp ? 'up' : 'down', version: VERSION, contract_version: CONTRACT_VERSION, hosts, engines });
       }
+      /* probe=1 会真起浏览器：只对该分支校验 Bearer（health 本身仍免鉴权） */
+      if (TOKEN) {
+        const got = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+        if (got !== TOKEN) return err(res, 401, 'E_UNAUTH', 'invalid token');
+      }
       // 真探针：实际起临时实例跑一次 goto about:blank；linux150 需外部容器，标 unverified
       const probes = {};
       let probesOk = true;

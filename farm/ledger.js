@@ -16,7 +16,8 @@ const path = require('path');
 const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 
-const DB_PATH = process.env.FARM_DB || path.join(__dirname, 'farm.db');
+const DB_PATH = process.env.FARM_DB || path.join(__dirname, 'state', 'farm.db');
+if (!process.env.FARM_DB) fs.mkdirSync(path.join(__dirname, 'state'), { recursive: true });
 const db = new DatabaseSync(DB_PATH);
 
 db.exec(`

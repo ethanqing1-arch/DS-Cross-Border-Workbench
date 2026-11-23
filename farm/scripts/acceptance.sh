@@ -15,14 +15,14 @@ no(){ printf "  \033[31mFAIL\033[0m %s\n" "$1"; FAIL=$((FAIL+1)); }
 wn(){ printf "  \033[33mWARN\033[0m %s\n" "$1"; WARN=$((WARN+1)); }
 
 echo "== 1. 文件完整性 =="
-for f in farm.js control.js ledger.js driver.js contract.js gateway/server.js docker/Dockerfile docker/entry.sh \
+for f in farm.js control.js ledger.js driver.js contract.js gateway/server.js mcp/farm-mcp.js docker/Dockerfile docker/entry.sh \
          scripts/mock-ip-echo.js scripts/verify-dual-env.sh camoufox_worker.py \
          docs/dsbot-workbench-architecture.md docs/dsbot-workbench-review.md; do
   [ -f "$f" ] && ok "$f" || no "缺文件 $f"
 done
 
 echo "== 2. 语法 =="
-for f in farm.js control.js ledger.js driver.js contract.js gateway/server.js scripts/mock-ip-echo.js; do
+for f in farm.js control.js ledger.js driver.js contract.js gateway/server.js mcp/farm-mcp.js scripts/mock-ip-echo.js; do
   node --check "$f" 2>/dev/null && ok "node --check $f" || no "语法错 $f"
 done
 python3 -c "import ast;ast.parse(open('camoufox_worker.py').read())" 2>/dev/null && ok "camoufox_worker.py" || no "camoufox_worker.py 语法错"
@@ -77,6 +77,9 @@ curl -s -o /dev/null -w "%{http_code}" "localhost:$ACCEPT_PORT/v1/version" | gre
   && ok "/v1/version 需鉴权" || no "/v1/version 未鉴权"
 curl -s -o /dev/null -w "%{http_code}" -H 'Authorization: Bearer T' "localhost:$ACCEPT_PORT/v1/version?require=99.0.0" | grep -qx 409 \
   && ok "版本不满足返回 409" || no "版本不满足未拦"
+# probe=1 会真起浏览器，必须带 token；不带 probe 的 health 仍免鉴权
+curl -s -o /dev/null -w "%{http_code}" "localhost:$ACCEPT_PORT/v1/health?probe=1" | grep -qx 401 \
+  && ok "health?probe=1 需鉴权" || no "health?probe=1 未鉴权"
 
 if [ "$WITH_BROWSER" = "1" ]; then
   echo "== 6. 真机冒烟（起 chromium + 首检 + 任务）=="
@@ -92,6 +95,25 @@ if [ "$WITH_BROWSER" = "1" ]; then
   curl -s "localhost:$ACCEPT_CONTROL_PORT/instances?platform=nosuch" | grep -q '"instances": \[\]' \
     && ok "无关平台筛不到" || no "platform 筛选串了"
   node farm.js stop --account acc-smoke >/dev/null 2>&1
+  # MCP 适配层冒烟：stdio 喂 initialize → tools/list（断言 7 个工具）→ farm_health（断言 gateway up）
+  printf '%s\n' \
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"acceptance","version":"1"}}}' \
+    '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+    '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+    '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"farm_health","arguments":{}}}' \
+    | GATEWAY_URL="http://127.0.0.1:$ACCEPT_PORT" GATEWAY_TOKEN=T node "$SRC/mcp/farm-mcp.js" >/tmp/acc-mcp.jsonl 2>/dev/null
+  node -e '
+const fs = require("fs");
+const ls = fs.readFileSync("/tmp/acc-mcp.jsonl", "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+const init = ls.find((x) => x.id === 1), list = ls.find((x) => x.id === 2), call = ls.find((x) => x.id === 3);
+if (!init || !init.result || !init.result.serverInfo) process.exit(1);
+if (!list || !list.result || !Array.isArray(list.result.tools) || list.result.tools.length !== 7) process.exit(2);
+if (!call || !call.result || call.result.isError !== false) process.exit(3);
+const body = JSON.parse(call.result.content[0].text);
+if (body.gateway !== "up") process.exit(4);
+' && ok "MCP stdio 冒烟（7 工具 + farm_health）" || no "MCP stdio 冒烟失败"
+  curl -s -o /dev/null -w "%{http_code}" -H 'Authorization: Bearer T' "localhost:$ACCEPT_PORT/v1/health?probe=1" | grep -qx 200 \
+    && ok "health?probe=1 带 token 可探" || no "health?probe=1 带 token 失败"
 else
   wn "跳过真机冒烟（加 --with-browser 启用）"
 fi
