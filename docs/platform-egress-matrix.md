@@ -136,6 +136,12 @@ EXIT=2
 
 ## 复跑命令（每站一次，勿连打）
 
+> **有代理后不用手写 URL/选择器**：预设已固化在 `distribution/connectors/platforms/<id>.json`，直接
+> `node distribution/connectors/farm-probe.js --platform amazon --query wireless+earbuds --proxy socks5h://127.0.0.1:18082 --cache-bust`
+> 重跑本矩阵（其余平台把 `amazon` 换成 `ebay / walmart / shopee / lazada / aliexpress / tiktokshop`）。
+> 注意各平台 `verified` 里除 amazon 的 `price`/`list_selector` 外都必须写 `未验`，重跑后才算验证过。
+
+
 ```bash
 export PATH="/opt/homebrew/bin:$PATH"
 cd /Users/xavier/Projects/DS-Cross-Border-Workbench

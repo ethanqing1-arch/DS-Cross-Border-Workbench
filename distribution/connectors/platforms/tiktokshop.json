@@ -1,0 +1,18 @@
+{
+  "id": "tiktokshop",
+  "name": "TikTok Shop",
+  "search_url_template": "https://shop.tiktok.com/search?q={q}",
+  "list_selector": "div[data-e2e=\"search-item\"]",
+  "fields": {
+    "title": "[data-e2e=\"search-item-title\"]"
+  },
+  "verified": {
+    "search_url_template": "未验：该路径 404（shop.tiktok.com/search），公开搜索入口未确认",
+    "list_selector": "未验：URL 本身 404",
+    "title": "未验：URL 本身 404"
+  },
+  "notes": [
+    "入口不确定：2026-11-23 探测 title=\"404 Not Found\"，按契约归 E_NOT_FOUND。",
+    "要采这个平台先确认公开搜索页 URL，别拿本模板当已验证入口。"
+  ]
+}

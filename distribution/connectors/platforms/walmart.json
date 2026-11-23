@@ -1,0 +1,18 @@
+{
+  "id": "walmart",
+  "name": "Walmart",
+  "search_url_template": "https://www.walmart.com/search?q={q}",
+  "list_selector": "div[data-item-id]",
+  "fields": {
+    "title": "[data-automation-id=\"product-title\"]",
+    "price": "[data-automation-id=\"product-price\"]"
+  },
+  "verified": {
+    "list_selector": "未验：直连被重定向到 /blocked（机器人墙），页面无商品卡片",
+    "title": "未验：机器人墙页面标题是 \"Robot or human?\"",
+    "price": "未验：机器人墙页面无价格"
+  },
+  "notes": [
+    "2026-11-23 直连探测：status=blocked（robot_or_human / activate_and_hold / url_blocked）。"
+  ]
+}

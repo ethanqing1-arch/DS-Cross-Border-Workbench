@@ -21,11 +21,23 @@ node distribution/connectors/farm-probe.js \
   --list 'article.product_pod' \
   --selectors 'title=h3 a, price=.price_color' \
   --proxy 'http://127.0.0.1:3128'
+
+# 平台预设：URL/容器/字段都从 platforms/<id>.json 读，只需给 query
+node distribution/connectors/farm-probe.js \
+  --platform amazon --query wireless+earbuds \
+  --proxy 'socks5h://127.0.0.1:18082' --cache-bust
+
+# CLI 显式参数优先：覆盖预设里的 URL / 容器 / 字段
+node distribution/connectors/farm-probe.js \
+  --platform amazon --query usb+cable --url 'https://www.amazon.com/s?k=usb+cable' \
+  --selectors 'title=h2 span,price=.a-price .a-offscreen' --cache-bust
 ```
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `--url` | 必填 | 要取页的公开 URL |
+| `--url` | 必填（用 `--platform` 时可省） | 要取页的公开 URL；给了就覆盖预设模板 |
+| `--platform` | 空 | 平台 id（读 `platforms/<id>.json`）或预设文件路径；用预设时 URL/容器/字段都从预设来 |
+| `--query` | 空 | 填预设模板里的 `{q}`；模板含 `{q}` 又没给 query 会直接报 `E_PLATFORM_QUERY` |
 | `--selectors` | `title` | 逗号分隔字段；`name` 用内置选择器，`name=css` 显式指定 |
 | `--list` | 空（不启用） | 列表模式容器 CSS；容器内按 `--selectors` 循环出多条 |
 | `--proxy` | 空（直连） | 出口代理，透传给 `farm_session_create`；值不打印、不进日志，只报「已设置/未设置」 |
@@ -43,6 +55,32 @@ node distribution/connectors/farm-probe.js \
 | `price` | `[itemprop="price"], .s-item__price, .a-price .a-offscreen, .price` |
 | 其他 | 字段名本身当作 CSS 选择器 |
 
+## 平台预设（`platforms/`）
+
+七个平台各一个 JSON：`amazon / ebay / tiktokshop / shopee / lazada / walmart / aliexpress`。
+
+```json
+{
+  "id": "amazon",
+  "name": "Amazon 美国站",
+  "search_url_template": "https://www.amazon.com/s?k={q}",
+  "list_selector": "div[data-component-type=\"s-search-result\"]",
+  "fields": { "title": "h2 span", "price": ".a-price .a-offscreen" },
+  "verified": {
+    "list_selector": "命中：2026-11-23 直连 22 个容器（出口日本）",
+    "price": "命中：20/20；值是 JPY 日元，非美元",
+    "title": "未验：h2 a span 未命中；h2 span 是候选，未验证"
+  },
+  "notes": ["要美国站数据必须走美国出口。"]
+}
+```
+
+- `verified` 只写**真命中过**的字段与证据；没验的一律写 `未验` 并说明原因，**不许猜**。除 amazon 的 `price`/`list_selector` 外，其余平台字段全部是 `未验`（直连被拦 / 加载未完成 / URL 404），见各文件 `notes`。
+- 预设字段必填：`id`、`name`、`list_selector`、`fields`（至少一个非空字段），以及 `search_url_template`（除非显式给 `--url`）。缺任何一个都直接报错：`E_PLATFORM_INCOMPLETE` / `E_PLATFORM_NOT_FOUND` / `E_PLATFORM_QUERY`，**绝不静默退回单页默认值**。
+- CLI 优先：`--url` > `search_url_template`；`--list` > `list_selector`；`--selectors` > `fields`。
+- `{q}` 原样替换（不做 URL 编码）：查询词要自己编码，空格用 `+`；AliExpress 模板要求连字符形式（`wireless-earbuds`）。
+- 机制验证不碰电商站：`--platform <fixture.json>` 可以指向任意本地预设文件（回归第 5/6 条）。
+
 ## 输出契约
 
 stdout **只有一段 JSON**（诊断信息一律走 stderr）：
@@ -57,6 +95,7 @@ stdout **只有一段 JSON**（诊断信息一律走 stderr）：
   "session_id": "default:e2e-smoke | null",
   "selectors": { "title": "title", "price": "..." },
   "list": "article.product_pod | null",
+  "platform": { "id": "amazon", "name": "...", "query": "...", "preset": "...", "verified": {}, "notes": [] },  // 未用预设时为 null
   "proxy_set": false,
   "cache_bust": false,
   "nav": { "transfer_size": 634, "decoded_body_size": 577, "duration": 1457, "response_status": 200, "cache_hit": false },
@@ -115,6 +154,16 @@ node distribution/connectors/farm-probe.js \
 
 # 4) 缓存反证：同一 URL 连跑两次、第二次不加 --cache-bust → error + E_CACHE_HIT（退出码 1）
 #    （前提：该 profile 里已有这个 URL 的磁盘缓存；example.com 带 max-age=86000）
+
+# 5) 预设机制：用 books.toscrape 造临时 fixture 预设 → ok 且 20 条（不碰电商站）
+cat > /tmp/books-fixture.json <<'JSON'
+{"id":"books-fixture","name":"fixture","search_url_template":"https://books.toscrape.com/",
+ "list_selector":"article.product_pod","fields":{"title":"h3 a","price":".price_color"},
+ "verified":{"list_selector":"fixture"},"notes":["机制验证"]}
+JSON
+node distribution/connectors/farm-probe.js --platform /tmp/books-fixture.json --cache-bust
+
+# 6) 预设缺字段：删掉 list_selector 的 fixture → error / E_PLATFORM_INCOMPLETE / 退出码 1（不许退回单页模式）
 ```
 
-预期：第 1 条 `status=ok`、`item_count ≥ 10`、退出码 `0`；第 2 条 `status=ok`、`item_count ≥ 1`、退出码 `0`；第 3 条 `status=blocked`、`evidence.matched` 非空、退出码 `2`；第 4 条 `status=error`、`error.code=E_CACHE_HIT`、退出码 `1`。
+预期：第 1 条 `status=ok`、`item_count ≥ 10`、退出码 `0`；第 2 条 `status=ok`、`item_count ≥ 1`、退出码 `0`；第 3 条 `status=blocked`、`evidence.matched` 非空、退出码 `2`；第 4 条 `status=error`、`error.code=E_CACHE_HIT`、退出码 `1`；第 5 条 `status=ok`、`item_count=20`、退出码 `0`；第 6 条 `status=error`、`error.code=E_PLATFORM_INCOMPLETE`、退出码 `1`。

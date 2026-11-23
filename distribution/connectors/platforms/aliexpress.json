@@ -1,0 +1,19 @@
+{
+  "id": "aliexpress",
+  "name": "AliExpress 速卖通",
+  "search_url_template": "https://www.aliexpress.com/w/wholesale-{q}.html",
+  "list_selector": "div[class*=\"search-item-card-wrapper\"]",
+  "fields": {
+    "title": "h3",
+    "price": ".price-current"
+  },
+  "verified": {
+    "list_selector": "未验：goto 未完成（readyState=interactive）",
+    "title": "未验：页面没有加载完成",
+    "price": "未验：页面没有加载完成"
+  },
+  "notes": [
+    "模板里的 {q} 用连字符形式（如 wireless-earbuds），不是 +。",
+    "2026-11-23 直连探测：E_GOTO，readyState=interactive；未区分反爬与 SPA 超时。"
+  ]
+}

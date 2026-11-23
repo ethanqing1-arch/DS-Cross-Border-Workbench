@@ -20,6 +20,7 @@
 'use strict';
 
 const { spawn } = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
 const readline = require('node:readline');
 
@@ -59,8 +60,10 @@ const EXIT = { ok: 0, blocked: 2, empty: 3, error: 1 };
 function parseArgs(argv) {
   const a = {
     url: '',
-    selectors: 'title',
+    selectors: '',
     list: '',
+    platform: '',
+    query: '',
     proxy: '',
     cacheBust: false,
     account: 'e2e-smoke',
@@ -77,6 +80,8 @@ function parseArgs(argv) {
     };
     switch (k) {
       case '--url': a.url = next(); break;
+      case '--platform': a.platform = next(); break;
+      case '--query': a.query = next(); break;
       case '--selectors': a.selectors = next(); break;
       case '--list': a.list = next(); break;
       case '--proxy': a.proxy = next(); break;
@@ -87,15 +92,15 @@ function parseArgs(argv) {
       case '--mcp': a.mcp = path.resolve(next()); break;
       case '--verbose': a.verbose = true; break;
       case '-h': case '--help':
-        process.stderr.write('用法：node farm-probe.js --url <url> [--selectors title,price] [--list <容器CSS>] [--proxy <url>] [--cache-bust] [--account e2e-smoke]\n');
+        process.stderr.write('用法：node farm-probe.js (--url <url> | --platform <id|预设.json> [--query <q>]) [--selectors title,price] [--list <容器CSS>] [--proxy <url>] [--cache-bust] [--account e2e-smoke]\n');
         process.exit(0);
         break;
       default:
         throw new Error(`未知参数：${k}`);
     }
   }
-  if (!a.url) throw new Error('--url 必填');
-  if (!/^https?:\/\//i.test(a.url)) throw new Error('--url 只支持 http(s)');
+  if (!a.url && !a.platform) throw new Error('--url 或 --platform 必填');
+  if (a.url && !/^https?:\/\//i.test(a.url)) throw new Error('--url 只支持 http(s)');
   if (a.proxy && !/^(https?|socks5h?):\/\//i.test(a.proxy)) {
     throw new Error('--proxy 格式不支持（只接受 http(s):// 或 socks5://，值不打印）');
   }
@@ -201,6 +206,91 @@ function splitHttp(text) {
   return { http: Number(m[1]), body };
 }
 
+/* ---------------------------------------------------------------- 平台预设 */
+const PLATFORMS_DIR = path.join(__dirname, 'platforms');
+const PRESET_REQUIRED = ['id', 'name', 'list_selector', 'fields'];
+
+/* --platform 可以是平台 id（读 platforms/<id>.json），也可以是预设文件路径（机制验证用的 fixture） */
+function loadPreset(ref) {
+  const asPath = ref.includes('/') || ref.endsWith('.json');
+  const file = asPath ? path.resolve(ref) : path.join(PLATFORMS_DIR, ref + '.json');
+  let raw;
+  try {
+    raw = fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    throw Object.assign(new Error('找不到平台预设 ' + ref + '（查过 ' + file + '）'), {
+      code: 'E_PLATFORM_NOT_FOUND',
+      detail: String(e && e.message),
+    });
+  }
+  let preset;
+  try {
+    preset = JSON.parse(raw);
+  } catch (e) {
+    throw Object.assign(new Error('平台预设不是合法 JSON：' + file), { code: 'E_PLATFORM_BAD_JSON' });
+  }
+  return { preset, file };
+}
+
+/* 预设 → 本次实际用的 url/list/selectors。CLI 显式参数优先；缺字段直接报错，绝不静默退回默认值。 */
+function resolvePlatform(args) {
+  const { preset, file } = loadPreset(args.platform);
+  const missing = PRESET_REQUIRED.filter((k) => {
+    if (k === 'fields') return !preset.fields || typeof preset.fields !== 'object' || !Object.keys(preset.fields).length;
+    return !preset[k] || String(preset[k]).trim() === '';
+  });
+  if (missing.length) {
+    throw Object.assign(new Error('平台预设字段不全（' + file + '）：缺 ' + missing.join(', ')), {
+      code: 'E_PLATFORM_INCOMPLETE',
+      detail: '必填：' + PRESET_REQUIRED.join(' / ') + '；fields 至少一个字段',
+    });
+  }
+
+  let url = args.url;
+  if (!url) {
+    const tpl = preset.search_url_template;
+    if (!tpl || !String(tpl).trim()) {
+      throw Object.assign(new Error('平台预设字段不全（' + file + '）：缺 search_url_template（或显式给 --url）'), {
+        code: 'E_PLATFORM_INCOMPLETE',
+      });
+    }
+    if (String(tpl).includes('{q}')) {
+      if (!args.query) {
+        throw Object.assign(new Error('预设模板含 {q}，必须给 --query（或改用 --url 覆盖）'), {
+          code: 'E_PLATFORM_QUERY',
+        });
+      }
+      url = String(tpl).split('{q}').join(args.query);
+    } else {
+      url = String(tpl);
+    }
+  }
+
+  const list = args.list || preset.list_selector;
+  const fields = Object.entries(preset.fields)
+    .filter(([k, v]) => k && v !== null && v !== undefined && String(v).trim() !== '')
+    .map(([k, v]) => k + '=' + String(v));
+  if (!fields.length) {
+    throw Object.assign(new Error('平台预设 fields 全是空值（' + file + '）：至少要有一个非空字段选择器'), {
+      code: 'E_PLATFORM_INCOMPLETE',
+    });
+  }
+  const selectorsStr = args.selectors || fields.join(',');
+  return {
+    url,
+    list,
+    selectorsStr,
+    platform: {
+      id: preset.id,
+      name: preset.name,
+      query: args.query || null,
+      preset: file,
+      verified: preset.verified || null,
+      notes: preset.notes || null,
+    },
+  };
+}
+
 /* ---------------------------------------------------------------- 主流程 */
 (async () => {
   const out = {
@@ -212,6 +302,7 @@ function splitHttp(text) {
     session_id: null,
     selectors: {},
     list: null,
+    platform: null,
     proxy_set: false,
     cache_bust: false,
     nav: null,
@@ -243,10 +334,21 @@ function splitHttp(text) {
   try {
     const args = parseArgs(process.argv.slice(2));
     LOG_VERBOSE = args.verbose;
-    out.url = args.url;
+    let effUrl = args.url;
+    let effList = args.list;
+    let effSelectors = args.selectors;
+    if (args.platform) {
+      const r = resolvePlatform(args);
+      effUrl = r.url;
+      effList = r.list;
+      effSelectors = r.selectorsStr;
+      out.platform = r.platform;
+      log('platform: ' + r.platform.id + ' preset=' + r.platform.preset);
+    }
+    out.url = effUrl;
     out.account = args.account;
-    out.selectors = buildSelectorMap(args.selectors);
-    out.list = args.list || null;
+    out.selectors = buildSelectorMap(effSelectors || 'title');
+    out.list = effList || null;
     out.proxy_set = !!args.proxy;
     out.cache_bust = !!args.cacheBust;
     if (args.proxy) redact = (s) => String(s).split(args.proxy).join('[redacted]');
@@ -303,7 +405,7 @@ function splitHttp(text) {
     out.session_id = create.data.session_id;
     created = true;
 
-    const gotoUrl = args.cacheBust ? addCacheBust(args.url) : args.url;
+    const gotoUrl = args.cacheBust ? addCacheBust(out.url) : out.url;
     log('farm_task goto ' + gotoUrl);
     const goto = await callTool(mcp, 'farm_task', {
       session_id: out.session_id,
@@ -409,12 +511,12 @@ function splitHttp(text) {
     }
 
     /* ---- 列表模式：容器内按字段循环，一次 eval 取回多条 ---- */
-    if (args.list) {
-      log('farm_task eval（列表模式 container=' + args.list + '）');
+    if (out.list) {
+      log('farm_task eval（列表模式 container=' + out.list + '）');
       const listRes = await callTool(mcp, 'farm_task', {
         session_id: out.session_id,
         type: 'eval',
-        params: { expr: buildListExpr(args.list, out.selectors) },
+        params: { expr: buildListExpr(out.list, out.selectors) },
         timeout_ms: args.timeoutMs,
         wait_ms: args.timeoutMs + 15000,
       });

@@ -1,0 +1,18 @@
+{
+  "id": "ebay",
+  "name": "eBay",
+  "search_url_template": "https://www.ebay.com/sch/i.html?_nkw={q}",
+  "list_selector": "li.s-item",
+  "fields": {
+    "title": ".s-item__title",
+    "price": ".s-item__price"
+  },
+  "verified": {
+    "list_selector": "未验：直连被拦，取到的是 Error Page",
+    "title": "未验：直连被拦，没有商品卡片",
+    "price": "未验：直连被拦，没有商品卡片"
+  },
+  "notes": [
+    "2026-11-23 直连探测：status=blocked（Error Page / SORRY），需目标国出口代理后重跑。"
+  ]
+}

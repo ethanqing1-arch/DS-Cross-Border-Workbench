@@ -1,0 +1,19 @@
+{
+  "id": "amazon",
+  "name": "Amazon 美国站",
+  "search_url_template": "https://www.amazon.com/s?k={q}",
+  "list_selector": "div[data-component-type=\"s-search-result\"]",
+  "fields": {
+    "title": "h2 span",
+    "price": ".a-price .a-offscreen"
+  },
+  "verified": {
+    "list_selector": "命中：2026-11-23 直连 22 个容器（出口日本，final_url 一度为 amazon.co.jp）",
+    "price": "命中：20/20；值形如 \"JPY 4,403\"——是日元，不是美元，说明出口非美国",
+    "title": "未验：先用 h2 a span 打过一次，取到 null（未命中）；h2 span 是候选，未验证"
+  },
+  "notes": [
+    "非美国出口会被 302 到 amazon.co.jp 或返回日元价格；要美国站数据必须走美国出口。",
+    "container_count 22 与 item_count 20 的差是 2 个全空卡片，属正常。"
+  ]
+}

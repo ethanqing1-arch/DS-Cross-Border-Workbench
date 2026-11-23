@@ -1,0 +1,17 @@
+{
+  "id": "shopee",
+  "name": "Shopee 新加坡站",
+  "search_url_template": "https://shopee.sg/search?keyword={q}",
+  "list_selector": "div[data-sqe=\"item\"]",
+  "fields": {
+    "title": "[data-sqe=\"name\"]"
+  },
+  "verified": {
+    "list_selector": "未验：只拿到 SPA 壳，container_count=0",
+    "title": "未验：只拿到 SPA 壳，没有商品卡片"
+  },
+  "notes": [
+    "价格选择器未定，暂不写（不许猜）。",
+    "2026-11-23 直连探测：status=empty，body 只有 \"Skip to main content\"。"
+  ]
+}

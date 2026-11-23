@@ -1,0 +1,18 @@
+{
+  "id": "lazada",
+  "name": "Lazada 新加坡站",
+  "search_url_template": "https://www.lazada.sg/catalog/?q={q}",
+  "list_selector": "div[data-qa-locator=\"product-item\"]",
+  "fields": {
+    "title": "[data-qa-locator=\"product-item\"] a",
+    "price": ".aBrP0"
+  },
+  "verified": {
+    "list_selector": "未验：goto 未完成（readyState=interactive）",
+    "title": "未验：页面没有加载完成",
+    "price": "未验：页面没有加载完成"
+  },
+  "notes": [
+    "2026-11-23 直连探测：/catalog/ 被重定向到 /tag/...，E_GOTO。"
+  ]
+}
