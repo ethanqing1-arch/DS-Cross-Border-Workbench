@@ -32,7 +32,7 @@ downstream: [deck-report]
 | `竞品对标.csv` | `competitor-deconstruct` | 缺失同上处理 |
 | `run_id` | `YYYYMMDD-HH-MM-<category-slug>` | **必需**（写进文件名页脚与首页） |
 
-不允许在本 skill 内改数：所有数值原样搬运，四舍五入只在单元格格式层做（`0.00` / `0.0%`）。
+正式利润与评分原样搬运，保留原列币种及结论。缺证行的正式分数、利润和红线留待核，只显示依据及门禁。`audit_score_total` 仅作历史复核。四舍五入只在单元格格式层做（`0.00` / `0.0%`）。
 
 ## 执行流程
 

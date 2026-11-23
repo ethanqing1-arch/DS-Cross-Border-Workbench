@@ -26,7 +26,7 @@ downstream: [amz-listing-scrape, amz-review-harvest, market-sizing, market-trend
 | `category` | 卖家指定（如 `kitchen-gadgets`） | 必需。缺失直接停，不让 agent 猜品类。 |
 | `seed_keywords` | 卖家口述 3–10 个，或竞品标题前 3 个名词 | 缺失：取该类目 Best Sellers 前 20 个 listing 标题，按词频取前 5 个名词当种子词，标 C。 |
 | `asin_list` | 卖家给 3–20 个竞品 ASIN | 缺失：用种子词搜索，取第一页 48 个自然位（不含 Sponsor）的前 10 个 ASIN，标 B。 |
-| `aba_report_path` | 品牌后台 Brand Analytics 搜索词报告 CSV（周表） | 缺失：跳过步骤 3，`aba_rank` 留空，`monthly_search_volume` 改用第三方估算，标 C。 |
+| `aba_report_path` | 品牌后台 Brand Analytics 搜索词报告 CSV（周表） | 缺失：跳过步骤 3，`aba_rank` 留空，`monthly_search_volume` 仅采用同站同词的 Amazon 站内量级估算，附原始导出和方法，标 C。缺可信估算则「无源」，留空。 |
 | `sp_search_term_path` | 广告后台搜索词报告 CSV（近 60 天） | 缺失：跳过步骤 5，词表只来自下拉+ABA+反查，标 C。 |
 | `marketplace` | 默认 `amazon.com`（`marketplace_id=ATVPDKIKX0DER`） | 缺省美国站；非美国站时在报告首行写明站点与邮编。 |
 | `FX` | 全局 7.15 | 本 skill 不做换算，仅透传给下游。 |
@@ -40,7 +40,7 @@ downstream: [amz-listing-scrape, amz-review-harvest, market-sizing, market-trend
    - 单轮失败率 >20% → 该轮下拉词整体标 C，并在 manifest 记录失败前缀列表。
 3. **解析 ABA 报告**：取最近 4 个完整周（周一–周日），按 `search term` 聚合，取 `search frequency rank` 中位数。
    - 保留 rank ≤ 300000 的词；同词跨周取中位数排名。
-   - `monthly_search_volume` = 该排名对应周搜索量 × 4.33（周→月）；报告无搜索量列时，用同类目 Top 50 词做幂律拟合换算，标 C。
+   - `monthly_search_volume` = 该排名对应周搜索量 × 4.33（周→月）；报告只有排名时，需同站、同时间窗、有真实搜索量的同类目校准集才能估量并标 C。保留校准集与误差。否则只输出排名。
    - 剔除：品牌词、ASIN 型词（`^b0[a-z0-9]{8}$`）、单字符词、纯数字词。
 4. **竞品 ASIN 反查**：对 `asin_list` 每个 ASIN 取三处文本——标题、五点、详情页底部 related searches 模块（8–16 个词）。
    - 标题+五点做 n-gram 抽取（n=1..4），保留在 ≥3 个 ASIN 出现的短语 → 共性词，记 `asin_coverage`。
@@ -53,7 +53,7 @@ downstream: [amz-listing-scrape, amz-review-harvest, market-sizing, market-trend
 7. **相关性核验**：对 `monthly_search_volume` ≥5000 的词，取该词搜索结果第一页 48 个自然位，数同品类 ASIN 数 ÷ 48 = `relevance_ratio`。
    - <5000 的词不做全页核验，用同类目 Top10 标题命中率代理，标 C。
 8. **分层**：按「判定口径」表的四层规则；一词只归一层，优先级 核心 > 场景 > 属性 > 长尾，次层写入 `secondary_tier`（扩展）。
-9. **打竞争度字段**：同一次采集里取该词第一页 48 个自然位 → `competitor_count`（同款数，按主图+标题同款判定）、`top_review_count`（48 位内最高评论数）、`top10_share`（前 10 位销量占前 48 位销量；无销量数据时用评论数占比代理并标 C，有 Keepa/JS 估算则标 B）。
+9. **打竞争度字段**：先登记站点、可比规格和去重 ASIN 集合 `cohort`。输出该共同总体的在售同款数、最高评论、前 10 销量占总体销量。首屏自然位计数另存 `first_page_comparable_count`，评论集中度另存 `top10_review_share_proxy`。缺共同总体或销量时正式字段留空，并给补数路径。
 10. **算词级竞争指数**：`competition_index = 100 × (0.5×log1p(competitor_count)/log1p(500) + 0.3×log1p(top_review_count)/log1p(10000) + 0.2×top10_share)`，截断到 0–100。此指标只用于词库排序，不替代规范 4.2 的竞争压力维度。
 11. **落盘三件**：`keyword_universe.csv`、`keyword_tiers.md`、`negative_terms.csv`；manifest 写采集时间、邮编、自然位口径、各源成功率。
 12. **出结论行**：`结论：可用词 N 个（核心 a / 属性 b / 场景 c / 长尾 d），主词建议 X，红海词 Y 个`。
@@ -92,10 +92,10 @@ downstream: [amz-listing-scrape, amz-review-harvest, market-sizing, market-trend
 | `keyword`（扩展） | 清洗后的词（小写、单数化） |
 | `keyword_tier`（扩展） | 核心词/属性词/场景词/长尾词 |
 | `secondary_tier`（扩展） | 次层归属，无则空 |
-| `monthly_search_volume` | 月搜索量，次/月 |
-| `competitor_count` | 第一页 48 自然位同款数 |
-| `top_review_count` | 48 位内最高评论数 |
-| `top10_share` | 前 10 位销量（或评论代理）占比 0–1 |
+| `monthly_search_volume` | Amazon 同站同词月搜索量，次/月。记录时间窗、原始导出和口径 `amazon_search_monthly`。 |
+| `competitor_count` | 可比总体的在售同款数，首屏样本数另存。 |
+| `top_review_count` | 同一可比总体内的最高评论数。 |
+| `top10_share` | 同一可比总体内前 10 销量占比 0–1。评论代理分列。 |
 | `relevance_ratio`（扩展） | 同品类 ASIN 占比 0–1 |
 | `competition_index`（扩展） | 0–100，词库排序用 |
 | `source_flags`（扩展） | `suggest,aba,reverse,sp` 组合 |
@@ -117,7 +117,7 @@ downstream: [amz-listing-scrape, amz-review-harvest, market-sizing, market-trend
 - [ ] `competitor_count`、`top_review_count`、`top10_share` 出自同批次采集，时间戳间隔 ≤2 小时。
 - [ ] 无品牌词、无 ASIN 型词残留（抽 20 行）。
 - [ ] 词表 ≥150 行，长尾词占比 ≥40%。
-- [ ] ABA 或 SP 缺失时，报告已标 C 并写明降级路径与影响字段。
+- [ ] Google Ads、lingxiao 站外词量、下拉建议和未校准排名仅用于线索，正式月搜缺口已标无源。
 
 ## 反模式
 
@@ -125,4 +125,4 @@ downstream: [amz-listing-scrape, amz-review-harvest, market-sizing, market-trend
 - **把品牌词当核心词**：`anker charger` 月搜 8 万但转化归品牌。→ 正确：品牌词单独出表 `brand_terms.csv`，不进主词，也不进标题。
 - **用搜索结果数当 `competitor_count`**：那是全站 listing 数（几十万），必然判红海。→ 正确：只数第一页 48 个自然位里同款，口径写进 manifest。
 - **让模型「感觉」分层**：同一个词两次运行归到不同层。→ 正确：词典命中 + 词数 + 量级三条件，规则写在 `references/keyword-tier-rules.md`。
-- **`top10_share` 用评论占比却不标注**：把 C 级代理数据当 A 级销量占比用，直接推翻垄断度结论。→ 正确：代理口径必须标 C，且报告里写「评论代理，偏差方向未知」。
+- **`top10_share` 用评论占比却不标注**：把 C 级代理数据当 A 级销量占比用，直接推翻垄断度结论。→ 正确：评论代理单列且标 C，留空销量占比字段。

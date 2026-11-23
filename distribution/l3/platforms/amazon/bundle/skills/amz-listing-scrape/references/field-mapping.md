@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | `product` | 标题 | 商品标题主标题（`#title` 区块内 `span`） | 去首尾空格，保留原文大小写与符号 | 变体页显示「Currently unavailable」→ 记空 |
 | 五点 | 五点区 | `About this item` 列表 | 取前 5 条，按 `•`/换行切；不足 5 条按实际条数 | A+ 页面可能无五点 → 记 `bullets_missing=1` |
-| `price_usd` | 购买框 | 购买框内价格（非划线价） | 去 `$`、去千分位逗号、转 float；区间价取最低 | 无 BuyBox → 取 `See All Buying Options` 最低价并标 `buybox_missing` |
+| `price_usd` | 购买框 | 购买框内价格（非划线价） | 取精确子体的单值报价，区间价原样记 `offer_price_range` | 无 BuyBox 标 `buybox_missing`，最低其他报价单列，不进入同规格主流带 |
 | `list_price_usd` | 购买框 | 价格旁删除线文本 | 去 `$`、`List Price:` 前缀 | 无划线价 → 空 |
 | `coupon_pct` | 购买框 | `Save x%` / `Apply $x coupon` | `x%`→x/100；`$x`→x/price_usd | 无 → 0 |
 | `variation_count` | 变体选择器 | `Color:`/`Size:` 下拉或色块 | 子体条目数，父子体去重；同一子体多属性只计 1 | 无变体选择器 → 1 |

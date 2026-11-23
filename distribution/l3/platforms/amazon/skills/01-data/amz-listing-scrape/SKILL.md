@@ -14,7 +14,7 @@ downstream: [amz-review-harvest, market-sizing, competitor-deconstruct, profit-m
 ## 何时用
 
 - 已有关键词表，要按核心词取竞品 ASIN 集合，抓成一张能直接进四维打分的竞品表。
-- 要给某个候选品算 `competitor_count`、`top_review_count`、`top10_share`，需要同一时间窗的前台快照。
+- 需要记录同一时间窗的前台快照。只有核实了完整可比总体时才回填正式竞争字段，搜索页样本范围另列。
 - 判断类目是新品混战还是老品垄断：要看 `listed_since`、`seller_count`、`variation_count` 三个字段的分布。
 - 竞品改价/改变体后要留证据：需要带时间戳的原值快照做前后对比。
 - 不归这里：抓评论正文 → `amz-review-harvest`；算利润 → `05-product/profit-model`；判类目规模 → `02-market/market-sizing`；做竞品对比结论 → 04 层对比 skill（本 skill 只出数据，不出结论）。
@@ -36,7 +36,7 @@ downstream: [amz-review-harvest, market-sizing, competitor-deconstruct, profit-m
 1. **定采集环境**：收货邮编固定 `10001`（纽约），语言 `en-US`，货币 USD；浏览器视口 1440×900；不登录任何买家账号。
 2. **定 ASIN 集**：核心词各取第一页 48 个自然位（跳过 `Sponsored`、`Sponsored Brands`、`Top Rated` 之外的推荐位），按出现次数排序取前 20；加卖家指定 3 个对标 ASIN，总 23 个上限。
 3. **抓主图/标题/五点**：详情页 `#productTitle`、`#feature-bullets li`（取前 5 条，不足 5 条按实际）、主图第 1 张 URL。标题与五点原文保存，不截断。
-4. **抓价格三件**：`buybox_price`（加入购物车区域实付价）、`list_price`（划线价，无则空）、`coupon`（`Save x%` 或 `$x coupon` 文本）。`price_usd = buybox_price`，不用 list price。
+4. **抓价格三件**：`buybox_price`（详情页购买框的可见报价）、`list_price`（划线价，无则空）、`coupon`（`Save x%` 或 `$x coupon` 文本）。`price_usd = buybox_price`。记录配送地是否验证、广告位、变体 ASIN、标称装量、有效主件数及兼容组。区间价与套件分列。
 5. **抓变体**：展开变体选择器，取父体 ASIN、全部子体 ASIN、每个子体的属性值（颜色/尺寸）与该子体价格。`variation_count` = 子体数（父体不计）。
    - 只对 1 个代表子体抓完整详情（五点/BSR），其余子体只抓价格与属性，避免 23×N 次请求。
 6. **抓 BSR**：详情页 Product information 表的 `Best Sellers Rank`，取前 2 行 → `bsr_main_rank`（主类目）、`bsr_category`（子类目名）、`bsr_sub_rank`（子类目排名）。类目数与 `category` 不一致时记 `bsr_mismatch=1`。
@@ -46,7 +46,7 @@ downstream: [amz-review-harvest, market-sizing, competitor-deconstruct, profit-m
 10. **重试口径**：单字段抓取失败重试 3 次，间隔 10s / 30s / 90s；仍失败 → 该字段留空、`retry_count` 记 3；同一 ASIN 有 ≥3 个关键字段（价格/BSR/评分）失败 → `scrape_status=failed`，整行 `evidence_grade=C`。
 11. **反爬处理**：出现验证码页 → 暂停该 IP 15 分钟，换 IP 重试；连续 3 个 IP 都出验证码 → 本轮停止，已抓数据封版并写 manifest `blocked=true`。
 12. **交叉校验**：随机抽 3 个 ASIN，人工复核价格/BSR/卖家数三项；任一不符 → 该字段整列降级 C 并重抓该列。
-13. **落盘**：`listing_snapshot.csv`、`scrape_manifest.md`（环境、时间戳、成功率、失败 ASIN 列表）、`field_quality.md`（每个字段缺失率与证据等级）。
+13. **落盘**：`listing_snapshot.csv`、`scrape_manifest.md`（配送地、时间戳、成功率、失败 ASIN 列表）、`field_quality.md`（每个字段缺失率与证据等级）。
 
 ## 判定口径
 
@@ -85,13 +85,13 @@ downstream: [amz-review-harvest, market-sizing, competitor-deconstruct, profit-m
 | `sku` | 卖家映射 | 无则空，下游按 asin 关联 |
 | `product` | `#productTitle` | 原文标题 |
 | `category` | 输入 | 品类 slug |
-| `price_usd` | BuyBox | 实付价 USD |
+| `price_usd` | 有明确装量的 BuyBox | 页面报价 USD。成交价需要独立实付依据 |
 | `list_price_usd`（扩展） | 划线价 | 无则空 |
 | `coupon_pct`（扩展） | coupon 文本 | 0–1，无则 0 |
 | `monthly_search_volume` | 上游词表 | 该 ASIN 主词月搜索量，无则空 |
-| `competitor_count` | 同批 ASIN 集 | 本批同类 ASIN 数 |
-| `top_review_count` | 本批最大值 | 本批最高评论数 |
-| `top10_share` | 本批销量/评论占比 | 0–1；评论代理标 C |
+| `sample_comparable_count` | 同批 ASIN 集 | 本批可比 ASIN 数。正式在售同款数需要共同总体 |
+| `sample_top_review_count` | 本批最大值 | 仅同兼容规格样本最高评论数 |
+| `top10_review_share_proxy` | 本批评论 | 0–1，评论代理标 C，销量集中度需另证 |
 | `rating_avg`（扩展） | 评分区 | 1.0–5.0 |
 | `rating_count`（扩展） | 评分区 | 条 |
 | `rating_dist_5` 至 `rating_dist_1`（扩展） | 直方图 | 0–1 小数，共 5 列 |

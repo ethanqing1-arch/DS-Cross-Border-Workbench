@@ -27,7 +27,7 @@ downstream: [amz-keyword-harvest, market-sizing, voc-mining, competitor-deconstr
 | 目标站点 | 用户 | 默认 Amazon US，并在报告首行标注"站点默认 US" |
 | 候选品清单 | 用户 / `amz-keyword-harvest` 产出 | 走采集层自动生成 8–12 个候选 |
 | 卖家资源约束 | 用户（资金/资质/是否自有工厂） | 按"月可用现金 ≤ 5000 USD、无自有工厂、无特殊资质"假设，标 D 级 |
-| 汇率 FX | 配置 | 默认 7.15，写进 `run_meta.json` |
+| 汇率 FX | 工作区 `10-market/fx.md`（CNY/站点本币） | US 读费表，其余已配置站点显式传站点、币种、汇率。 |
 
 ## 执行流程
 
@@ -43,7 +43,7 @@ downstream: [amz-keyword-harvest, market-sizing, voc-mining, competitor-deconstr
 - `amz-review-harvest` → 评论样本（≥300 条/近 12 个月）
 - `web-trend-scan`（可选，判断趋势与季节性时必跑）
 
-**门禁 G1**：`monthly_search_volume`、`competitor_count`、`top_review_count`、`price_usd`、`cogs_cny` 五个字段任一缺失 > 20% 的候选 → 该候选标 D 级，最多只能给"观察"。
+**门禁 G1**：以候选为单位检查 18 个决策字段的 `field_evidence`，无源标 D 且不能进入正式评分。D >30%、FBA 参考区间冲突或同规格价格依据缺失时触发门禁。用工作区 `95-engine/score.py` 落盘判定，补证档零测试投入。
 
 **Step 2 市场（02-market）**
 `market-sizing` → `market-trend` → `market-entry`，产出：TAM/SAM/SOM、季度性系数、进入难度评级（易/中/难）。
@@ -98,7 +98,7 @@ out/<run_id>/
 - [ ] 报告首行是结论行，不是背景介绍。
 - [ ] 每个候选的四维分之和按权重能复算出总分（误差 ≤ 0.2）。
 - [ ] 每条红线判定都能在 CSV 的 `红线` 列找到原句。
-- [ ] 数据等级已标注，D 级占比 >30% 的候选没有出现在"上架测试"里。
+- [ ] CSV 中每字段来源、观察时间、口径和值已绑定；无源、D >30% 或冲突行的决策已经按引擎门禁落盘。
 - [ ] 3 个动作都写了负责人、时限、验收标准。
 - [ ] `run_meta.json` 里有 FX、输入文件名、候选数。
 - [ ] 没有把估算写成实测（"月销 800 件"这种没来源的话不许出现）。

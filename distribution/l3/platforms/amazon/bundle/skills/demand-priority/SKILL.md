@@ -25,7 +25,7 @@ downstream: [jtbd-map, profit-model, decision-control]
 |---|---|---|
 | `pain_points.csv` | `voc-mining` | 缺失：先跑上游。不得用未聚类的原始评论直接排优先级。 |
 | `keyword_universe.csv` | `amz-keyword-harvest` | 缺失：`frequency_score` 只用提及频次分位，不叠加搜索量，标 C。 |
-| `price_band_usd` | 竞品价格 min / median / max | 缺失：用 `listing_snapshot.csv` 的 `price_usd` 分位自行算，标 B。 |
+| `price_band_usd` | 同规格、同装量、同报价口径的竞品价格 P25 / median / P75 | 缺失：按 `pricing-ladder` 清洗后复算。有证据则附采集日期，无可比组则降档。 |
 | `competitor_price_median_usd` | 同上 | 缺失：取价格带中位数，标 C；`wtp_score` 整体降 1 档。 |
 | `category` | 输入 | 必需：决定 Kano 基准与「基本型」清单。 |
 | `cost_delta_usd` | 改进项的成本增量（供应商报价） | 缺失：`improvable_score` ≤6 的按 0.50 USD 估，标 D；>6 的必须问供应商，不许估。 |

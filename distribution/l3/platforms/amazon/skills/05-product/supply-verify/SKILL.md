@@ -39,7 +39,7 @@ downstream: [profit-model, decision-control, compliance-gate]
 3. **锁产业带**：按品类查产业带（见 `references/supplier-scorecard.md` 第 1 节），优先筛选产业带内工厂；产地不在产业带的，价格低 20% 以上才继续聊。
 4. **筛厂**：只留同时满足"经营年限 ≥ 3 年""有深度验厂或实力商家标""主营类目匹配"的 5–8 家；剔除贸易商（店铺商品跨 5 个以上不相关类目）。
 5. **询价（统一口径）**：对每家发同一份询价模板，要求报 4 个价：`100 件 / 500 件 / 1000 件 / 3000 件`，每档注明是否含 13% 增值税专票、是否含到货代仓运费、是否含彩盒与说明书、是否含贴标。
-6. **折算落地成本**：`cogs_cny = 报价 + 税差 + 运费分摊 + 包装 + 贴标`。不含税报价按 `×1.13` 折算含税价；不含运的按"报价 × 1.03–1.08"加分摊（按体积重实际算）。
+6. **折算落地成本**：`cogs_cny = 报价 + 税差 + 包装 + 贴标`。到货代仓物流单列，采购对比价另计该段运费。不含税报价按 `×1.13` 折算含税价；不含运的按"报价 × 1.03–1.08"加分摊（按体积重实际算）。
 7. **摸底交期**：问打样费与打样周期、大货交期（天）、旺季（9–11 月）产能上限、是否接受插单。三个数都要落到天。
 8. **验厂 8 问**：按 `references/supplier-scorecard.md` 第 3 节逐条问，答案写进对比表；视频验厂或第三方验货（如 SGS 单次验货）能做的加分。
 9. **打供应稳定性分**：按第 4 节 6 项评分表算 0–10 分，四舍五入到 0.5，写 `supply_stability`。
@@ -96,14 +96,14 @@ downstream: [profit-model, decision-control, compliance-gate]
 
 - 落盘：`out/<run_id>/供应商对比.csv`、`供应商对比.md`、`供应稳定性评分.md`、`首单建议.md`
 - CSV 列（与 `engine/score.py` 对齐的字段逐字一致）：`sku, category, product, supplier_name, supplier_url, factory_or_trader, province, moq, quote_cny_100, quote_cny_500, quote_cny_1000, quote_cny_3000, tax_included, freight_included, packaging_included, sample_fee_cny, sample_days, lead_time_days, peak_capacity, supply_stability, second_source, cogs_cny`
-- `cogs_cny` 必须是折算后的落地成本，不许直接抄报价。
+- `cogs_cny` 是含税的同装量采购价（含包装、贴标）。到货代仓运费分列，头程与入仓在利润表各计一次。记录报价原件、日期、规格和 MOQ 档。
 - 本 skill 扩展列：`bargain_room_pct, inspection_available, payment_terms, first_order_qty`
 - 正文格式：先结论（一句：可用供应商 N 家、最低落地成本 X CNY、`supply_stability` Y、首单建议 Z 件）→ 对比表 → 评分明细 → 二供与首单动作。结论后标 `[A]`/`[B]`/`[C]`/`[D]`。
 
 ## 质检清单
 
 - [ ] 图搜与关键词两路都跑了，同款数量有采集时间戳。
-- [ ] 报价已折成"含税含运含包装"落地成本，`cogs_cny` 不是原始报价。
+- [ ] 采购对比价含税含运含包装，评分 `cogs_cny` 剔除物流。含包运费已核分摊。
 - [ ] 四档阶梯价（100/500/1000/3000）都问到了，不是只问一个价。
 - [ ] 打样周期、大货交期、旺季产能三个天数/倍数都有数字。
 - [ ] 验厂 8 问逐条有答案，拒答项已标"未答"。
