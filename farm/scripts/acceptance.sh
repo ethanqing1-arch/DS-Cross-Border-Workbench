@@ -16,7 +16,7 @@ wn(){ printf "  \033[33mWARN\033[0m %s\n" "$1"; WARN=$((WARN+1)); }
 
 echo "== 1. 文件完整性 =="
 for f in farm.js control.js ledger.js driver.js contract.js proxy-bridge.js gateway/server.js mcp/farm-mcp.js docker/Dockerfile docker/entry.sh \
-         scripts/mock-ip-echo.js scripts/verify-dual-env.sh scripts/test-proxy-bridge.sh scripts/proxy-selftest.sh scripts/ledger-clean.sh camoufox_worker.py \
+         scripts/mock-ip-echo.js scripts/verify-dual-env.sh scripts/test-proxy-bridge.sh scripts/proxy-selftest.sh scripts/ledger-clean.sh scripts/first-fetch.sh camoufox_worker.py \
          docs/dsbot-workbench-architecture.md docs/dsbot-workbench-review.md; do
   [ -f "$f" ] && ok "$f" || no "缺文件 $f"
 done
@@ -30,6 +30,7 @@ bash -n scripts/verify-dual-env.sh 2>/dev/null && ok "verify-dual-env.sh" || no 
 bash -n scripts/test-proxy-bridge.sh 2>/dev/null && ok "test-proxy-bridge.sh" || no "test-proxy-bridge.sh 语法错"
 bash -n scripts/proxy-selftest.sh 2>/dev/null && ok "proxy-selftest.sh" || no "proxy-selftest.sh 语法错"
 bash -n scripts/ledger-clean.sh 2>/dev/null && ok "ledger-clean.sh" || no "ledger-clean.sh 语法错"
+bash -n scripts/first-fetch.sh 2>/dev/null && ok "first-fetch.sh" || no "first-fetch.sh 语法错"
 # bridge 配置校验：无上游 / 坏格式 / socks5 缺端口 / 不支持的协议都必须拒绝启动（exit 2；不联网不监听）
 # 注意：这里不断言 socks5 不可用——socks5/socks5h 是受支持的上游，只校验坏配置会退出。
 node -e '
@@ -152,6 +153,19 @@ if ! printf '%s' "$NEG_SESSIONS" | grep -q 'neg-proxy'; then
   ok "proxy 两条负例未落台账（无 neg-proxy）"
 else
   no "proxy 负例落进了台账：$(printf '%s' "$NEG_SESSIONS" | head -c 200)"
+fi
+
+# first-fetch.sh 负例：没配 PROXY_URL 必须 exit 2、不建会话（台账行数不变），提示指向 runbook
+FF_DB="$TMP/first-fetch-neg.db"
+FARM_DB="$FF_DB" node ledger.js stats >/dev/null 2>&1
+FF_BEFORE="$(sqlite3 "$FF_DB" 'SELECT count(*) FROM accounts')"
+FF_OUT="$(env -u PROXY_URL -u DSH_SECRET_PROXY_URL GATEWAY_TOKEN=T FARM_DB="$FF_DB" \
+  bash "$SRC/scripts/first-fetch.sh" --platform amazon --query test --out "$TMP/ff-out" 2>&1)"; FF_RC=$?
+FF_AFTER="$(sqlite3 "$FF_DB" 'SELECT count(*) FROM accounts')"
+if [ "$FF_RC" -eq 2 ] && [ "$FF_BEFORE" = "$FF_AFTER" ] && printf '%s' "$FF_OUT" | grep -q 'data-fetch-runbook'; then
+  ok "first-fetch 无 PROXY_URL → exit 2 且不建会话（台账 $FF_BEFORE→$FF_AFTER）"
+else
+  no "first-fetch 负例异常（EXIT=$FF_RC 台账 $FF_BEFORE→$FF_AFTER）"
 fi
 
 if [ "$WITH_BROWSER" = "1" ]; then

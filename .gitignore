@@ -21,6 +21,9 @@ tmp/
 *.zip
 *.pid
 
+# 取数产物（first-fetch.sh 默认输出目录）
+distribution/connectors/out/
+
 # 环境变量与密钥
 .env
 .env.*
