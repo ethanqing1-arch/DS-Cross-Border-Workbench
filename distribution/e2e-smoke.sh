@@ -110,11 +110,20 @@ install_pkg() {
     printf '%s\n' "$out" | tail -8 | sed 's/^/    /'
   fi
 }
+# L1 只写 .dsh/ecom-l1.json，首次安装恒为 1 次写入。
 install_pkg "L1 安装" "1 0 0" bash "$SRC/l1/install.sh" "$WS"
-install_pkg "L2 安装" "53 0 0" bash "$SRC/l2/install.sh" "$WS"
+
+# workspace/ 文件已含 CHIEF-INIT.md 和 README.md；安装器也把骨架目录计入 write。
+L2_WORKSPACE_FILES="$(find "$SRC/l2/workspace" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"
+L2_SKILL_FILES="$(find "$SRC/l2/skills" -mindepth 2 -type f | wc -l | tr -d ' ')"
+L2_WORKSPACE_DIRS="$(find "$SRC/l2/workspace" -mindepth 1 -type d | wc -l | tr -d ' ')"
+L2_WRITES=$((L2_WORKSPACE_FILES + L2_SKILL_FILES + L2_WORKSPACE_DIRS))
+install_pkg "L2 安装" "$L2_WRITES 0 0" bash "$SRC/l2/install.sh" "$WS"
+
 AMAZON_FILES="$(find "$SRC/l3/platforms/amazon" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"
 install_pkg "L3 amazon 安装" "$AMAZON_FILES 0 0" bash "$SRC/l3/install.sh" amazon "$WS"
-install_pkg "L3 ebay 安装" "4 0 0" bash "$SRC/l3/install.sh" ebay "$WS"
+EBAY_FILES="$(find "$SRC/l3/platforms/ebay" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"
+install_pkg "L3 ebay 安装" "$EBAY_FILES 0 0" bash "$SRC/l3/install.sh" ebay "$WS"
 [ -f "$WS/.dsh/ecom-l1.json" ] && ok "L1 标记文件存在" || bad "L1 标记文件缺失"
 [ -f "$WS/95-engine/platforms/amazon/manifest.json" ] && ok "L3 amazon 落点存在" || bad "L3 amazon 落点缺失"
 AMAZON_SKILLS="$(find "$WS/95-engine/platforms/amazon/skills" -type f -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"

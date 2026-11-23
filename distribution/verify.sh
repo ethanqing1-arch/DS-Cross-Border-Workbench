@@ -75,6 +75,7 @@ echo "-- 1. L1 核心包 dsh-ecom-l1"
 L1T="$TMP/l1"
 OUT="$(bash "$SRC/l1/install.sh" "$L1T" 2>&1)"; RC=$?
 W="$(printf '%s\n' "$OUT" | sed -n 's/^== 汇总: write=\([0-9]*\) skip=\([0-9]*\) fail=\([0-9]*\) ==/\1 \2 \3/p' | tail -1)"
+# L1 只写 .dsh/ecom-l1.json，首次安装恒为 1 次写入。
 if [ "$RC" -eq 0 ] && [ "$W" = "1 0 0" ]; then
   ok "L1 install（write=1 skip=0 fail=0）"
 else
@@ -158,9 +159,8 @@ for p in $PLATFORMS; do
   OUT="$(bash "$SRC/l3/install.sh" "$p" "$WS" 2>&1)"; RC=$?
   W="$(printf '%s\n' "$OUT" | sed -n 's/^== 汇总: write=\([0-9]*\) skip=\([0-9]*\) fail=\([0-9]*\) ==/\1 \2 \3/p' | tail -1)"
   LANDED="$(find "$WS/95-engine/platforms/$p" -type f 2>/dev/null | wc -l | tr -d ' ')"
-  EXPECTED=4
+  EXPECTED="$(find "$SRC/l3/platforms/$p" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"
   if [ "$p" = "amazon" ]; then
-    EXPECTED="$(find "$SRC/l3/platforms/$p" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"
     SK="$(find "$WS/95-engine/platforms/$p/skills" -type f -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
     [ "$SK" -eq 23 ] && ok "平台 $p skills=23" || bad "平台 $p skills=${SK}（期望 23）"
   fi
