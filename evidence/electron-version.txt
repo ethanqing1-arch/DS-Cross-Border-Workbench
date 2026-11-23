@@ -1,0 +1,2 @@
+  "CFBundleIdentifier" => "com.github.Electron.framework"
+  "CFBundleVersion" => "30.5.1"

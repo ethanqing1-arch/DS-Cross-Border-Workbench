@@ -1,0 +1,4 @@
+  "CFBundleShortVersionString" => "6.50.2-latest.7"
+  "CFBundleVersion" => "6.50.2.7"
+      "hash" => "d639c2b76ea2a3b659272169fd388ab9923c125ce1aed9c8a4fc63986b73fa26"
+e9aad09f6ececaf3dab91719363a0834d5064bad531e49f96d50bc0ee01188fb  /Applications/ziniao.app/Contents/Resources/app.asar

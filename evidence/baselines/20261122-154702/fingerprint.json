@@ -1,0 +1,136 @@
+{
+  "cdp": "http://127.0.0.1:65057",
+  "target": "https://example.com/",
+  "result": [
+    {
+      "id": "UA-CH.major",
+      "level": "PASS",
+      "msg": "UA 主版本 vs UA-CH 版本",
+      "detail": "UA=157 CH=157"
+    },
+    {
+      "id": "UA-CH.platform",
+      "level": "PASS",
+      "msg": "navigator.platform vs UA-CH.platform",
+      "detail": "MacIntel / macOS"
+    },
+    {
+      "id": "TZ.self",
+      "level": "PASS",
+      "msg": "Date 偏移 vs Intl 偏移",
+      "detail": "Date=480min Intl=GMT+8"
+    },
+    {
+      "id": "FONT.platform",
+      "level": "PASS",
+      "msg": "字体集合与 UA 平台一致",
+      "detail": "PingFang SC,Hiragino Sans GB,Menlo,Monaco,Arial"
+    },
+    {
+      "id": "LANG",
+      "level": "PASS",
+      "msg": "navigator.language vs languages[0]",
+      "detail": "zh-CN / zh-CN,zh"
+    },
+    {
+      "id": "CANVAS.stable",
+      "level": "PASS",
+      "msg": "两次新建 canvas 结果一致",
+      "detail": "hash=6c586e93 len=6510"
+    },
+    {
+      "id": "INTEGRITY",
+      "level": "PASS",
+      "msg": "关键函数是否 native",
+      "detail": "all native"
+    },
+    {
+      "id": "WEBDRIVER",
+      "level": "WARN",
+      "msg": "navigator.webdriver",
+      "detail": "true"
+    },
+    {
+      "id": "PLUGINS",
+      "level": "PASS",
+      "msg": "navigator.plugins 数量（Chrome 应为 5）",
+      "detail": "5"
+    },
+    {
+      "id": "PRIVATE_API",
+      "level": "PASS",
+      "msg": "chrome.superbrowser 私有 API 可见性",
+      "detail": "undefined"
+    },
+    {
+      "id": "IP",
+      "level": "WARN",
+      "msg": "页面出口 IP（未给期望值，仅记录）",
+      "detail": "ERR"
+    }
+  ],
+  "summary": {
+    "fail": 0,
+    "warn": 2
+  },
+  "snapshot": {
+    "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+    "ch": {
+      "brands": [
+        {
+          "brand": "Not-A.Brand",
+          "version": "99"
+        },
+        {
+          "brand": "Google Chrome",
+          "version": "157"
+        },
+        {
+          "brand": "Chromium",
+          "version": "157"
+        }
+      ],
+      "platform": "macOS",
+      "mobile": false
+    },
+    "platform": "MacIntel",
+    "languages": [
+      "zh-CN",
+      "zh"
+    ],
+    "language": "zh-CN",
+    "tz": "Asia/Shanghai",
+    "tzOffsetMin": -480,
+    "tzName": "GMT+8",
+    "fonts": [
+      "PingFang SC",
+      "Hiragino Sans GB",
+      "Menlo",
+      "Monaco",
+      "Arial"
+    ],
+    "canvas": {
+      "hash": "6c586e93",
+      "stable": true,
+      "len": 6510
+    },
+    "hc": 10,
+    "dm": 16,
+    "screen": {
+      "w": 1470,
+      "h": 956,
+      "dpr": 1
+    },
+    "webdriver": true,
+    "chrome": true,
+    "plugins": 5,
+    "integrity": {
+      "toDataURL": "function toDataURL() { [native code] }",
+      "getContext": "function getContext() { [native code] }",
+      "getParameter": "function getParameter() { [native code] }",
+      "tsSelf": "function toString() { [native code] }"
+    },
+    "privateApi": "undefined",
+    "ip": "ERR"
+  }
+}

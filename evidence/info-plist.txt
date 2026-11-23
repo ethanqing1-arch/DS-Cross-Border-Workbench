@@ -1,0 +1,76 @@
+{
+  "CFBundleDisplayName" => "ziniao"
+  "CFBundleExecutable" => "ziniao"
+  "CFBundleIconFile" => "icon.icns"
+  "CFBundleIdentifier" => "com.ziniao.fzzixun"
+  "CFBundleInfoDictionaryVersion" => "6.0"
+  "CFBundleName" => "ziniao"
+  "CFBundlePackageType" => "APPL"
+  "CFBundleShortVersionString" => "6.50.2-latest.7"
+  "CFBundleURLTypes" => [
+    0 => {
+      "CFBundleTypeRole" => "Editor"
+      "CFBundleURLName" => "superbrowser"
+      "CFBundleURLSchemes" => [
+        0 => "superbrowser"
+      ]
+    }
+    1 => {
+      "CFBundleTypeRole" => "Editor"
+      "CFBundleURLName" => "superbrowserv6"
+      "CFBundleURLSchemes" => [
+        0 => "superbrowserv6"
+      ]
+    }
+  ]
+  "CFBundleVersion" => "6.50.2.7"
+  "com.apple.security.device.audio-input" => true
+  "com.apple.security.device.camera" => true
+  "DTCompiler" => "com.apple.compilers.llvm.clang.1_0"
+  "DTSDKBuild" => "23F73"
+  "DTSDKName" => "macosx14.5"
+  "DTXcode" => "1540"
+  "DTXcodeBuild" => "15F31d"
+  "ElectronAsarIntegrity" => {
+    "Resources/app.asar" => {
+      "algorithm" => "SHA256"
+      "hash" => "d639c2b76ea2a3b659272169fd388ab9923c125ce1aed9c8a4fc63986b73fa26"
+    }
+  }
+  "LSApplicationCategoryType" => "public.app-category.developer-tools"
+  "LSEnvironment" => {
+    "MallocNanoZone" => "0"
+  }
+  "LSMinimumSystemVersion" => "10.15"
+  "NSAppTransportSecurity" => {
+    "NSAllowsArbitraryLoads" => true
+    "NSAllowsLocalNetworking" => true
+    "NSExceptionDomains" => {
+      "127.0.0.1" => {
+        "NSIncludesSubdomains" => false
+        "NSTemporaryExceptionAllowsInsecureHTTPLoads" => true
+        "NSTemporaryExceptionAllowsInsecureHTTPSLoads" => false
+        "NSTemporaryExceptionMinimumTLSVersion" => "1.0"
+        "NSTemporaryExceptionRequiresForwardSecrecy" => false
+      }
+      "localhost" => {
+        "NSIncludesSubdomains" => false
+        "NSTemporaryExceptionAllowsInsecureHTTPLoads" => true
+        "NSTemporaryExceptionAllowsInsecureHTTPSLoads" => false
+        "NSTemporaryExceptionMinimumTLSVersion" => "1.0"
+        "NSTemporaryExceptionRequiresForwardSecrecy" => false
+      }
+    }
+  }
+  "NSBluetoothAlwaysUsageDescription" => "This app needs access to Bluetooth"
+  "NSBluetoothPeripheralUsageDescription" => "This app needs access to Bluetooth"
+  "NSCameraUsageDescription" => "Please give us access to your camera"
+  "NSHighResolutionCapable" => true
+  "NSHumanReadableCopyright" => "Copyright (C) Fujian Zixun Information Technology Co., Ltd. All Rights Reserved."
+  "NSMainNibFile" => "MainMenu"
+  "NSMicrophoneUsageDescription" => "Please give us access to your microphone"
+  "NSPrincipalClass" => "AtomApplication"
+  "NSQuitAlwaysKeepsWindows" => false
+  "NSRequiresAquaSystemAppearance" => false
+  "NSSupportsAutomaticGraphicsSwitching" => true
+}

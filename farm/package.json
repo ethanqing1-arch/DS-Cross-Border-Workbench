@@ -1,0 +1,9 @@
+{
+  "name": "ziniao-farm",
+  "version": "1.1.0",
+  "private": true,
+  "description": "指纹浏览器农场：control + gateway + ledger（依赖自包含，避免向上解析到 ~/.dsh/profiles/desktop）",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

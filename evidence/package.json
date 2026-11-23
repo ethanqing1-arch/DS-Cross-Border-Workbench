@@ -1,0 +1,59 @@
+{
+  "name": "ziniaobrowser",
+  "private": true,
+  "version": "6.50.2-latest.7",
+  "main": "entries/main.index.js",
+  "author": "福建紫讯信息科技有限公司 <fzzx@fzzx.com>",
+  "homepage": "https://www.ziniao.com/",
+  "license": "ISC",
+  "dependencies": {
+    "@jellybrick/ffi-napi": "^4.0.18",
+    "@jellybrick/ref-napi": "^4.0.10",
+    "@ziniao/crypto-js": "^1.6.6",
+    "archiver": "^7.0.1",
+    "axios": "^1.7.8",
+    "base64-stream": "^1.0.0",
+    "better-sqlite3": "11.7.0",
+    "bytenode": "1.5.7",
+    "check-disk-space": "^3.4.0",
+    "crypto-js": "^4.2.0",
+    "dayjs": "^1.11.13",
+    "electron-log": "^5.2.2",
+    "electron-updater": "^6.3.9",
+    "jimp": "^0.22.12",
+    "js-sha256": "^0.11.0",
+    "lodash": "^4.17.21",
+    "mobx": "^6.13.5",
+    "node-gyp": "11.5.0",
+    "node-machine-id": "^1.1.12",
+    "pako": "1.0.11",
+    "sa-sdk-node": "^1.2.6",
+    "sudo-prompt": "^9.2.1",
+    "tldts": "^6.1.76",
+    "to-ico": "^1.1.5",
+    "tree-kill": "^1.2.2",
+    "ws": "^8.18.0"
+  },
+  "packageKernel": {
+    "win32": {
+      "x64": [
+        "chromium_win64_202410291054_ver5.126.1.0.110.zip",
+        "firefox_win64_202609011231_ver6.148.1.0.12.zip"
+      ],
+      "x86": ""
+    },
+    "linux": {
+      "x64": "chromium_linux_202402231005_ver5.120.1.0.14.zip"
+    },
+    "darwin": {
+      "arm64": [
+        "chromium_arm64_ziniaobrowser_202406061741_ver5.124.1.2.21.zip",
+        "firefox_arm64_ziniaobrowser_202609031812_ver6.148.1.0.37.zip"
+      ],
+      "x64": [
+        "chromium_mac_ziniaobrowser_202406061405_ver5.124.1.2.20.zip",
+        "firefox_mac_ziniaobrowser_202609031810_ver6.148.1.0.4.zip"
+      ]
+    }
+  }
+}

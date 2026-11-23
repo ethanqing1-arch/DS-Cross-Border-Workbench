@@ -1,0 +1,30 @@
+# 浏览器 profile：含登录态 Cookie，绝不入库
+farm/profiles/
+profiles/
+
+# 台账与运行状态（运营数据）
+farm/state/
+farm/farm.db
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 依赖
+node_modules/
+**/node_modules/
+
+# 日志与临时产物
+*.log
+logs/
+tmp/
+*.zip
+*.pid
+
+# 环境变量与密钥
+.env
+.env.*
+!/.env.example
+
+# macOS
+.DS_Store

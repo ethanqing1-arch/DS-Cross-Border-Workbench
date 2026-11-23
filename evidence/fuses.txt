@@ -1,0 +1,11 @@
+# binary=/Applications/ziniao.app/Contents/MacOS/ziniao sentinel=-1
+# binary=/Applications/ziniao.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework sentinel=120879638
+# fuse wire version=1 count=8
+  RunAsNode                              disabled
+  EnableCookieEncryption                 disabled
+  EnableNodeOptionsEnvironmentVariable   disabled
+  EnableNodeCliInspectArguments          disabled
+  EnableEmbeddedAsarIntegrityValidation  enabled
+  OnlyLoadAppFromAsar                    enabled
+  LoadBrowserProcessSpecificV8Snapshot   disabled
+  GrantFileProtocolExtraPrivileges       enabled

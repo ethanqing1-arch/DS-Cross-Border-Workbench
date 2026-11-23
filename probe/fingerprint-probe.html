@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Fingerprint Probe v1.2 — 指纹隔离验证页</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; background:#0d1117; color:#c9d1d9; margin:0; padding:24px; }
+  h1 { font-size:16px; margin:0 0 4px; color:#e6edf3; }
+  .sub { color:#8b949e; margin-bottom:16px; }
+  .bar { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+  button { background:#21262d; color:#c9d1d9; border:1px solid #30363d; border-radius:6px; padding:6px 12px; cursor:pointer; font:inherit; }
+  button:hover { background:#30363d; }
+  table { border-collapse:collapse; width:100%; margin-bottom:24px; }
+  th,td { border:1px solid #21262d; padding:4px 8px; text-align:left; vertical-align:top; }
+  th { background:#161b22; color:#8b949e; font-weight:600; }
+  .k { color:#79c0ff; width:220px; }
+  .v { word-break:break-all; }
+  .ok { color:#3fb950; } .bad { color:#f85149; } .warn { color:#d29922; }
+  pre { background:#161b22; border:1px solid #21262d; border-radius:6px; padding:12px; overflow:auto; max-height:420px; }
+  .group { color:#8b949e; text-transform:uppercase; letter-spacing:.08em; font-size:11px; margin:20px 0 6px; }
+  code { color:#ffa657; }
+</style>
+</head>
+<body>
+<h1>Fingerprint Probe v1.2</h1>
+<div class="sub">同一份检测页用于「紫鸟环境 / 原生 Chromium」双端对照。所有值写入 <code>window.__FP__</code>，可用 CDP 直接取走。</div>
+<div class="bar">
+  <button onclick="location.reload()">重新采样（稳定性测试）</button>
+  <button onclick="saveSnap()">保存为基线快照</button>
+  <button onclick="diffSnap()">与基线快照比对</button>
+  <button onclick="copyJSON()">复制 JSON</button>
+  <span id="msg" class="warn"></span>
+</div>
+<div id="out"></div>
+<pre id="json"></pre>
+
+<script>
+/* ------------------------------------------------------------------
+ * 0. 工具
+ * ------------------------------------------------------------------ */
+const $ = (t, cls) => { const e = document.createElement(t); if (cls) e.className = cls; return e; };
+const fnv1a = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };
+const nativeSrc = (fn) => { try { return Function.prototype.toString.call(fn); } catch (e) { return 'ERR:' + e.message; } };
+const isNative = (fn) => /\[native code\]\s*\}\s*$/.test(nativeSrc(fn));
+const R = {};                       // 结果容器
+const rows = [];                    // 表格行
+function add(group, key, value, flag) { rows.push({ group, key, value, flag }); R[key] = value; }
+
+/* ------------------------------------------------------------------
+ * 1. Navigator / UA-CH / 语言 / 硬件
+ * ------------------------------------------------------------------ */
+const nav = navigator;
+add('identity', 'userAgent', nav.userAgent, isNative(Object.getOwnPropertyDescriptor(Navigator.prototype, 'userAgent').get) ? 'ok' : 'bad');
+add('identity', 'appVersion', nav.appVersion);
+add('identity', 'platform', nav.platform);
+add('identity', 'vendor', nav.vendor);
+add('identity', 'productSub', nav.productSub);
+add('identity', 'uaData', nav.userAgentData ? JSON.stringify({
+  brands: nav.userAgentData.brands, mobile: nav.userAgentData.mobile, platform: nav.userAgentData.platform
+}) : 'undefined');
+add('identity', 'languages', JSON.stringify(nav.languages));
+add('identity', 'language', nav.language);
+add('identity', 'hardwareConcurrency', nav.hardwareConcurrency);
+add('identity', 'deviceMemory', nav.deviceMemory ?? 'undefined');
+add('identity', 'maxTouchPoints', nav.maxTouchPoints);
+add('identity', 'doNotTrack', nav.doNotTrack);
+add('identity', 'plugins.length', nav.plugins.length);
+add('identity', 'mimeTypes.length', nav.mimeTypes.length);
+add('identity', 'pdfViewerEnabled', nav.pdfViewerEnabled);
+
+// UA 与 UA-CH 一致性（平台与版本是最常见的穿帮点）
+if (nav.userAgentData) {
+  const major = (nav.userAgent.match(/Chrome\/(\d+)/) || [])[1];
+  const brandVer = (nav.userAgentData.brands.find(b => /Chrome|Chromium/.test(b.brand)) || {}).version;
+  add('identity', 'ua_vs_uach_major', `UA=${major} CH=${brandVer}`, major === brandVer ? 'ok' : 'bad');
+  const platMap = { MacIntel: 'macOS', Win32: 'Windows', Linux: 'Linux' };
+  add('identity', 'platform_vs_uach', `${nav.platform} / ${nav.userAgentData.platform}`,
+      platMap[nav.platform] === nav.userAgentData.platform ? 'ok' : 'bad');
+}
+
+/* ------------------------------------------------------------------
+ * 2. 屏幕 / 时区 / 区域
+ * ------------------------------------------------------------------ */
+add('screen', 'screen', `${screen.width}x${screen.height} @${devicePixelRatio}x cd=${screen.colorDepth}`);
+add('screen', 'avail', `${screen.availWidth}x${screen.availHeight} left=${screen.availLeft} top=${screen.availTop}`);
+add('screen', 'outer/inner', `${outerWidth}x${outerHeight} / ${innerWidth}x${innerHeight}`);
+add('screen', 'orientation', (screen.orientation || {}).type);
+const tz = Intl.DateTimeFormat().resolvedOptions();
+add('locale', 'timeZone', tz.timeZone);
+add('locale', 'utcOffsetMin', new Date().getTimezoneOffset());
+add('locale', 'locale', tz.locale);
+add('locale', 'calendar/numbering', `${tz.calendar} / ${tz.numberingSystem}`);
+// 时区一致性：Date 偏移必须等于该 IANA 时区在当前日期的偏移
+(() => {
+  try {
+    const off = -new Date().getTimezoneOffset();
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz.timeZone, timeZoneName: 'shortOffset' }).formatToParts(new Date());
+    const tzn = (parts.find(p => p.type === 'timeZoneName') || {}).value || '';
+    const m = tzn.match(/GMT([+-]\d{1,2})(?::(\d{2}))?/);
+    const expect = m ? (+m[1]) * 60 + (m[1][0] === '-' ? -(+(m[2] || 0)) : +(m[2] || 0)) : null;
+    add('locale', 'tz_vs_intl', `Date=${off}min intl=${tzn}`, expect === null || Math.abs(expect - off) <= 60 ? 'ok' : 'bad');
+  } catch (e) { add('locale', 'tz_vs_intl', 'ERR ' + e.message, 'warn'); }
+})();
+
+/* ------------------------------------------------------------------
+ * 3. Canvas（2D ×3 次稳定性 / OffscreenCanvas 交叉一致）
+ * ------------------------------------------------------------------ */
+function canvasDraw() {
+  const c = document.createElement('canvas'); c.width = 240; c.height = 60;
+  const x = c.getContext('2d');
+  x.textBaseline = 'top';
+  x.font = "14px 'Arial'";
+  x.fillStyle = '#f60'; x.fillRect(100, 1, 62, 20);
+  x.fillStyle = '#069'; x.fillText('ZiNiao-probe-🔍', 2, 15);
+  x.fillStyle = 'rgba(102,204,0,0.7)'; x.fillText('ZiNiao-probe-🔍', 4, 17);
+  // 渐变 + 圆弧：不同光栅化路径会放大差异
+  const g = x.createLinearGradient(0, 0, 240, 0);
+  g.addColorStop(0, '#0af'); g.addColorStop(1, '#f0a');
+  x.fillStyle = g; x.beginPath(); x.arc(200, 30, 18, 0, Math.PI * 2); x.fill();
+  return c;
+}
+const cA = canvasDraw(), cB = canvasDraw(), cC = canvasDraw();
+const dA = cA.toDataURL(), dB = cB.toDataURL(), dC = cC.toDataURL();
+add('canvas', 'canvas2d_hash', fnv1a(dA));
+add('canvas', 'canvas2d_stable_3x', String(dA === dB && dB === dC), dA === dB && dB === dC ? 'ok' : 'bad');
+add('canvas', 'canvas2d_len', dA.length);
+// 同一 canvas 连续两次 getImageData：捕获「每次读取都抖动」的劣质噪声
+(() => {
+  const ctx = cA.getContext('2d');
+  const h1 = fnv1a(Array.from(ctx.getImageData(0, 0, 240, 60).data.slice(0, 40000)).join(','));
+  const h2 = fnv1a(Array.from(ctx.getImageData(0, 0, 240, 60).data.slice(0, 40000)).join(','));
+  add('canvas', 'getImageData_repeat', h1 + '/' + h2, h1 === h2 ? 'ok' : 'bad');
+})();
+if (window.OffscreenCanvas) {
+  const oc = new OffscreenCanvas(240, 60), ox = oc.getContext('2d');
+  ox.textBaseline = 'top'; ox.font = "14px 'Arial'";
+  ox.fillStyle = '#f60'; ox.fillRect(100, 1, 62, 20);
+  ox.fillStyle = '#069'; ox.fillText('ZiNiao-probe-🔍', 2, 15);
+  oc.convertToBlob().then(b => b.arrayBuffer()).then(buf => {
+    add('canvas', 'offscreen_hash', fnv1a(String(new Uint8Array(buf).slice(0, 4096))));
+    add('canvas', 'canvas_vs_offscreen', '见 2d/offscreen 两项 hash 是否同源', 'warn');
+    render();
+  });
+}
+
+/* ------------------------------------------------------------------
+ * 4. WebGL / WebGL2：vendor/renderer 与能力矩阵的一致性
+ * ------------------------------------------------------------------ */
+function glInfo(ver) {
+  const c = document.createElement('canvas');
+  const gl = c.getContext(ver);
+  if (!gl) return null;
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  const info = {
+    vendor: dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR),
+    renderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
+    version: gl.getParameter(gl.VERSION),
+    shading: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+    maxTexture: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+    maxViewport: Array.from(gl.getParameter(gl.MAX_VIEWPORT_DIMS) || []),
+    maxRenderbuffer: gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),
+    maxVertexAttribs: gl.getParameter(gl.MAX_VERTEX_ATTRIBS),
+    maxVaryings: gl.getParameter(gl.MAX_VARYING_VECTORS),
+    maxFragmentUniforms: gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS),
+    exts: (gl.getSupportedExtensions() || []).sort(),
+  };
+  // 渲染一张图并取像素 hash：GPU 驱动差异 + 软件光栅化会明显不同
+  gl.clearColor(0.2, 0.4, 0.6, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  const px = new Uint8Array(4 * 16 * 16);
+  gl.readPixels(0, 0, 16, 16, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  info.pixelHash = fnv1a(Array.from(px).join(','));
+  return info;
+}
+const g1 = glInfo('webgl'), g2 = glInfo('webgl2');
+add('webgl', 'webgl1', g1 ? JSON.stringify(g1) : 'null');
+add('webgl', 'webgl2', g2 ? JSON.stringify({ vendor: g2.vendor, renderer: g2.renderer, maxTexture: g2.maxTexture, exts: g2.exts.length, pixelHash: g2.pixelHash }) : 'null');
+if (g1) {
+  add('webgl', 'ext_count', String(g1.exts.length));
+  add('webgl', 'has_debug_renderer_info', String(g1.exts.includes('WEBGL_debug_renderer_info')), g1.exts.includes('WEBGL_debug_renderer_info') ? 'ok' : 'warn');
+  // 一致性：renderer 声称的硬件档位 vs MAX_TEXTURE_SIZE
+  const t = g1.maxTexture, r = g1.renderer;
+  const plaus = /Apple|NVIDIA|AMD|Intel|Adreno|Mali/i.test(r) ? (t >= 8192 ? 'ok' : 'warn') : 'warn';
+  add('webgl', 'renderer_vs_caps', `${r} / MAX_TEXTURE_SIZE=${t}`, plaus);
+}
+
+/* ------------------------------------------------------------------
+ * 5. AudioContext（OfflineAudioContext 确定性指纹）
+ * ------------------------------------------------------------------ */
+async function audioFP() {
+  try {
+    const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!AC) return 'no-OfflineAudioContext';
+    const ctx = new AC(1, 44100 * 0.5, 44100);
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle'; osc.frequency.value = 10000;
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -50; comp.knee.value = 40; comp.ratio.value = 12;
+    comp.attack.value = 0; comp.release.value = 0.25;
+    osc.connect(comp); comp.connect(ctx.destination); osc.start(0);
+    const buf = await ctx.startRendering();
+    const d = buf.getChannelData(0);
+    let acc = 0; for (let i = 4500; i < 5000; i++) acc += Math.abs(d[i]);
+    return { hash: fnv1a(Array.from(d.slice(4500, 5000)).map(v => v.toFixed(8)).join(',')), sum: acc.toFixed(10), sampleRate: buf.sampleRate };
+  } catch (e) { return 'ERR ' + e.message; }
+}
+
+/* ------------------------------------------------------------------
+ * 6. 字体（度量法 + 掩码法交叉）
+ * ------------------------------------------------------------------ */
+function fontProbe() {
+  const ctx = document.createElement('canvas').getContext('2d');
+  const bases = ['monospace', 'serif', 'sans-serif'];
+  const measure = (f) => { ctx.font = '72px ' + f; return ctx.measureText('mmmmmmmmmmlli').width; };
+  const baseW = bases.map(measure);
+  const list = ['Arial', 'Arial Black', 'Helvetica', 'Times New Roman', 'Courier New', 'Verdana', 'Tahoma',
+    'Microsoft YaHei', 'Microsoft JhengHei', 'SimSun', 'SimHei', 'KaiTi', 'FangSong', 'PingFang SC',
+    'Hiragino Sans GB', 'Heiti SC', 'Songti SC', 'STHeiti', 'Noto Sans CJK SC', 'Source Han Sans SC',
+    'Segoe UI', 'Calibri', 'Cambria', 'Consolas', 'Georgia', 'Roboto', 'Ubuntu', 'DejaVu Sans',
+    'Liberation Sans', 'Menlo', 'Monaco', 'Lucida Grande', 'Wingdings', 'Webdings', 'Arial Unicode MS'];
+  const found = list.filter(f => bases.some((b, i) => measure('"' + f + '",' + b) !== baseW[i]));
+  return { found, count: found.length };
+}
+
+/* ------------------------------------------------------------------
+ * 7. ClientRects / 文本度量
+ * ------------------------------------------------------------------ */
+function rectProbe() {
+  const d = document.createElement('div');
+  d.style.cssText = 'position:absolute;left:-9999px;top:0;font:14px/1.2 Arial;white-space:nowrap';
+  d.textContent = 'mmmmmmmmmmlli WWWWWWWWWW 汉字测试 0123456789';
+  document.body.appendChild(d);
+  const r = d.getBoundingClientRect();
+  const out = { w: +r.width.toFixed(4), h: +r.height.toFixed(4), rects: d.getClientRects().length };
+  d.remove();
+  return out;
+}
+
+/* ------------------------------------------------------------------
+ * 8. WebRTC 泄漏（host / srflx / relay 分类 + mDNS 识别）
+ * ------------------------------------------------------------------ */
+function webrtcLeak(timeout = 4000) {
+  return new Promise((resolve) => {
+    if (!window.RTCPeerConnection) return resolve({ error: 'no RTCPeerConnection' });
+    const servers = [{ urls: 'stun:stun.cloudflare.com:3478' }, { urls: 'stun:stun.l.google.com:19302' }];
+    const pc = new RTCPeerConnection({ iceServers: servers });
+    const cands = [];
+    const done = () => { try { pc.close(); } catch (e) {} resolve({ candidates: cands, publicIPs: [...new Set(cands.filter(c => c.public).map(c => c.ip))] }); };
+    const timer = setTimeout(done, timeout);
+    pc.onicecandidate = (e) => {
+      if (!e.candidate) { clearTimeout(timer); return done(); }
+      const ip = (e.candidate.address || (e.candidate.candidate.match(/(\d{1,3}(?:\.\d{1,3}){3})/) || [])[1] || '');
+      const m = e.candidate.candidate.match(/ typ (\w+)/);
+      const type = m ? m[1] : 'unknown';
+      const priv = /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|fe80:|::1)/i.test(ip) || ip.endsWith('.local');
+      cands.push({ type, ip, private: priv, public: !priv, mdns: ip.endsWith('.local'), raw: e.candidate.candidate });
+    };
+    pc.createDataChannel('probe');
+    pc.createOffer().then(o => pc.setLocalDescription(o)).catch(() => {});
+  });
+}
+
+/* ------------------------------------------------------------------
+ * 9. 语音 / 媒体设备 / 权限
+ * ------------------------------------------------------------------ */
+function mediaProbe() {
+  return new Promise(async (resolve) => {
+    const out = {};
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      out.devices = devs.map(d => ({ kind: d.kind, label: d.label || '(empty)', deviceId: (d.deviceId || '').slice(0, 8) }));
+      out.labelLeak = devs.some(d => d.label && d.label.length > 0);
+    } catch (e) { out.devicesError = e.message; }
+    try {
+      const q = async (n) => (await navigator.permissions.query({ name: n })).state;
+      out.permissions = { notifications: await q('notifications'), geolocation: await q('geolocation'), camera: await q('camera').catch(() => 'ERR'), microphone: await q('microphone').catch(() => 'ERR') };
+    } catch (e) { out.permError = e.message; }
+    out.speechVoices = window.speechSynthesis ? speechSynthesis.getVoices().map(v => ({ name: v.name, lang: v.lang, local: v.localService, def: v.default })).slice(0, 8) : null;
+    out.speechVoicesCount = window.speechSynthesis ? speechSynthesis.getVoices().length : -1;
+    resolve(out);
+  });
+}
+
+/* ------------------------------------------------------------------
+ * 10. 自动化 / CDP / 注入特征
+ * ------------------------------------------------------------------ */
+function automationProbe() {
+  const targets = {
+    'HTMLCanvasElement.prototype.toDataURL': HTMLCanvasElement.prototype.toDataURL,
+    'HTMLCanvasElement.prototype.getContext': HTMLCanvasElement.prototype.getContext,
+    'CanvasRenderingContext2D.prototype.getImageData': CanvasRenderingContext2D.prototype.getImageData,
+    'WebGLRenderingContext.prototype.getParameter': window.WebGLRenderingContext && WebGLRenderingContext.prototype.getParameter,
+    'AudioBuffer.prototype.getChannelData': window.AudioBuffer && AudioBuffer.prototype.getChannelData,
+    'Navigator.prototype.userAgent(get)': Object.getOwnPropertyDescriptor(Navigator.prototype, 'userAgent').get,
+    'RTCPeerConnection': window.RTCPeerConnection,
+  };
+  const integrity = {};
+  for (const [k, fn] of Object.entries(targets)) {
+    if (!fn) { integrity[k] = 'absent'; continue; }
+    const src = nativeSrc(fn);
+    integrity[k] = isNative(fn) ? 'native' : ('HOOKED: ' + src.slice(0, 90).replace(/\s+/g, ' '));
+  }
+  const ownProps = ['toDataURL', 'getContext', 'getImageData', 'getParameter'].filter(p => {
+    return [HTMLCanvasElement.prototype, CanvasRenderingContext2D.prototype, window.WebGLRenderingContext && WebGLRenderingContext.prototype]
+      .some(proto => proto && Object.prototype.hasOwnProperty.call(proto, p));
+  });
+  return {
+    navigatorWebdriver: navigator.webdriver,
+    windowChrome: !!window.chrome,
+    chromeRuntime: !!(window.chrome && window.chrome.runtime),
+    chromeLoadTimes: !!(window.chrome && window.chrome.loadTimes),
+    cdcProps: Object.keys(window).filter(k => /^(cdc_|\$cdc|__webdriver|__driver|__playwright|__puppeteer|__nightmare|_Selenium)/i.test(k)),
+    permissionNotification: typeof Notification !== 'undefined' ? Notification.permission : 'undefined',
+    pluginsIsArray: Array.isArray(navigator.plugins),
+    pluginProtoIsPluginArray: Object.prototype.toString.call(navigator.plugins),
+    functionToStringSelf: nativeSrc(Function.prototype.toString).slice(0, 60),
+    functionToStringPatched: !isNative(Function.prototype.toString),
+    integrity,
+    ownPropertyHooks: ownProps,
+    // 关键：toString 是否被 Proxy 包装（包装后 name/length 往往异常）
+    toStringNameLength: Function.prototype.toString.name + '/' + Function.prototype.toString.length,
+    debuggerTimingMs: (() => { const t = performance.now(); /* eslint-disable no-debugger */ debugger; return +(performance.now() - t).toFixed(3); })(),
+    performanceNowPrecision: (() => { const s = new Set(); for (let i = 0; i < 200; i++) s.add(performance.now()); return s.size; })(),
+    errorStackHasInjection: (() => { try { throw new Error('x'); } catch (e) { return /addScriptToEvaluateOnNewDocument|__puppeteer|pptr|eval at/.test(e.stack || ''); } })(),
+  };
+}
+
+/* ------------------------------------------------------------------
+ * 11. 汇总
+ * ------------------------------------------------------------------ */
+async function collect() {
+  add('fonts', 'fonts', JSON.stringify(fontProbe()));
+  add('rects', 'clientRects', JSON.stringify(rectProbe()));
+  add('audio', 'audioContext', JSON.stringify(await audioFP()));
+  add('webrtc', 'webrtc', JSON.stringify(await webrtcLeak()));
+  const media = await mediaProbe();
+  add('media', 'mediaDevices', JSON.stringify(media.devices || []));
+  add('media', 'mediaLabelLeak', String(media.labelLeak), media.labelLeak ? 'bad' : 'ok');
+  add('media', 'permissions', JSON.stringify(media.permissions));
+  add('media', 'speechVoicesCount', String(media.speechVoicesCount));
+  add('media', 'speechVoices', JSON.stringify(media.speechVoices));
+  add('automation', 'automation', JSON.stringify(automationProbe()));
+  window.__FP__ = R;
+  render();
+}
+
+function render() {
+  const out = document.getElementById('out');
+  out.innerHTML = '';
+  let lastGroup = '';
+  let table;
+  rows.forEach(r => {
+    if (r.group !== lastGroup) {
+      const g = $('div', 'group'); g.textContent = r.group; out.appendChild(g);
+      table = $('table');
+      const thead = $('thead'); const trh = $('tr');
+      ['维度', '值', '判定'].forEach(h => { const th = $('th'); th.textContent = h; trh.appendChild(th); });
+      thead.appendChild(trh); table.appendChild(thead);
+      table.appendChild($('tbody'));
+      out.appendChild(table);
+      lastGroup = r.group;
+    }
+    const tr = $('tr');
+    const k = $('td', 'k'); k.textContent = r.key;
+    const v = $('td', 'v'); v.textContent = String(r.value).slice(0, 800);
+    const s = $('td', r.flag || ''); s.textContent = r.flag === 'ok' ? '✓ 一致' : r.flag === 'bad' ? '✗ 异常' : r.flag === 'warn' ? '! 待核' : '';
+    tr.append(k, v, s); table.querySelector('tbody').appendChild(tr);
+  });
+  document.getElementById('json').textContent = JSON.stringify(R, null, 2);
+}
+
+/* 快照：用于「同环境多次启动是否稳定」与「跨环境是否隔离」 */
+function saveSnap() { localStorage.setItem('__fp_snap', JSON.stringify(R)); document.getElementById('msg').textContent = '基线已保存 ' + new Date().toLocaleTimeString(); }
+function diffSnap() {
+  const base = JSON.parse(localStorage.getItem('__fp_snap') || 'null');
+  if (!base) { document.getElementById('msg').textContent = '没有基线快照'; return; }
+  const diff = Object.keys(R).filter(k => JSON.stringify(base[k]) !== JSON.stringify(R[k]));
+  document.getElementById('msg').textContent = diff.length ? ('差异 ' + diff.length + ' 项: ' + diff.join(', ')) : '与基线完全一致（指纹稳定）';
+}
+function copyJSON() { navigator.clipboard.writeText(JSON.stringify(R, null, 2)).then(() => document.getElementById('msg').textContent = 'JSON 已复制'); }
+
+render();
+collect();
+</script>
+</body>
+</html>

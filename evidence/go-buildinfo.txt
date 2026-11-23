@@ -1,0 +1,43 @@
+--- env-kit  (Mach-O 64-bit executable arm64)
+/Applications/ziniao.app/Contents/Resources/app.asar.unpacked/envkit/env-kit: go1.21.4
+	path	command-line-arguments
+	dep	env-kit	(devel)	
+	dep	github.com/forgoer/openssl	v1.2.1	h1:Qvgk8K+pKayd3QG/f7fB2LJm1ObYNA2iqYraipxm8jQ=
+	dep	github.com/fstanis/screenresolution	v0.0.0-20190527020317-869904d15333	h1:bIyCNaDet0wYUhGrWQvRAUKR9qa5cQLzSwdfjUbRXS8=
+	dep	github.com/go-resty/resty/v2	v2.7.0	h1:me+K9p3uhSmXtrBZ4k9jcEAfJmuC8IivWHwaLZwPrFY=
+	dep	github.com/golang/snappy	v0.0.2	h1:aeE13tS0IiQgFjYdoL8qN3K1N2bXXtI6Vi51/y7BpMw=
+	dep	github.com/google/uuid	v1.3.0	h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
+	dep	github.com/gorilla/websocket	v1.5.0	h1:PPwGk2jz7EePpoHN/+ClbZu8SPxiqlu12wZP/3sWmnc=
+	dep	github.com/jmoiron/sqlx	v1.3.5	h1:vFFPA71p1o5gAeqtEAwLU4dnX2napprKtHr7PYIcN3g=
+	dep	github.com/mattn/go-ieproxy	v0.0.10	h1:P+2QihaKCLgbs/32dhFLbxXlqsy8tIG1LUXHIoPaQPo=
+	dep	github.com/mattn/go-sqlite3	v1.14.15	h1:vfoHhTN1af61xCRSWzFIWzx2YskyMTwHLrExkBOjvxI=
+	dep	github.com/mediabuyerbot/go-crx3	v1.4.1	h1:yQsWFbfjt2ucDrG6++ScdjK2NjffD1yyKkrPfV1yEKM=
+	dep	github.com/mileusna/useragent	v1.2.0	h1:oNhWt/O3WXgj+8ChRTiNQcLntQFAApmXcO6ID0hDo7c=
+	dep	github.com/panjf2000/ants/v2	v2.9.1	h1:Q5vh5xohbsZXGcD6hhszzGqB7jSSc2/CRr3QKIga8Kw=
+	dep	github.com/pierrec/lz4	v2.6.1+incompatible	h1:9UY3+iC23yxF0UfGaYrGplQ+79Rg+h/q9FV9ix19jjM=
+	dep	github.com/pkg/errors	v0.9.1	h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
+	dep	github.com/sethvargo/go-retry	v0.2.3	h1:oYlgvIvsju3jNbottWABtbnoLC+GDtLdBHxKWxQm/iU=
+	dep	github.com/spf13/cast	v1.5.0	h1:rj3WzYc11XZaIZMPKmwP96zkFEnnAmV8s6XbB2aY32w=
+	dep	github.com/syndtr/goleveldb	v1.0.0	h1:fBdIW9lB4Iz0n9khmH8w27SJ3QEJ7+IgjPEwGSZiFdE=
+--- z-tracking-client  (Mach-O 64-bit executable arm64)
+--- ziniao-gateway  (Mach-O 64-bit executable arm64)
+/Applications/ziniao.app/Contents/Resources/app.asar.unpacked/envkit/ziniao-gateway: go1.24.6
+	path	superbrowsernet/cmd/mixed
+	mod	superbrowsernet	v0.0.0-20261112020506-8171b9f8927f	
+	dep	github.com/ajg/form	v1.5.1	
+	dep	github.com/andybalholm/brotli	v1.0.6	
+	dep	github.com/cloudflare/circl	v1.3.7	
+	dep	github.com/cretz/bine	v0.2.0	
+	dep	github.com/darren/gpac	v0.0.0-20210609082804-b56d6523a3af	
+	dep	github.com/dlclark/regexp2	v1.4.1-0.20201116162257-a2a8dda75c91	
+	dep	github.com/dop251/goja	v0.0.0-20210427212725-462d53687b0d	
+	dep	github.com/ebitengine/purego	v0.10.0	
+	dep	github.com/fanyiguang/brick	v0.0.0-20241206101325-13f7620737d7	
+	dep	github.com/fanyiguang/rawtext	v0.0.0-20250129161029-1207be2b09af
+	=>	git.ziniao.com/d12-netlab/service/network/rawtext.git	v0.0.0-20260918060952-7c6175cc5537	
+	
+	dep	github.com/forgoer/openssl	v1.6.0	
+	dep	github.com/fsnotify/fsnotify	v1.7.0	
+	dep	github.com/gaukas/godicttls	v0.0.4	
+	dep	github.com/go-chi/chi/v5	v5.0.11	
+	dep	github.com/go-chi/cors	v1.2.1	
