@@ -12,6 +12,8 @@
 #   GATEWAY_TOKEN  必填，/v1/* 的 Bearer 令牌
 #   FARM_TOKEN     可选，control 面的 x-farm-token；不设则 control 不鉴权（仅 127.0.0.1）
 #   FARM_DB        可选，台账路径，默认 <farm>/state/farm.db
+#   CAMOUFOX_PY    可选，装了 camoufox 的 python；未设且 $HOME/.dsh/venvs/camoufox/bin/python
+#                  可执行时自动使用它（否则探针退回 python3，health 里 camoufox 会 unverified）
 #   CONTROL_PORT   可选，默认 19555
 #   GATEWAY_PORT   可选，默认 19671
 # =============================================================================
@@ -48,6 +50,17 @@ case "${1:-}" in
     done
     exit 0 ;;
 esac
+
+# camoufox 解释器默认探测：优先持久 venv，避免每次重启都要手动带 CAMOUFOX_PY
+CAMOUFOX_PY_DEFAULT="$HOME/.dsh/venvs/camoufox/bin/python"
+if [ -z "${CAMOUFOX_PY:-}" ] && [ -x "$CAMOUFOX_PY_DEFAULT" ]; then
+  export CAMOUFOX_PY="$CAMOUFOX_PY_DEFAULT"
+fi
+if [ -n "${CAMOUFOX_PY:-}" ]; then
+  echo "CAMOUFOX_PY=$CAMOUFOX_PY"
+else
+  echo "CAMOUFOX_PY 未设置，且 $CAMOUFOX_PY_DEFAULT 不可执行；camoufox 探针会退回 python3"
+fi
 
 [ -n "$GATEWAY_TOKEN" ] || { echo "GATEWAY_TOKEN 未设置，拒绝以无鉴权方式起网关" >&2; exit 2; }
 # 只报长度，不打印令牌值；低于 32 位提示更换（openssl rand -hex 32 → 64 字符）

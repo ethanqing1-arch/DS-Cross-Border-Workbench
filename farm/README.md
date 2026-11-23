@@ -328,19 +328,24 @@ CASE=...                                                # camoufox 走 Python wo
 官方注释明确：`launch_server()` **不支持 `persistent_context`**，Playwright 也无法把持久化上下文serve 成 ws 端点。所以 camoufox **没有 CDP 端点**，正确用法是「一账号一个常驻 worker，任务在 worker 内执行」。
 
 ```bash
-python3 -m venv /tmp/cfx && /tmp/cfx/bin/pip install camoufox
-/tmp/cfx/bin/python -m camoufox fetch          # 下载浏览器（mac.arm64 约 1.3 GB）
+# 持久 venv（别放 /tmp：会被系统清掉）
+python3 -m venv ~/.dsh/venvs/camoufox
+~/.dsh/venvs/camoufox/bin/pip install camoufox
+~/.dsh/venvs/camoufox/bin/python -m camoufox fetch   # 下载浏览器（mac.arm64 约 1.3 GB）
 
-/tmp/cfx/bin/python camoufox_worker.py --account cf1 --profile ./profiles/ebay/cf1 \
+~/.dsh/venvs/camoufox/bin/python camoufox_worker.py --account cf1 --profile ./profiles/ebay/cf1 \
   --tz Asia/Tokyo --lang ja-JP --headless --url https://example.com
 # 输出一行 JSON：UA / webdriver / canvas / WebGL / 字体 / 语言 / 时区
 ```
+
+`start-gateway.sh` 会自动探测：`CAMOUFOX_PY` 未设且 `~/.dsh/venvs/camoufox/bin/python` 可执行时，
+启动时自动 `export` 并打印 `CAMOUFOX_PY=<解释器>`，不用每次手动带。
 
 `--engine camoufox` 在 `farm.js` 里**只登记不起进程**（写 state 与台账，`cdp: null`、`mode: "worker"`）；
 任务由网关按需调 worker，所以 `CAMOUFOX_PY` 必须指向装了 camoufox 的解释器：
 
 ```bash
-CAMOUFOX_PY=/tmp/cfx/bin/python node gateway/server.js --port 19671 ...
+CAMOUFOX_PY=~/.dsh/venvs/camoufox/bin/python node gateway/server.js --port 19671 ...
 ```
 
 `/v1/tasks` 对 camoufox 支持 `goto / eval / shot / scan`，`goto` 的返回与 CDP 通道逐字相同。
