@@ -10,6 +10,10 @@
 #   4) 真实产品路径：MCP farm_session_create（proxy=桥，无凭据）
 #      → farm_task goto https://example.com/?pb=<cache-bust> → farm_session_delete
 #      浏览器那一路也让假上游收到 Proxy-Authorization
+#   5) SOCKS5 上游：假 SOCKS5 服务端（强制 RFC1929 用户名密码、记录认证与 CONNECT、
+#      真转发）→ 两个桥实例（18082 socks5h / 18083 socks5）
+#      → curl 走 socks5h（域名 ATYP=3）与 socks5（本地解析 ATYP=1）
+#      → 浏览器经 socks5h 桥 goto 成功
 #
 # 边界：
 #   - 凭据只从环境变量进 bridge（env -i 起子进程），输出里 grep 不到
@@ -17,7 +21,9 @@
 #   - 复用台账账号 e2e-smoke（不新增行）；会话用完即删
 #
 # 用法：
-#   GATEWAY_TOKEN=... bash scripts/test-proxy-bridge.sh [--port 18080] [--upstream-port 18581]
+#   GATEWAY_TOKEN=... bash scripts/test-proxy-bridge.sh \
+#     [--port 18080] [--upstream-port 18581] [--socks-port 18582] \
+#     [--socksh-bridge-port 18082] [--socks-bridge-port 18083]
 #   环境变量：GATEWAY_URL（默认 http://127.0.0.1:19671）
 # 退出码：0 全过；1 有 FAIL；2 前置条件不满足（网关/token/node）
 # =============================================================================
@@ -28,11 +34,17 @@ command -v node >/dev/null 2>&1 || { echo "FAIL 找不到 node（先 export PATH
 
 BPORT=18080
 UPORT=18581
+SPORT=18582
+BPORT2=18082
+BPORT3=18083
 while [ $# -gt 0 ]; do
   case "$1" in
     --port) BPORT="$2"; shift 2 ;;
     --upstream-port) UPORT="$2"; shift 2 ;;
-    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    --socks-port) SPORT="$2"; shift 2 ;;
+    --socksh-bridge-port) BPORT2="$2"; shift 2 ;;
+    --socks-bridge-port) BPORT3="$2"; shift 2 ;;
+    -h|--help) sed -n '2,44p' "$0"; exit 0 ;;
     *) echo "未知参数 $1"; exit 2 ;;
   esac
 done
@@ -49,10 +61,16 @@ no(){ printf "  FAIL %s\n" "$1"; FAIL=$((FAIL + 1)); }
 TMP="$(mktemp -d)" || exit 2
 UPID=""
 BPID=""
+UPID2=""
+BPID2=""
+BPID3=""
 cleanup() {
   trap - EXIT
   if [ -n "$BPID" ]; then kill "$BPID" 2>/dev/null; wait "$BPID" 2>/dev/null; fi
   if [ -n "$UPID" ]; then kill "$UPID" 2>/dev/null; wait "$UPID" 2>/dev/null; fi
+  if [ -n "$BPID2" ]; then kill "$BPID2" 2>/dev/null; wait "$BPID2" 2>/dev/null; fi
+  if [ -n "$BPID3" ]; then kill "$BPID3" 2>/dev/null; wait "$BPID3" 2>/dev/null; fi
+  if [ -n "$UPID2" ]; then kill "$UPID2" 2>/dev/null; wait "$UPID2" 2>/dev/null; fi
   rm -rf "$TMP"
 }
 trap cleanup EXIT
@@ -210,7 +228,184 @@ else
   ok "假上游未收到任何鉴权失败请求"
 fi
 
-echo "== 4. 真实产品路径（MCP 建会话带 proxy=桥 → goto → 删会话）=="
+echo "== 4. 假 SOCKS5 服务端（强制 RFC1929 用户名密码，记录认证与 CONNECT，真转发）=="
+SOCKS_USER="probe"
+SOCKS_PASS="$(openssl rand -hex 12)"
+SOCKS_URL_H="socks5h://${SOCKS_USER}:${SOCKS_PASS}@127.0.0.1:${SPORT}"
+SOCKS_URL="socks5://${SOCKS_USER}:${SOCKS_PASS}@127.0.0.1:${SPORT}"
+cat > "$TMP/fake-socks.js" <<'SOCKS_JS'
+'use strict';
+const net = require('net');
+const fs = require('fs');
+
+const PORT = Number(process.env.SOCKS_PORT || 18582);
+const USER = process.env.SOCKS_USER || '';
+const PASS = process.env.SOCKS_PASS || '';
+const RECEIPT = process.env.RECEIPT;
+
+function rec(line) {
+  try { fs.appendFileSync(RECEIPT, line + '\n'); } catch (e) { /* ignore */ }
+}
+
+const server = net.createServer((client) => {
+  let stage = 'greeting';
+  let buf = Buffer.alloc(0);
+  client.on('error', () => {});
+
+  const onData = (d) => {
+    buf = Buffer.concat([buf, d]);
+    try { pump(); } catch (e) { rec('SOCKS_ERR ' + e.message); client.destroy(); }
+  };
+  client.on('data', onData);
+
+  function pump() {
+    if (stage === 'greeting') {
+      if (buf.length < 2) return;
+      if (buf[0] !== 0x05) throw new Error('bad version ' + buf[0]);
+      const n = buf[1];
+      if (buf.length < 2 + n) return;
+      const methods = [...buf.slice(2, 2 + n)];
+      buf = buf.slice(2 + n);
+      rec('SOCKS_GREETING methods=' + methods.join(','));
+      if (!methods.includes(0x02)) {
+        rec('SOCKS_NOAUTH_REJECTED');
+        client.write(Buffer.from([0x05, 0xff]));
+        client.destroy();
+        return;
+      }
+      client.write(Buffer.from([0x05, 0x02]));
+      stage = 'auth';
+      return pump();
+    }
+
+    if (stage === 'auth') {
+      if (buf.length < 2) return;
+      if (buf[0] !== 0x01) throw new Error('bad auth version');
+      const ul = buf[1];
+      if (buf.length < 2 + ul + 1) return;
+      const user = buf.slice(2, 2 + ul).toString();
+      const pl = buf[2 + ul];
+      if (buf.length < 2 + ul + 1 + pl) return;
+      const pass = buf.slice(3 + ul, 3 + ul + pl).toString();
+      buf = buf.slice(3 + ul + pl);
+      const okAuth = user === USER && pass === PASS;
+      rec(okAuth ? 'SOCKS_AUTH_OK' : 'SOCKS_AUTH_BAD');
+      client.write(Buffer.from([0x01, okAuth ? 0x00 : 0x01]));
+      if (!okAuth) { client.destroy(); return; }
+      stage = 'request';
+      return pump();
+    }
+
+    if (stage === 'request') {
+      if (buf.length < 4) return;
+      if (buf[0] !== 0x05 || buf[1] !== 0x01) throw new Error('bad request header');
+      const atyp = buf[3];
+      let host = '';
+      let off = 0;
+      if (atyp === 0x01) {
+        if (buf.length < 8 + 2) return;
+        host = [...buf.slice(4, 8)].join('.');
+        off = 8;
+      } else if (atyp === 0x03) {
+        if (buf.length < 5) return;
+        const l = buf[4];
+        if (buf.length < 5 + l + 2) return;
+        host = buf.slice(5, 5 + l).toString();
+        off = 5 + l;
+      } else if (atyp === 0x04) {
+        rec('SOCKS_IPV6_UNSUPPORTED');
+        client.end(Buffer.from([0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0]));
+        return;
+      } else {
+        throw new Error('bad atyp ' + atyp);
+      }
+      const port = buf.readUInt16BE(off);
+      const leftover = buf.slice(off + 2);
+      rec('SOCKS_CONNECT ' + host + ':' + port + ' atyp=' + atyp);
+      stage = 'tunnel';
+      client.removeListener('data', onData);
+
+      const target = net.connect({ host, port }, () => {
+        client.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0]));
+        if (leftover.length) target.write(leftover);
+        client.pipe(target);
+        target.pipe(client);
+      });
+      target.on('error', () => {
+        rec('SOCKS_TARGET_ERR ' + host + ':' + port);
+        try { client.end(Buffer.from([0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0])); } catch (e) { /* ignore */ }
+      });
+      client.on('close', () => target.destroy());
+      target.on('close', () => client.destroy());
+      return;
+    }
+  }
+});
+
+server.on('error', (e) => { console.error('fake-socks: ' + e.message); process.exit(1); });
+server.listen(PORT, '127.0.0.1', () => console.log('READY ' + PORT));
+SOCKS_JS
+
+env -i PATH="$PATH" SOCKS_PORT="$SPORT" SOCKS_USER="$SOCKS_USER" SOCKS_PASS="$SOCKS_PASS" RECEIPT="$RECEIPT" \
+  node "$TMP/fake-socks.js" >"$TMP/fake-socks.log" 2>&1 &
+UPID2=$!
+if wait_log "$TMP/fake-socks.log" '^READY'; then
+  ok "假 SOCKS5 已起（127.0.0.1:$SPORT，强制用户名密码）"
+else
+  no "假 SOCKS5 未起"; cat "$TMP/fake-socks.log" 2>/dev/null; echo "== 汇总: PASS=$PASS FAIL=$FAIL =="; echo "RESULT: FAILED"; exit 1
+fi
+
+echo "== 5. 两个 SOCKS 桥（socks5h / socks5）=="
+env -i PATH="$PATH" UPSTREAM_PROXY="$SOCKS_URL_H" node "$SRC/proxy-bridge.js" --port "$BPORT2" \
+  >"$TMP/bridge-socksh.log" 2>&1 &
+BPID2=$!
+env -i PATH="$PATH" UPSTREAM_PROXY="$SOCKS_URL" node "$SRC/proxy-bridge.js" --port "$BPORT3" \
+  >"$TMP/bridge-socks.log" 2>&1 &
+BPID3=$!
+if wait_log "$TMP/bridge-socksh.log" 'listen 127.0.0.1'; then
+  ok "socks5h 桥已起（127.0.0.1:$BPORT2）"
+else
+  no "socks5h 桥未起"; cat "$TMP/bridge-socksh.log" 2>/dev/null
+fi
+if wait_log "$TMP/bridge-socks.log" 'listen 127.0.0.1'; then
+  ok "socks5 桥已起（127.0.0.1:$BPORT3）"
+else
+  no "socks5 桥未起"; cat "$TMP/bridge-socks.log" 2>/dev/null
+fi
+grep -q 'auth=yes' "$TMP/bridge-socksh.log" && ok "socks5h 桥识别到上游凭据（auth=yes）" || no "socks5h 桥未识别凭据"
+grep -q 'auth=yes' "$TMP/bridge-socks.log" && ok "socks5 桥识别到上游凭据（auth=yes）" || no "socks5 桥未识别凭据"
+
+echo "== 6. curl 走 SOCKS 桥 =="
+s1="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 25 -x "http://127.0.0.1:$BPORT2" https://example.com/ 2>"$TMP/s1.err" || true)"
+[ "$s1" = "200" ] && ok "curl -x socks5h 桥 https://example.com/ → HTTP 200" \
+  || no "curl socks5h https 失败：HTTP=$s1 $(head -c 160 "$TMP/s1.err" 2>/dev/null)"
+grep -q 'SOCKS_AUTH_OK' "$RECEIPT" && ok "假 SOCKS5 收到 RFC1929 认证（用户名密码）" || no "假 SOCKS5 没收到认证"
+grep -q 'SOCKS_CONNECT example.com:443 atyp=3' "$RECEIPT" \
+  && ok "socks5h 发域名给上游（ATYP=3，远程 DNS）" || no "socks5h 没有按域名连接"
+
+s2="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 25 -x "http://127.0.0.1:$BPORT2" http://example.com/ 2>"$TMP/s2.err" || true)"
+case "$s2" in
+  2??|3??) ok "curl -x socks5h 桥 http://example.com/ → HTTP $s2（普通 HTTP 也走 SOCKS）" ;;
+  *) no "curl socks5h http 失败：HTTP=$s2 $(head -c 160 "$TMP/s2.err" 2>/dev/null)" ;;
+esac
+grep -q 'SOCKS_CONNECT example.com:80 atyp=3' "$RECEIPT" \
+  && ok "socks5h 普通 HTTP 也走 SOCKS（origin-form 转发）" || no "socks5h 普通 HTTP 没走 SOCKS"
+
+s3="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 25 -x "http://127.0.0.1:$BPORT3" https://example.com/ 2>"$TMP/s3.err" || true)"
+[ "$s3" = "200" ] && ok "curl -x socks5 桥 https://example.com/ → HTTP 200" \
+  || no "curl socks5 https 失败：HTTP=$s3 $(head -c 160 "$TMP/s3.err" 2>/dev/null)"
+# socks5:// 是本地解析：假 SOCKS5 收到的 host 是 IP，不是域名
+grep -qE 'SOCKS_CONNECT [0-9.]+:443 atyp=1' "$RECEIPT" \
+  && ok "socks5 先本地解析再按 IP 连（ATYP=1，$(grep -oE 'SOCKS_CONNECT [0-9.]+:443 atyp=1' "$RECEIPT" | head -1)）" \
+  || no "socks5 没有按 IP 连接"
+if grep -q 'SOCKS_AUTH_BAD' "$RECEIPT"; then
+  no "假 SOCKS5 收到过认证失败请求（$(grep -c 'SOCKS_AUTH_BAD' "$RECEIPT") 次）"
+else
+  ok "假 SOCKS5 未收到认证失败请求"
+fi
+
+echo "== 7. 真实产品路径（HTTP 桥：MCP 建会话带 proxy=桥 → goto → 删会话）=="
+
 cat > "$TMP/mcp-client.js" <<'MCP_JS'
 'use strict';
 const { spawn } = require('child_process');
@@ -372,23 +567,69 @@ else
   sed 's/^/  /' "$RECEIPT" 2>/dev/null
 fi
 
-if [ -s "$TMP/sid" ]; then
-  sid="$(cat "$TMP/sid")"
-  printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" \
-    | curl -sS -K - -X DELETE "$GATEWAY_URL/v1/sessions/$sid" >/dev/null 2>&1 || true
+echo "== 8. 真实产品路径（socks5h 桥：浏览器那一路）=="
+SOCKS_TARGET="https://example.com/?proxy-bridge-socks=$(date +%s)-$RANDOM"
+before_socks="$(grep -c 'SOCKS_CONNECT example.com:443' "$RECEIPT" 2>/dev/null || true)"
+[ -n "$before_socks" ] || before_socks=0
+
+env GATEWAY_URL="$GATEWAY_URL" GATEWAY_TOKEN="$TOKEN" \
+    MCP_PATH="$SRC/mcp/farm-mcp.js" TEST_ACCOUNT="e2e-smoke" \
+    TEST_PROXY="http://127.0.0.1:$BPORT2" TEST_TARGET="$SOCKS_TARGET" SID_FILE="$TMP/sid2" \
+    node "$TMP/mcp-client.js" >"$TMP/mcp-socks.json" 2>"$TMP/mcp-socks.err"
+MSRC=$?
+sed 's/^/  [mcp-socks] /' "$TMP/mcp-socks.json" 2>/dev/null
+if [ "$MSRC" -eq 0 ]; then
+  ok "产品路径（socks5h 桥）：farm_session_create(proxy=桥) → farm_task goto → farm_session_delete"
+else
+  no "产品路径（socks5h 桥）失败（exit=$MSRC）"; sed 's/^/  [mcp-socks:err] /' "$TMP/mcp-socks.err" 2>/dev/null | head -40
 fi
 
-echo "== 5. 泄漏扫描 =="
+after_socks="$(grep -c 'SOCKS_CONNECT example.com:443' "$RECEIPT" 2>/dev/null || true)"
+[ -n "$after_socks" ] || after_socks=0
+if [ "$after_socks" -gt "$before_socks" ]; then
+  ok "浏览器经 socks5h 桥也让假 SOCKS5 收到连接（CONNECT 次数 $before_socks → $after_socks）"
+else
+  no "浏览器没有经过 socks5h 桥（CONNECT 次数 $before_socks → $after_socks）"
+  echo "  --- bridge-socksh.log（末尾 20 行）---"
+  tail -20 "$TMP/bridge-socksh.log" 2>/dev/null | sed 's/^/  /'
+  echo "  --- receipt（全部）---"
+  sed 's/^/  /' "$RECEIPT" 2>/dev/null
+fi
+
+# 兜底删会话（HTTP 桥与 SOCKS 桥各一份 sid 文件）
+for f in "$TMP/sid" "$TMP/sid2"; do
+  if [ -s "$f" ]; then
+    sid="$(cat "$f")"
+    printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" \
+      | curl -sS -K - -X DELETE "$GATEWAY_URL/v1/sessions/$sid" >/dev/null 2>&1 || true
+  fi
+done
+
+echo "== 9. 泄漏扫描 =="
 leak=0
 for f in "$TMP/bridge.log" "$TMP/fake.log" "$TMP/mcp.json" "$TMP/mcp.err"; do
   if [ -f "$f" ] && grep -qF "$UP_PASS" "$f" 2>/dev/null; then leak=$((leak + 1)); fi
 done
 [ "$leak" -eq 0 ] && ok "bridge/fake/mcp 输出里 grep 不到上游凭据" || no "输出里出现上游凭据（$leak 个文件）"
+leak_socks=0
+for f in "$TMP/bridge-socksh.log" "$TMP/bridge-socks.log" "$TMP/fake-socks.log" "$TMP/mcp-socks.json" "$TMP/mcp-socks.err" "$TMP/mcp.json" "$TMP/mcp.err"; do
+  if [ -f "$f" ] && grep -qF "$SOCKS_PASS" "$f" 2>/dev/null; then leak_socks=$((leak_socks + 1)); fi
+done
+[ "$leak_socks" -eq 0 ] && ok "SOCKS 桥/fake-socks/mcp 输出里 grep 不到 SOCKS 凭据" || no "输出里出现 SOCKS 凭据（$leak_socks 个文件）"
+
 grep -qF "$TOKEN" "$TMP/bridge.log" 2>/dev/null && no "bridge 日志里出现网关 token" || ok "bridge 日志里没有网关 token"
+grep -qF "$TOKEN" "$TMP/bridge-socksh.log" 2>/dev/null && no "socks5h 桥日志里出现网关 token" || ok "socks5h 桥日志里没有网关 token"
+grep -qF "$TOKEN" "$TMP/bridge-socks.log" 2>/dev/null && no "socks5 桥日志里出现网关 token" || ok "socks5 桥日志里没有网关 token"
+
 if grep -qF "$UP_PASS" "$TMP/bridge.log" 2>/dev/null || grep -qF "$UP_PASS" "$TMP/fake.log" 2>/dev/null; then
   no "bridge/fake 日志出现上游密码"
 else
   ok "bridge/fake 日志不含上游密码"
+fi
+if grep -qF "$SOCKS_PASS" "$TMP/bridge-socksh.log" 2>/dev/null || grep -qF "$SOCKS_PASS" "$TMP/bridge-socks.log" 2>/dev/null || grep -qF "$SOCKS_PASS" "$TMP/fake-socks.log" 2>/dev/null; then
+  no "SOCKS 桥/fake-socks 日志出现 SOCKS 密码"
+else
+  ok "SOCKS 桥/fake-socks 日志不含 SOCKS 密码"
 fi
 
 echo

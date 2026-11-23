@@ -28,17 +28,22 @@ done
 python3 -c "import ast;ast.parse(open('camoufox_worker.py').read())" 2>/dev/null && ok "camoufox_worker.py" || no "camoufox_worker.py 语法错"
 bash -n scripts/verify-dual-env.sh 2>/dev/null && ok "verify-dual-env.sh" || no "verify-dual-env.sh 语法错"
 bash -n scripts/test-proxy-bridge.sh 2>/dev/null && ok "test-proxy-bridge.sh" || no "test-proxy-bridge.sh 语法错"
-# bridge 无上游 / 上游格式错 / 非 http 上游都必须拒绝启动（exit 2；不联网不监听）
+# bridge 配置校验：无上游 / 坏格式 / socks5 缺端口 / 不支持的协议都必须拒绝启动（exit 2；不联网不监听）
+# 注意：这里不断言 socks5 不可用——socks5/socks5h 是受支持的上游，只校验坏配置会退出。
 node -e '
 const { spawnSync } = require("child_process");
 const env = Object.assign({}, process.env);
 delete env.UPSTREAM_PROXY;
 const run = (args) => spawnSync(process.execPath, ["proxy-bridge.js"].concat(args), { env, timeout: 3000 });
-const a = run([]);
-const b = run(["--upstream", "not-a-url"]);
-const c = run(["--upstream", "socks5://127.0.0.1:9"]);
-process.exit(a.status === 2 && b.status === 2 && c.status === 2 ? 0 : 1);
-' 2>/dev/null && ok "bridge 无上游/坏上游拒绝启动（exit 2）" || no "bridge 配置校验失效"
+const cases = [
+  run([]),                                        // 无上游
+  run(["--upstream", "not-a-url"]),                // 坏格式
+  run(["--upstream", "socks5://127.0.0.1"]),       // socks5 缺端口
+  run(["--upstream", "socks5://"]),                // socks5 缺 host/端口
+  run(["--upstream", "socks4://127.0.0.1:1080"]),  // 不支持的协议
+];
+process.exit(cases.every((r) => r.status === 2) ? 0 : 1);
+' 2>/dev/null && ok "bridge 无上游/坏格式/socks5 缺端口拒绝启动（exit 2）" || no "bridge 配置校验失效"
 
 echo "== 3. 能力声明 =="
 grep -q "chromium:" contract.js && grep -q "linux150:" contract.js \

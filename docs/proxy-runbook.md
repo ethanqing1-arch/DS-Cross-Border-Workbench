@@ -19,8 +19,15 @@ farm_session_create(proxy=http://127.0.0.1:18080)  ← argv/台账里没有凭�
 ## 1. 起桥
 
 ```bash
+# HTTP 上游（Basic 认证）
 export UPSTREAM_PROXY='http://user:pass@host:port'   # 只走环境变量
 node farm/proxy-bridge.js --port 18080
+
+# SOCKS5 上游：socks5h 让代理端解析域名（推荐）
+UPSTREAM_PROXY='socks5h://user:pass@host:1080' node farm/proxy-bridge.js --port 18080
+
+# SOCKS5 本地解析（bridge 自己把域名解析成 IPv4 再按 IP 连）
+UPSTREAM_PROXY='socks5://user:pass@host:1080' node farm/proxy-bridge.js --port 18080
 ```
 
 后台常驻：
@@ -32,10 +39,17 @@ echo $! > /tmp/proxy-bridge.pid
 ```
 
 - 启动日志只有一行（**不含凭据**）：
-  `[proxy-bridge] listen 127.0.0.1:18080 -> upstream host:port auth=yes`
+  `[proxy-bridge] listen 127.0.0.1:18080 -> upstream socks5h host:port auth=yes`
+  （`http` / `socks5` / `socks5h` 三种上游都会标出来）
 - `--upstream 'http://user:pass@host:port'` 也能起，但**凭据会出现在 `ps` 里**（脚本会打一行警告）；
   生产只用 `UPSTREAM_PROXY`。
 - 密码里出现 `@ : / ? #` 等字符必须 percent-encode：`p@ss` → `p%40ss`。
+- **`socks5h://` 与 `socks5://` 的区别（重要）**：
+  - `socks5h://`：**域名交给上游解析**（远程 DNS）。生产用这个。
+  - `socks5://`：bridge 先本地解析成 IPv4，再把 IP 交给上游。本机 DNS 是 fake-IP
+    （实测 `example.com → 198.18.0.37`，由 `198.18.0.2#53` 应答），这类 IP 只有本机
+    代理客户端认识，**远端 SOCKS5 服务器连不上**——所以真代理一律用 `socks5h://`。
+- SOCKS5 认证走 RFC 1929（用户名密码）；上游没配凭据时只报 NO AUTH。
 - 停：`kill "$(cat /tmp/proxy-bridge.pid)"`（SIGTERM，正常退出 0）。
 
 ## 2. 先自检桥（不依赖目标站）
@@ -49,7 +63,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -x http://127.0.0.1:18080 https://examp
 | `200` | 桥 + 上游都通 | 可以走第 3 步 |
 | `000` | 桥没起 / 端口不对 | 看 `/tmp/proxy-bridge.log` 与 `lsof -nP -iTCP:18080 -sTCP:LISTEN` |
 | `407` | 上游拒了凭据 | 第 5 节排查 |
-| `502` | 桥连不上上游 | host:port 写错 / 上游要白名单 / 网络不通 |
+| `502` | 桥连不上上游，或 SOCKS 握手/认证失败 | host:port 写错 / 上游要白名单 / SOCKS 账号密码错（看桥日志里的 `socks 认证失败`） |
 
 ## 3. 探针走桥
 
@@ -95,6 +109,8 @@ GATEWAY_TOKEN="换成你的令牌" bash farm/scripts/test-proxy-bridge.sh
    - 密码是否 percent-encode（`@`→`%40`、`:`→`%3A`、`/`→`%2F`）；
    - 上游是否要求 IP 白名单/绑定设备（换一台上游会 407）。
 3. **502 / 卡住**：桥连不上上游。核对 `host:port`、上游是否只开给特定 IP、本机 DNS。
+   SOCKS5 还要看桥日志里的具体原因：`socks 认证失败`（账号密码错）、
+   `socks CONNECT 失败：connection refused`（上游连不到目标）、`socks 握手超时`（上游不通/端口错）。
 4. **页面是 SORRY / Error Page / captcha**：桥通了但**出口被判**，不是桥的问题；
    换 IP/住宅代理。探针会返回 `blocked` 并附原文，不会混成 `empty`。
 5. **报 `E_CACHE_HIT`**：这次导航来自磁盘缓存（`transferSize === 0`），没真取数。
@@ -104,15 +120,17 @@ GATEWAY_TOKEN="换成你的令牌" bash farm/scripts/test-proxy-bridge.sh
 
 ## 6. 边界（当前实现）
 
-- **只支持 `http://` 上游**。`socks5://` / `socks5h://` 会被拒绝启动（`exit 2`）；
-  SOCKS5 握手 + 认证尚未实现，需要另加一轮。
+- 上游支持 `http://`、`socks5://`、`socks5h://` 三种；SOCKS5 认证为 RFC 1929（用户名密码），
+  未配置凭据时走 NO AUTH。socks 上游**必须显式带端口**，缺端口/坏格式会拒绝启动（`exit 2`）。
+- 生产优先 `socks5h://`（远程 DNS）；`socks5://`（本地解析）在本机 fake-IP 环境下会把
+  `198.18.0.x` 这样的地址交给上游，远端代理连不上。
 - 只监听 `127.0.0.1`，本机进程可无鉴权使用；不对外网开放。
 - 支持 CONNECT（https）与绝对 URI（http）；不做缓存、不做限速、不重试。
 - 上游凭据只在环境变量里，不出现在日志/JSON/错误文本；浏览器 argv 里会出现
   `--proxy-server=http://127.0.0.1:18080`（无凭据，farm 层行为）。
 - **没有真代理时**，第 4 节只能证明「桥—对话链—浏览器」这条链路正确，
   不能证明出口可用；出口是否被判只有真代理能验。
-- 退出码：`0` 正常停止；`1` 监听失败（端口被占）；`2` 配置错误（上游缺失/格式错/非 http）。
+- 退出码：`0` 正常停止；`1` 监听失败（端口被占）；`2` 配置错误（上游缺失/格式错/不支持协议/socks 缺端口）。
 
 ## 7. 相关文件
 
