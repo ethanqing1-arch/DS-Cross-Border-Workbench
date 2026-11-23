@@ -7,8 +7,9 @@
  *
  * 用法：
  *   node distribution/connectors/farm-probe.js --url <url> \
- *     [--selectors title,price] [--account e2e-smoke] [--engine chromium]
- *     [--timeout-ms 45000] [--mcp <farm-mcp.js>] [--verbose]
+ *     [--selectors title,price] [--list <容器CSS>] [--proxy <url>]
+ *     [--account e2e-smoke] [--engine chromium] [--timeout-ms 45000]
+ *     [--mcp <farm-mcp.js>] [--verbose]
  *
  * 契约见同目录 README.md：status = ok | blocked | empty | error；
  * ok 必须 item_count ≥ 1；items 为 0 时只能是 blocked（带证据）或 empty。
@@ -42,6 +43,8 @@ function parseArgs(argv) {
   const a = {
     url: '',
     selectors: 'title',
+    list: '',
+    proxy: '',
     account: 'e2e-smoke',
     engine: 'chromium',
     timeoutMs: 45000,
@@ -57,13 +60,15 @@ function parseArgs(argv) {
     switch (k) {
       case '--url': a.url = next(); break;
       case '--selectors': a.selectors = next(); break;
+      case '--list': a.list = next(); break;
+      case '--proxy': a.proxy = next(); break;
       case '--account': a.account = next(); break;
       case '--engine': a.engine = next(); break;
       case '--timeout-ms': a.timeoutMs = Math.max(5000, parseInt(next(), 10) || 45000); break;
       case '--mcp': a.mcp = path.resolve(next()); break;
       case '--verbose': a.verbose = true; break;
       case '-h': case '--help':
-        process.stderr.write('用法：node farm-probe.js --url <url> [--selectors title,price] [--account e2e-smoke]\n');
+        process.stderr.write('用法：node farm-probe.js --url <url> [--selectors title,price] [--list <容器CSS>] [--proxy <url>] [--account e2e-smoke]\n');
         process.exit(0);
         break;
       default:
@@ -72,6 +77,9 @@ function parseArgs(argv) {
   }
   if (!a.url) throw new Error('--url 必填');
   if (!/^https?:\/\//i.test(a.url)) throw new Error('--url 只支持 http(s)');
+  if (a.proxy && !/^(https?|socks5h?):\/\//i.test(a.proxy)) {
+    throw new Error('--proxy 格式不支持（只接受 http(s):// 或 socks5://，值不打印）');
+  }
   return a;
 }
 
@@ -91,6 +99,21 @@ function buildSelectorMap(list) {
   });
   if (!Object.keys(map).length) map.title = DEFAULT_SELECTORS.title;
   return map;
+}
+
+/* 列表模式：在容器内按字段选择器循环，一次 eval 取回多条 */
+function buildListExpr(containerSelector, selectors) {
+  const sels = {};
+  for (const [k, v] of Object.entries(selectors)) sels[k] = v;
+  return '(() => {'
+    + ' const sels = ' + JSON.stringify(sels) + ';'
+    + ' const nodes = Array.from(document.querySelectorAll(' + JSON.stringify(containerSelector) + '));'
+    + ' const items = nodes.map((el) => { const rec = {};'
+    + ' for (const k of Object.keys(sels)) { const n = el.querySelector(sels[k]);'
+    + ' rec[k] = n ? (n.textContent || "").replace(/\\s+/g, " ").trim() : null; }'
+    + ' return rec; });'
+    + ' return { ok: true, url: location.href, container_count: nodes.length, items };'
+    + '})()';
 }
 
 const log = (msg) => { if (LOG_VERBOSE) process.stderr.write('[farm-probe] ' + msg + '\n'); };
@@ -162,10 +185,13 @@ function splitHttp(text) {
     account: 'e2e-smoke',
     session_id: null,
     selectors: {},
+    list: null,
+    proxy_set: false,
     fields: null,
     missing: null,
     items: [],
     item_count: 0,
+    container_count: null,
     evidence: null,
     error: null,
     cleanup: { deleted: false, delete_ok: null, data_retained: null },
@@ -175,6 +201,7 @@ function splitHttp(text) {
   let mcp = null;
   let created = false;
   let exitCode = EXIT.error;
+  let redact = (s) => String(s);   // 设置了 --proxy 后替换成 [redacted]，值绝不打印
 
   const finish = (status, code) => {
     out.status = status;
@@ -191,6 +218,10 @@ function splitHttp(text) {
     out.url = args.url;
     out.account = args.account;
     out.selectors = buildSelectorMap(args.selectors);
+    out.list = args.list || null;
+    out.proxy_set = !!args.proxy;
+    if (args.proxy) redact = (s) => String(s).split(args.proxy).join('[redacted]');
+    log('proxy: ' + (args.proxy ? '已设置' : '未设置'));
 
     const token = process.env.GATEWAY_TOKEN || process.env.DSH_SECRET_GATEWAY_TOKEN || '';
     if (!token) {
@@ -223,22 +254,20 @@ function splitHttp(text) {
     }
 
     log('farm_session_create account=' + args.account);
-    let create = await callTool(mcp, 'farm_session_create', {
-      account: args.account, engine: args.engine, platform: 'probe', require_check: false,
-    });
+    const createBody = { account: args.account, engine: args.engine, platform: 'probe', require_check: false };
+    if (args.proxy) createBody.proxy = args.proxy;
+    let create = await callTool(mcp, 'farm_session_create', createBody);
     if (create.isError) {
       const parsed = splitHttp(create.text);
       /* 同账号有 alive 会话（并发跑）时：先删再重试一次 */
       if (parsed && parsed.http === 409 && parsed.body && parsed.body.session_id) {
         log('E_ACCOUNT_BUSY，删掉残留会话后重试');
         await callTool(mcp, 'farm_session_delete', { session_id: parsed.body.session_id });
-        create = await callTool(mcp, 'farm_session_create', {
-          account: args.account, engine: args.engine, platform: 'probe', require_check: false,
-        });
+        create = await callTool(mcp, 'farm_session_create', createBody);
       }
     }
     if (create.isError || !create.data || !create.data.session_id) {
-      out.error = { code: 'E_SESSION_CREATE', message: create.text.slice(0, 800) };
+      out.error = { code: 'E_SESSION_CREATE', message: redact(create.text).slice(0, 800) };
       finish('error', EXIT.error);
       return;
     }
@@ -255,7 +284,7 @@ function splitHttp(text) {
     });
     const g = goto.data || {};
     if (goto.isError || g.status !== 'succeeded' || !g.result || g.result.ok !== true) {
-      out.error = { code: 'E_GOTO', message: 'goto 未成功', detail: String(goto.text || '').slice(0, 800) };
+      out.error = { code: 'E_GOTO', message: 'goto 未成功', detail: redact(goto.text).slice(0, 800) };
       finish('error', EXIT.error);
       return;
     }
@@ -290,8 +319,51 @@ function splitHttp(text) {
       out.missing = null;
       out.items = [];
       out.item_count = 0;
+      out.container_count = null;
       finish('blocked', EXIT.blocked);
       log('blocked: ' + matched.join(','));
+      return;
+    }
+
+    /* ---- 列表模式：容器内按字段循环，一次 eval 取回多条 ---- */
+    if (args.list) {
+      log('farm_task eval（列表模式 container=' + args.list + '）');
+      const listRes = await callTool(mcp, 'farm_task', {
+        session_id: out.session_id,
+        type: 'eval',
+        params: { expr: buildListExpr(args.list, out.selectors) },
+        timeout_ms: args.timeoutMs,
+        wait_ms: args.timeoutMs + 15000,
+      });
+      const lr = (listRes.data && listRes.data.result) || null;
+      if (listRes.isError || !listRes.data || listRes.data.status !== 'succeeded' || !lr) {
+        out.error = { code: 'E_LIST', message: '列表模式 eval 未成功', detail: redact(listRes.text).slice(0, 800) };
+        finish('error', EXIT.error);
+        return;
+      }
+      const rawItems = Array.isArray(lr.items) ? lr.items : [];
+      /* 容器命中数 vs 真正取到字段的条数：全空卡片剔除，避免 ok + 0 数据 */
+      const kept = rawItems.filter((rec) => Object.keys(rec || {}).some((k) => {
+        const v = rec[k];
+        return v !== null && v !== undefined && String(v).trim() !== '';
+      }));
+      out.container_count = typeof lr.container_count === 'number' ? lr.container_count : rawItems.length;
+      out.items = kept;
+      out.item_count = kept.length;
+      out.fields = null;
+      out.missing = null;
+      out.final_url = lr.url || out.final_url;
+      out.evidence = {
+        page_title: pageTitle,
+        page_url: (evData && evData.url) || out.final_url,
+        ready_state: (evData && evData.readyState) || null,
+        body_snippet: pageText.slice(0, 300),
+        matched: [],
+        container_count: out.container_count,
+      };
+      log('列表模式：container_count=' + out.container_count + ' item_count=' + out.item_count);
+      if (out.item_count >= 1) finish('ok', EXIT.ok);
+      else finish('empty', EXIT.empty);
       return;
     }
 
@@ -305,7 +377,7 @@ function splitHttp(text) {
     });
     const e = (ext.data && ext.data.result) || null;
     if (ext.isError || !ext.data || ext.data.status !== 'succeeded' || !e) {
-      out.error = { code: 'E_EXTRACT', message: 'extract 未成功', detail: String(ext.text || '').slice(0, 800) };
+      out.error = { code: 'E_EXTRACT', message: 'extract 未成功', detail: redact(ext.text).slice(0, 800) };
       finish('error', EXIT.error);
       return;
     }
@@ -334,8 +406,8 @@ function splitHttp(text) {
   } catch (err) {
     out.error = {
       code: (err && err.code) || 'E_PROBE',
-      message: String((err && err.message) || err),
-      detail: err && err.detail ? String(err.detail).slice(0, 800) : null,
+      message: redact((err && err.message) || err),
+      detail: err && err.detail ? redact(err.detail).slice(0, 800) : null,
     };
     finish('error', EXIT.error);
   } finally {
@@ -347,11 +419,11 @@ function splitHttp(text) {
         out.cleanup.delete_ok = !del.isError && d.ok === true;
         out.cleanup.deleted = out.cleanup.delete_ok;
         out.cleanup.data_retained = d.data_retained === undefined ? null : d.data_retained;
-        if (!out.cleanup.delete_ok) out.cleanup.error = String(del.text || '').slice(0, 400);
+        if (!out.cleanup.delete_ok) out.cleanup.error = redact(del.text).slice(0, 400);
       } catch (e2) {
         out.cleanup.delete_ok = false;
         out.cleanup.deleted = false;
-        out.cleanup.error = String((e2 && e2.message) || e2);
+        out.cleanup.error = redact((e2 && e2.message) || e2);
       }
     }
     writeOut();
