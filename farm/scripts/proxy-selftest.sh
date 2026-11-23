@@ -11,7 +11,10 @@
 #   # 没有真代理：内置假上游自测脚本本身
 #   GATEWAY_TOKEN=... bash farm/scripts/proxy-selftest.sh --self-test
 #
-# 四步：
+#   # 不需要真代理：验证 camoufox worker 是否真把流量送进代理
+#   bash farm/scripts/proxy-selftest.sh --worker-proxy
+#
+# 四步（真代理 / --self-test）：
 #   1) 桥起来了，且凭据识别正确（上游带账号密码时必须是 auth=yes）
 #   2) curl -x 桥 https://example.com/ → 200（CONNECT 隧道）
 #   3) farm-probe 经桥取 example.com → ok（真实产品路径：MCP 建会话 → goto → 删会话）
@@ -19,6 +22,11 @@
 #      ok=PASS / blocked=INFO（如实报，不算 FAIL）/ empty=WARN / error=WARN（带 error.code）
 # 收尾：停桥、清临时文件、凭据 grep 0。
 #
+# --worker-proxy：假上游（Basic 鉴权 + 访问日志）→ 桥 → camoufox_worker.py goto
+#   `worker-fixture.test`（只由假上游应答；浏览器会把 127.0.0.1 按 loopback 绕过，不能用本地地址）。
+#   断言 worker EXIT=0、readyState=complete、假上游日志里出现该请求；再不带 --proxy 跑同一命令，
+#   该域名 DNS 失败、假上游日志必须为空（反向对照）。venv 不存在/import 失败记 WARN 跳过，
+#   不判 FAIL（camoufox 是可选引擎）。
 # 退出码：0 全通；1 桥或上游不通（步骤 1–3 有 FAIL，或凭据泄漏）；2 用法/前置不满足。
 # 边界：--self-test 仍需本机能直连 example.com（假上游真转发）；不代表真代理出口可用。
 # =============================================================================
@@ -30,6 +38,7 @@ command -v node >/dev/null 2>&1 || export PATH="/opt/homebrew/bin:$PATH"
 command -v node >/dev/null 2>&1 || { echo "FAIL 找不到 node（先 export PATH=\"/opt/homebrew/bin:\$PATH\"）"; exit 2; }
 
 SELFTEST=0
+WORKER_PROXY=0
 TARGET_URL=""
 TIMEOUT_MS=45000
 PORT=""
@@ -37,6 +46,7 @@ KEEP_TMP=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --self-test) SELFTEST=1; shift ;;
+    --worker-proxy) WORKER_PROXY=1; shift ;;
     --target-url) TARGET_URL="${2:-}"; shift 2 ;;
     --timeout-ms) TIMEOUT_MS="${2:-45000}"; shift 2 ;;
     --port) PORT="${2:-}"; shift 2 ;;
@@ -45,6 +55,10 @@ while [ $# -gt 0 ]; do
     *) echo "未知参数 $1（用 --help 看用法）"; exit 2 ;;
   esac
 done
+
+if [ "$SELFTEST" = "1" ] && [ "$WORKER_PROXY" = "1" ]; then
+  echo "用法错：--self-test 与 --worker-proxy 不能同时用（worker 模式自带假上游）" >&2; exit 2
+fi
 
 GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:19671}"
 TOKEN="${GATEWAY_TOKEN:-${DSH_SECRET_GATEWAY_TOKEN:-}}"
@@ -92,22 +106,26 @@ probe_summary() { # probe_summary <json> → status<TAB>item_count<TAB>matched<T
 echo "== 0. 前置 =="
 [ -f "$BRIDGE" ] && ok "proxy-bridge.js 存在（$BRIDGE）" || { no "缺 $BRIDGE"; }
 [ -f "$PROBE" ]  && ok "farm-probe.js 存在（$PROBE）"  || { no "缺 $PROBE"; }
-if [ -z "$TOKEN" ]; then
-  echo "FAIL 需要 GATEWAY_TOKEN（只从环境变量读，不走 argv、不落文件）"
-  echo "== 汇总: PASS=$PASS FAIL=$FAIL WARN=$WARN INFO=$INFO =="; echo "RESULT: FAILED"; exit 2
+if [ "$WORKER_PROXY" = "1" ]; then
+  echo "  INFO worker-proxy 模式：不经网关，不需要 token（只验 worker → 桥 → 上游）"
+else
+  if [ -z "$TOKEN" ]; then
+    echo "FAIL 需要 GATEWAY_TOKEN（只从环境变量读，不走 argv、不落文件）"
+    echo "== 汇总: PASS=$PASS FAIL=$FAIL WARN=$WARN INFO=$INFO =="; echo "RESULT: FAILED"; exit 2
+  fi
+  ok "token 已从环境变量读取（长度 ${#TOKEN}，不打印值）"
+  [ "${#TOKEN}" -lt 32 ] && warn "token 长度 ${#TOKEN} < 32（建议 openssl rand -hex 32；本次照跑）"
+  hcode="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$GATEWAY_URL/v1/health" 2>/dev/null || true)"
+  [ "$hcode" = "200" ] && ok "网关可达（$GATEWAY_URL/v1/health 200）" || { no "网关不可达（HTTP=$hcode）；先 bash farm/scripts/start-gateway.sh --daemon"; }
+  [ "$FAIL" -gt 0 ] && { echo "== 汇总: PASS=$PASS FAIL=$FAIL WARN=$WARN INFO=$INFO =="; echo "RESULT: FAILED"; exit 2; }
 fi
-ok "token 已从环境变量读取（长度 ${#TOKEN}，不打印值）"
-[ "${#TOKEN}" -lt 32 ] && warn "token 长度 ${#TOKEN} < 32（建议 openssl rand -hex 32；本次照跑）"
-hcode="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$GATEWAY_URL/v1/health" 2>/dev/null || true)"
-[ "$hcode" = "200" ] && ok "网关可达（$GATEWAY_URL/v1/health 200）" || { no "网关不可达（HTTP=$hcode）；先 bash farm/scripts/start-gateway.sh --daemon"; }
-[ "$FAIL" -gt 0 ] && { echo "== 汇总: PASS=$PASS FAIL=$FAIL WARN=$WARN INFO=$INFO =="; echo "RESULT: FAILED"; exit 2; }
 
 UP_USER=""
 UP_PASS=""
 EXPECT_AUTH="no"
 UPSTREAM_URL=""
 
-if [ "$SELFTEST" = "1" ]; then
+if [ "$SELFTEST" = "1" ] || [ "$WORKER_PROXY" = "1" ]; then
   echo "== 0b. 内置假上游（自测模式，不需要真代理）=="
   UPORT="$(pick_port)" || { no "选不到空闲上游端口"; exit 2; }
   UP_PASS="$(openssl rand -hex 12 2>/dev/null || printf 'p%s' "$$")"
@@ -144,6 +162,12 @@ const server = http.createServer((req, res) => {
   try { target = new URL(String(req.url)); } catch (e) { target = null; }
   if (!target || target.protocol !== 'http:') { res.writeHead(400); res.end('bad absolute uri'); return; }
   rec('HDR_OK GET ' + target.host);
+  /* worker-proxy 专用：这个域名只由假上游应答，证明 worker 真的把流量送进了代理 */
+  if (target.hostname === 'worker-fixture.test') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end('<!doctype html><html><head><title>Worker Fixture</title></head><body><h1>worker proxy fixture</h1></body></html>');
+    return;
+  }
   /* 自测专用：拦截页样本，用来验证「blocked 记 INFO 不算 FAIL」这一支 */
   if (target.hostname === 'robot-wall.test') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -238,6 +262,55 @@ else
   grep -q 'auth=no' "$TMP/bridge.log" && ok "上游无凭据，桥按 auth=no 起（符合）" || no "上游无凭据但桥日志不是 auth=no"
 fi
 
+if [ "$WORKER_PROXY" = "1" ]; then
+  echo "== 2. camoufox worker 经桥取页（假上游记录访问日志）=="
+  PY="$HOME/.dsh/venvs/camoufox/bin/python"
+  WORKER="$SRC/camoufox_worker.py"
+  # worker-fixture.test 只由假上游应答：带 --proxy 才能拿到页面，不带就会 DNS 失败。
+  # 这样「页面加载成功 + 假上游日志命中」只能是真的走了代理（127.0.0.1 会被浏览器按 loopback 绕过）。
+  FIXTURE_URL="http://worker-fixture.test/page"
+  worker_state() { # worker_state <json> [expected_url] → ok|bad
+    node -e 'const fs=require("fs");let d;try{d=JSON.parse(fs.readFileSync(process.argv[1],"utf8").trim().split("\n").filter(Boolean).pop())}catch(e){process.stdout.write("bad");process.exit(0)}const u=process.argv[2]||"";process.stdout.write(d.ok===true&&d.result&&d.result.readyState==="complete"&&(!u||d.result.url===u)?"ok":"bad")' "$1" "${2:-}" 2>/dev/null || printf 'bad'
+  }
+  if [ ! -x "$PY" ]; then
+    warn "worker-proxy 跳过：camoufox venv 不存在（$PY；camoufox 是可选引擎，不判 FAIL）"
+  elif ! "$PY" -c 'import camoufox' >/dev/null 2>&1; then
+    warn "worker-proxy 跳过：$PY 里 import camoufox 失败（可选引擎，不判 FAIL）"
+  else
+    : > "$RECEIPT"   # 只统计本轮
+    "$PY" "$WORKER" --account acc-wp-proxy --profile "$TMP/wprofile-proxy" --headless \
+      --proxy "http://127.0.0.1:$PORT" \
+      --task "{\"type\":\"goto\",\"params\":{\"url\":\"$FIXTURE_URL\",\"timeout_ms\":20000}}" \
+      >"$TMP/worker-proxy.json" 2>"$TMP/worker-proxy.err"
+    RCP=$?
+    WP1="$(worker_state "$TMP/worker-proxy.json" "$FIXTURE_URL")"
+    if [ "$RCP" = "0" ] && [ "$WP1" = "ok" ]; then
+      ok "worker（带 --proxy）EXIT=0、readyState=complete、页面来自假上游"
+    else
+      no "worker（带 --proxy）失败：EXIT=$RCP $(head -c 200 "$TMP/worker-proxy.err" 2>/dev/null)"
+    fi
+    if grep -q "HDR_OK GET worker-fixture.test" "$RECEIPT" 2>/dev/null; then
+      ok "假上游日志出现 worker-fixture.test 请求（流量真走了代理）"
+    else
+      no "假上游日志没有 worker-fixture.test 请求（worker 可能没走代理）；日志原文：$(head -c 300 "$RECEIPT" 2>/dev/null)"
+    fi
+    : > "$RECEIPT"
+    "$PY" "$WORKER" --account acc-wp-direct --profile "$TMP/wprofile-direct" --headless \
+      --task "{\"type\":\"goto\",\"params\":{\"url\":\"$FIXTURE_URL\",\"timeout_ms\":20000}}" \
+      >"$TMP/worker-direct.json" 2>"$TMP/worker-direct.err"
+    RCD=$?
+    if [ -s "$RECEIPT" ]; then
+      no "对照假上游日志非空（反向断言失效）：$(head -c 300 "$RECEIPT")"
+    else
+      ok "对照（不带 --proxy）假上游日志为空（没走代理）"
+    fi
+    if [ "$RCD" = "0" ]; then
+      info "对照竟然加载成功（EXIT=0）——$FIXTURE_URL 本应只有代理能应答，反向对照说服力下降"
+    else
+      info "对照按预期失败（EXIT=$RCD，该域名只有代理能应答）"
+    fi
+  fi
+else
 echo "== 2. curl 走桥 =="
 c1="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 25 -x "http://127.0.0.1:$PORT" https://example.com/ 2>"$TMP/c1.err" || true)"
 if [ "$c1" = "200" ]; then
@@ -272,6 +345,7 @@ case "$ps2" in
   error)   warn "目标站经桥探失败（code=${pe2:-none}，EXIT=$rc2）——检查目标站/出口，不算桥故障" ;;
   *)       warn "目标站结果无法解析（status=${ps2:-?}，EXIT=$rc2）" ;;
 esac
+fi
 
 echo "== 5. 收尾 =="
 kill "$BPID" 2>/dev/null; wait "$BPID" 2>/dev/null; BPID=""
@@ -283,7 +357,7 @@ else
 fi
 
 leak=0
-for f in "$TMP/bridge.log" "$TMP/probe1.json" "$TMP/probe1.err" "$TMP/probe2.json" "$TMP/probe2.err" "$TMP/c1.err" "$TMP/upstream.log" "$TMP/receipt.log"; do
+for f in "$TMP/bridge.log" "$TMP/probe1.json" "$TMP/probe1.err" "$TMP/probe2.json" "$TMP/probe2.err" "$TMP/c1.err" "$TMP/upstream.log" "$TMP/receipt.log" "$TMP/worker-proxy.json" "$TMP/worker-proxy.err" "$TMP/worker-direct.json" "$TMP/worker-direct.err"; do
   [ -f "$f" ] || continue
   if [ -n "$UP_PASS" ] && grep -Fq "$UP_PASS" "$f"; then leak=$((leak + 1)); fi
   if [ -n "$UP_USER" ] && grep -Fq "$UP_USER:" "$f"; then leak=$((leak + 1)); fi
@@ -295,7 +369,7 @@ echo "== 汇总: PASS=$PASS FAIL=$FAIL WARN=$WARN INFO=$INFO =="
 if [ "$FAIL" -gt 0 ]; then
   echo "RESULT: FAILED"; exit 1
 fi
-if [ "$SELFTEST" = "1" ] && ! echo "$ps2" | grep -q 'blocked'; then
+if [ "$SELFTEST" = "1" ] && [ -n "${ps2:-}" ] && ! echo "$ps2" | grep -q 'blocked'; then
   echo "  WARN 自测期望第 4 步是 blocked（假上游拦截页），实际 ${ps2:-?}"
 fi
 echo "RESULT: READY"; exit 0

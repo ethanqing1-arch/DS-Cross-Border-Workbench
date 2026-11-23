@@ -68,6 +68,9 @@ bash farm/scripts/proxy-selftest.sh --target-url 'https://www.ebay.com/sch/i.htm
 
 # 没有真代理：用内置假上游把四步走一遍，证明脚本本身是对的
 GATEWAY_TOKEN=... bash farm/scripts/proxy-selftest.sh --self-test
+
+# 验证 camoufox worker 通道真的走代理（不需要真代理、不需要网关）
+bash farm/scripts/proxy-selftest.sh --worker-proxy
 ```
 
 四步含义与判定：
@@ -82,6 +85,8 @@ GATEWAY_TOKEN=... bash farm/scripts/proxy-selftest.sh --self-test
 - 退出码：`0` 全通（第 4 步被拦也算全通）；`1` 桥或上游不通（1–3 有 FAIL、或凭据泄漏）；`2` 用法/前置不满足（缺 `UPSTREAM_PROXY` / `GATEWAY_TOKEN` / 网关不可达）。
 - 第 4 步 `blocked` **不是失败**：它说明出口能通、只是目标站反爬；要换出口或登录态，别去改桥。
 - `--self-test` 的内置假上游会给 `robot-wall.test` 返回一页 `Robot or human?`，专门验证「blocked 记 INFO」这一支；但它需要本机能直连 `example.com`（假上游真转发），且**不代表真代理出口可用**。
+- `--worker-proxy` 断言三件：worker `EXIT=0`、`readyState=complete`、假上游日志出现 `worker-fixture.test` 请求；反向对照不带 `--proxy` 时该域名 DNS 失败、日志必须为空。camoufox venv 不存在或 import 失败记 WARN 跳过，不判 FAIL（可选引擎）。
+- 注意：浏览器按 loopback 规则会绕过 `127.0.0.1`，所以不能拿本地 fixture 验证 worker 代理——测试域名 `worker-fixture.test` 只由假上游应答，能加载就说明流量真的走了代理。
 - 收尾会 `grep` 桥日志、探针输出、curl stderr、假上游记录，凭据命中数必须是 0；`--keep-tmp` 可保留临时目录排查。
 - 输出里的 token 长度 `WARN`（<32）照跑，但按群规该换成 `openssl rand -hex 32`。
 
@@ -171,6 +176,6 @@ GATEWAY_TOKEN="换成你的令牌" bash farm/scripts/test-proxy-bridge.sh
 |---|---|
 | `farm/proxy-bridge.js` | 桥本体（零依赖） |
 | `farm/scripts/test-proxy-bridge.sh` | 假上游 + curl + 真实浏览器产品路径自测 |
-| `farm/scripts/proxy-selftest.sh` | 拿到代理后一条命令验通（四步 + 收尾）；`--self-test` 无真代理也能验脚本 |
+| `farm/scripts/proxy-selftest.sh` | 拿到代理后一条命令验通（四步 + 收尾）；`--self-test` 无真代理也能验脚本；`--worker-proxy` 验 camoufox worker 真走代理 |
 | `farm/scripts/acceptance.sh` | 收编桥：文件清单、`node --check`、无上游/坏上游拒绝启动的静态检查 |
 | `distribution/connectors/farm-probe.js` | 取页探针；`--proxy` 指向桥，`--cache-bust` 防缓存假绿 |
