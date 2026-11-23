@@ -35,6 +35,7 @@
     {
       "id": "browser-farm",
       "tier": "T3",
+      "probe_preset": "amazon",
       "note": "自建农场兜底补页面细节，只读调研，绝不做登录态店铺操作"
     }
   ],

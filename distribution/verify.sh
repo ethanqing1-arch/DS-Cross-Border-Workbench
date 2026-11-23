@@ -218,6 +218,30 @@ for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".json")).sort()) {
   if (p.id && String(p.id) !== path.basename(f, ".json")) miss.push("id 与文件名不一致");
   console.log(f + "\t" + (miss.length ? "0" : "1") + "\t" + miss.join("；"));
 }' "$CONN/platforms")
+# L3：每个平台都必须声明 browser-farm 连接器，且 probe_preset 指向真实存在的预设文件
+while IFS=$'\t' read -r pname verdict detail; do
+  [ -n "$pname" ] || continue
+  if [ "$verdict" = "1" ]; then
+    ok "L3 $pname 接上取数预设（browser-farm.probe_preset=$detail）"
+  else
+    bad "L3 $pname 取数预设未接上：$detail"
+  fi
+done < <(node -e '
+const fs = require("fs"), path = require("path");
+const root = process.argv[1];
+for (const p of fs.readdirSync(path.join(root, "l3/platforms")).sort()) {
+  let mf = null;
+  try { mf = JSON.parse(fs.readFileSync(path.join(root, "l3/platforms", p, "manifest.json"), "utf8")); }
+  catch (e) { console.log(p + "\t0\tmanifest 不可解析"); continue; }
+  const c = (mf.connectors || []).find((x) => x.id === "browser-farm");
+  if (!c) { console.log(p + "\t0\tconnectors 里没有 browser-farm"); continue; }
+  const pp = c.probe_preset;
+  if (typeof pp !== "string" || !pp.trim()) { console.log(p + "\t0\tbrowser-farm 缺 probe_preset"); continue; }
+  if (!fs.existsSync(path.join(root, "connectors/platforms", pp + ".json"))) {
+    console.log(p + "\t0\tprobe_preset=" + pp + " 没有对应预设文件"); continue;
+  }
+  console.log(p + "\t1\t" + pp);
+}' "$SRC")
 
 # ---------------------------------------------------------------- 7. 边界
 if [ -n "$REAL_MTIME" ]; then

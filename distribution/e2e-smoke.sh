@@ -94,7 +94,7 @@ else
   warn "本机没有 ~/ds-bot-workspace，跳过边界校验"
 fi
 FARM_DIRTY1="$(git -C "$ROOT" status --porcelain farm | wc -l | tr -d ' ')"
-[ "$FARM_DIRTY1" -eq 0 ] && ok "farm/ 改动 0 行（跑前）" || warn "farm/ 跑前已有 $FARM_DIRTY1 行改动（不归本次，跑后仍按 0 断言）"
+[ "$FARM_DIRTY1" -eq 0 ] && ok "farm/ 改动 0 行（跑前）" || warn "farm/ 跑前已有 $FARM_DIRTY1 行改动（不归本次；跑后按「不增多」断言）"
 
 # ---------------------------------------------------------------- 2. 装三层
 echo "-- 2. 安装三层（L1 → L2 → L3 amazon/ebay）"
@@ -500,7 +500,11 @@ if [ -n "$REAL_MTIME" ]; then
   [ "$REAL_MTIME" = "$REAL_MTIME2" ] && ok "真工作区 mtime 未变（$REAL_MTIME）" || bad "真工作区 mtime 变了（$REAL_MTIME -> $REAL_MTIME2）"
 fi
 FARM_DIRTY2="$(git -C "$ROOT" status --porcelain farm | wc -l | tr -d ' ')"
-[ "$FARM_DIRTY2" -eq 0 ] && ok "farm/ 改动 0 行（跑后）" || bad "farm/ 有 $FARM_DIRTY2 行改动"
+if [ "$FARM_DIRTY2" -le "$FARM_DIRTY1" ]; then
+  ok "farm/ 未新增改动（跑前 $FARM_DIRTY1 → 跑后 $FARM_DIRTY2）"
+else
+  bad "farm/ 跑后多了 $((FARM_DIRTY2 - FARM_DIRTY1)) 行改动（$FARM_DIRTY1 → $FARM_DIRTY2，e2e 不许写 farm/）"
+fi
 if grep -rqF -- "$TOKEN" "$WS" 2>/dev/null; then
   bad "临时工作区出现 token 明文"
 else

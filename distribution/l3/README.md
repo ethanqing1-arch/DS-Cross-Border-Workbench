@@ -33,6 +33,14 @@ bash install.sh ebay <已装 L2 的目标目录> --force    # 覆盖已存在文
 
 落点固定：`<目标目录>/95-engine/platforms/<id>/`。
 
+想真取数时看平台包 manifest 的 `connectors`：`browser-farm` 条目带 `probe_preset`，指向
+`connectors/platforms/<probe_preset>.json`（未验字段在预设里标 `未验`，别当数据用）。例：
+
+```bash
+GATEWAY_URL=http://127.0.0.1:19671 GATEWAY_TOKEN=... \
+  node distribution/connectors/farm-probe.js --platform amazon --query 'wireless earbuds' --cache-bust
+```
+
 前置是双证：`<目标目录>/CHIEF-INIT.md` + `<目标目录>/.dsh/skills/ecom-selection/SKILL.md`。缺一个就 FAIL 且**不写任何文件**。
 
 ## 新增一个平台

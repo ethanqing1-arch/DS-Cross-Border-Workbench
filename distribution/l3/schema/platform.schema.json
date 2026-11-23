@@ -78,6 +78,11 @@
         "properties": {
           "id": { "type": "string" },
           "tier": { "type": "string", "enum": ["T1", "T2", "T3"] },
+          "probe_preset": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,31}$",
+            "description": "取数用哪个平台预设（connectors/platforms/<id>.json 的 id）；id=browser-farm 时必填，其余连接器不用"
+          },
           "note": { "type": "string" },
           "optional": { "type": "boolean" }
         }

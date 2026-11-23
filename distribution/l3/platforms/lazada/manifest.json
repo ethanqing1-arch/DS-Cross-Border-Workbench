@@ -23,6 +23,7 @@
     {
       "id": "browser-farm",
       "tier": "T3",
+      "probe_preset": "lazada",
       "note": "自建农场只做只读调研（榜单/详情页），绝不做登录态店铺操作（改价/改库存/发货/回复）"
     }
   ],
