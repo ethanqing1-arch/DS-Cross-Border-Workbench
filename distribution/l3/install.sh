@@ -154,7 +154,7 @@ SRC_COUNT=0
 while IFS= read -r rel; do
   SRC_COUNT=$((SRC_COUNT+1))
   if [ "$CHECK" -eq 1 ]; then probe_file "$DEST_REL/$rel"; else copy_file "$PLATFORM_DIR/$rel" "$DEST_REL/$rel"; fi
-done < <(cd "$PLATFORM_DIR" && find . -type f ! -name '.DS_Store' | sed 's|^\./||' | sort)
+done < <(cd "$PLATFORM_DIR" && find . -path './bundle' -prune -o -type f ! -name '.DS_Store' -print | sed 's|^\./||' | sort)
 echo "  （源文件 $SRC_COUNT 个）"
 
 # ---------------------------------------------------------------- 4. 落点校验
@@ -176,6 +176,11 @@ if [ "$CHECK" -eq 0 ]; then
   else
     echo "FAIL 落点文件数 $GOT_COUNT != 源文件数 $SRC_COUNT"; FAILED=$((FAILED+1))
   fi
+fi
+
+# ---------------------------------------------------------------- 5. bundle 镜像一致性
+if ! node "$SRC/check-bundle-skills.js" "$PLATFORM_DIR"; then
+  FAILED=$((FAILED+1))
 fi
 
 echo

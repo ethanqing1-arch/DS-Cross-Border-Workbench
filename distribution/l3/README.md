@@ -43,6 +43,24 @@ GATEWAY_URL=http://127.0.0.1:19671 GATEWAY_TOKEN=... \
 
 前置是双证：`<目标目录>/CHIEF-INIT.md` + `<目标目录>/.dsh/skills/ecom-selection/SKILL.md`。缺一个就 FAIL 且**不写任何文件**。
 
+## DSH bundle
+
+只有 `tier=full` 平台自带 `bundle/`。Amazon 的 bundle 包名为 `dsh-ecom-amazon`，每个 skill 的入口为 `bundle/skills/<skill-name>/SKILL.md`。原始层级记录在 [LAYERS.md](platforms/amazon/bundle/LAYERS.md)。
+
+`tier=baseline` 的 eBay、TikTok Shop、Shopee、Lazada、Walmart、AliExpress 依赖 L2 的 `dsh-ecom-cbec` bundle，复用其通用 skills。
+
+在 DS Bot 的 `plugin_manager` 中调用 `install_bundle`，`target` 填本地 bundle 目录的绝对路径。先装 L2 bundle，再按需装 Amazon bundle。
+
+```json
+{"action":"install_bundle","target":"/绝对路径/DS-Cross-Border-Workbench/distribution/l2/bundle"}
+```
+
+```json
+{"action":"install_bundle","target":"/绝对路径/DS-Cross-Border-Workbench/distribution/l3/platforms/amazon/bundle"}
+```
+
+工作区安装把分层 skills 写到平台落点。安装和 `--check` 都会校验仓库里的平铺 bundle 镜像，遇到漂移时返回非零退出码。
+
 ## 新增一个平台
 
 ```bash
@@ -57,7 +75,6 @@ bash install.sh <id> <目标目录> --check
 - **费率/佣金一律 `null` + `"_note": "待业务确认"`**，框架不编数字，`install.sh` 也不校验业务数值。
 - Amazon 的 23 个 skill 及其附属文件随包安装，保留 8 层目录。授权归属待定，对外分发前需确认。见 [来源与授权](platforms/amazon/skills/REFERENCES.md)。
 - `install.sh` 只写 `<目标目录>`；不碰 `~/ds-bot-workspace`、不碰 DS Bot 状态、不安装 bundle。
-- 平台包里没有 `bundle/`：本切是文件系统落点，不是 DSH bundle。要变成可 `install_bundle` 的包是下一刀的事。
 
 ## 已知缺口
 

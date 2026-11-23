@@ -51,7 +51,7 @@ echo "临时根目录：$TMP"
 
 # ---------------------------------------------------------------- 0. 入口文件
 echo "-- 0. 入口文件"
-for f in "l1/install.sh" "l1/manifest.json" "l1/capability/browser-farm.json" "l2/install.sh" "l2/manifest.json" "l3/install.sh" "l3/manifest.json" "l3/schema/platform.schema.json"; do
+for f in "l1/install.sh" "l1/manifest.json" "l1/capability/browser-farm.json" "l2/install.sh" "l2/manifest.json" "l3/install.sh" "l3/manifest.json" "l3/schema/platform.schema.json" "l3/check-bundle-skills.js"; do
   if [ -f "$SRC/$f" ]; then ok "存在 $f"; else bad "缺 $f"; fi
 done
 if [ "$FAIL" -ne 0 ]; then
@@ -159,7 +159,7 @@ for p in $PLATFORMS; do
   OUT="$(bash "$SRC/l3/install.sh" "$p" "$WS" 2>&1)"; RC=$?
   W="$(printf '%s\n' "$OUT" | sed -n 's/^== 汇总: write=\([0-9]*\) skip=\([0-9]*\) fail=\([0-9]*\) ==/\1 \2 \3/p' | tail -1)"
   LANDED="$(find "$WS/95-engine/platforms/$p" -type f 2>/dev/null | wc -l | tr -d ' ')"
-  EXPECTED="$(find "$SRC/l3/platforms/$p" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"
+  EXPECTED="$(cd "$SRC/l3/platforms/$p" && find . -path './bundle' -prune -o -type f ! -name '.DS_Store' -print | wc -l | tr -d ' ')"
   if [ "$p" = "amazon" ]; then
     SK="$(find "$WS/95-engine/platforms/$p/skills" -type f -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
     [ "$SK" -eq 23 ] && ok "平台 $p skills=23" || bad "平台 $p skills=${SK}（期望 23）"
@@ -168,6 +168,12 @@ for p in $PLATFORMS; do
     ok "平台 $p 安装（write=$EXPECTED skip=0 fail=0，落点 ${EXPECTED}）"
   else
     bad "平台 $p 安装（rc=$RC 汇总='${W:-无}' 落点=${LANDED}）"
+  fi
+  if BUNDLE_OUT="$(node "$SRC/l3/check-bundle-skills.js" "$SRC/l3/platforms/$p" 2>&1)"; then
+    if [ -n "$BUNDLE_OUT" ]; then ok "平台 $p ${BUNDLE_OUT#PASS }"; fi
+  else
+    bad "平台 $p bundle skills 与分层 skills 不一致"
+    printf '%s\n' "$BUNDLE_OUT" | sed 's/^/    /'
   fi
 done
 DIRS="$(find "$WS/95-engine/platforms" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"

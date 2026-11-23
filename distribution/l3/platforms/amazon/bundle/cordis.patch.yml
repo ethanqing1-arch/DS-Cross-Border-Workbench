@@ -1,0 +1,12 @@
+# dsh-ecom-amazon —— 挂载包内平铺的 Amazon 平台 skills。
+- insert:
+    - id: ecom-amazon-skill-filesystem
+      name: '@deepseek-ai/dsh-skill-filesystem'
+      config:
+        providerName: ecom-amazon
+        includeDefaultRoots: false
+        bundledSkillDir: !!js >-
+          process.getBuiltinModule('node:path').join(
+            process.getBuiltinModule('node:path').dirname(
+              process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('dsh-ecom-amazon/package.json')),
+            'skills')

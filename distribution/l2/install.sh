@@ -17,7 +17,6 @@
 set -uo pipefail
 
 SRC="$(cd "$(dirname "$0")" && pwd)"
-command -v node >/dev/null 2>&1 || export PATH="/opt/homebrew/bin:$PATH"
 TARGET=""; CHECK=0; FORCE=0
 for arg in "$@"; do
   case "$arg" in
@@ -123,20 +122,25 @@ echo "== dsh-ecom-cbec $(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\
 echo "目标：$TARGET"
 echo "模式：$([ "$CHECK" -eq 1 ] && echo '只校验（--check）' || { [ "$FORCE" -eq 1 ] && echo '安装（--force）' || echo '安装（非破坏）'; })"
 
-if ! command -v node >/dev/null 2>&1; then
-  echo "FAIL 缺 node，无法校验 manifest" >&2
+if ! EXPECTED_SKILLS="$(find "$SRC/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"; then
+  echo "FAIL 无法统计 skills/ 目录" >&2
   exit 2
 fi
-if ! EXPECTED_SKILLS="$(node -e '
+MANIFEST_SKILLS="$EXPECTED_SKILLS"
+if command -v node >/dev/null 2>&1; then
+  if ! MANIFEST_SKILLS="$(node -e '
 const m = require(process.argv[1]);
 if (!m.name || !m.version || !m.requires || !m.requires["browser-farm"] ||
     !m.contents || !Array.isArray(m.contents.skills)) process.exit(1);
 console.log(m.contents.skills.length);
 ' "$SRC/manifest.json" 2>/dev/null)"; then
-  echo "FAIL manifest 不可解析或字段不全" >&2
-  exit 2
+    echo "FAIL manifest 不可解析或字段不全" >&2
+    exit 2
+  fi
+  echo "PASS manifest 可解析（name/version/requires.browser-farm/contents.skills）"
+else
+  echo "WARN 缺 node，跳过 manifest 校验"
 fi
-echo "PASS manifest 可解析（name/version/requires.browser-farm/contents.skills）"
 
 echo "-- 网关版本闸"
 gw_probe
@@ -173,14 +177,20 @@ for d in "$SRC"/skills/*; do
     if [ "$CHECK" -eq 1 ]; then probe_file "$rel"; else copy_file "$d/$file" "$rel"; fi
   done < <(cd "$d" && find . -type f -print0 | sort -z)
 done
-[ "$SKILL_COUNT" -eq "$EXPECTED_SKILLS" ] && echo "PASS skills=${SKILL_COUNT}（期望 ${EXPECTED_SKILLS}）" || { echo "FAIL skills=${SKILL_COUNT}（期望 ${EXPECTED_SKILLS}）"; FAILED=$((FAILED+1)); }
+if [ "$SKILL_COUNT" -eq "$EXPECTED_SKILLS" ] && [ "$SKILL_COUNT" -eq "$MANIFEST_SKILLS" ]; then
+  echo "PASS skills=${SKILL_COUNT}（期望 ${EXPECTED_SKILLS}）"
+else
+  echo "FAIL skills=${SKILL_COUNT}（目录 ${EXPECTED_SKILLS}，manifest ${MANIFEST_SKILLS}）"
+  FAILED=$((FAILED+1))
+fi
 
 echo "-- bundle 镜像一致性"
 if DRIFT="$(diff -qr "$SRC/skills" "$SRC/bundle/skills" 2>&1)"; then
   echo "PASS bundle/skills 与 skills/ 一致"
 else
-  echo "WARN bundle/skills 与 skills/ 不一致"
+  echo "FAIL bundle/skills 与 skills/ 不一致"
   printf '%s\n' "$DRIFT"
+  FAILED=$((FAILED+1))
 fi
 
 echo
