@@ -84,8 +84,10 @@
 
 ### 要做的六件事
 
-1. **封成 DSH capability**
-   `save_capability kind=mcp transport=streamable-http url=http://127.0.0.1:19671`，header 用 `$DSH_SECRET_GATEWAY_TOKEN`。这样任何 bot、任何子模式都用同一套调用，不各自实现。
+1. **封成 DSH capability**（✅ 2026-11-23 完成，端到端已验证）
+   网关是 REST（`/v1/*`），**不是 MCP**，不能把 `save_capability` 直接指向 19671（握手会失败）。实际落地：`farm/mcp/farm-mcp.js` 做 stdio 适配层，把 REST 包成 7 个工具（`farm_health` / `farm_version` / `farm_sessions` / `farm_session_create` / `farm_session_delete` / `farm_task` / `farm_fingerprint_verify`），零依赖。
+   注册参数：`kind=mcp`、`transport=stdio`、`command=/opt/homebrew/bin/node`、`args=[farm/mcp/farm-mcp.js]`、`env={GATEWAY_URL: http://127.0.0.1:19671, GATEWAY_TOKEN: $DSH_SECRET_GATEWAY_TOKEN}`。本地命令型 MCP 需用户在 Settings → Capabilities 里 Allow 一次。
+   这样任何 bot、任何子模式都用同一套调用，不各自实现。
 
 2. **补两类任务**（现在的缺口）
    - `extract`：给选择器或字段映射，直接返回结构化 JSON。现在只有 raw `eval`，调用方得自己写 JS 解析，等于把解析逻辑散落到每个子模式里。
