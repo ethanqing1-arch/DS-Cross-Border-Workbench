@@ -490,6 +490,19 @@ function writeArtifacts(out, args, exitCode) {
       response_status: nv.response_status === undefined ? null : nv.response_status,
       cache_hit: nv.cache_hit === undefined ? null : nv.cache_hit,
     };
+    /* Chromium 错误页不是缓存：代理/网络不通或目标不可达时 location 会落到
+       chrome-error://，transferSize 必然为 0。必须先于 E_CACHE_HIT 判掉，
+       否则「出口挂了」会被教成「去查缓存」。 */
+    if (typeof out.final_url === 'string' && out.final_url.startsWith('chrome-error://')) {
+      out.nav.cache_hit = false;   // 错误页不是缓存命中，--out 的 meta 不许写 true
+      out.error = {
+        code: 'E_GOTO',
+        message: '导航落到 Chromium 错误页：代理/网络不通或目标不可达，不是缓存',
+        detail: 'final_url=' + out.final_url + ' transfer_size=' + out.nav.transfer_size,
+      };
+      finish('error', EXIT.error);
+      return;
+    }
     if (out.nav.cache_hit) {
       out.error = {
         code: 'E_CACHE_HIT',

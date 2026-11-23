@@ -503,6 +503,22 @@ JSON
   else
     bad "--platform 缺 list_selector（RC=$RC）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-")+" list="+JSON.stringify(r.list))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
   fi
+  # 5.4 离网（127.0.0.1:1 必失败）：Chromium 错误页必须报 E_GOTO，不许伪装成 E_CACHE_HIT
+  RC="$(probe_run --url 'http://127.0.0.1:1/' --cache-bust --out "$TMP/probe-offline.jsonl")"
+  if [ "$RC" = "1" ] && node -e '
+    const fs = require("fs");
+    const r = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const m = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+    const lines = fs.readFileSync(process.argv[3], "utf8").trim().split("\n").filter(Boolean).length;
+    const ok = r.status === "error" && r.error && r.error.code === "E_GOTO"
+      && /^chrome-error:\/\//.test(String(r.final_url || ""))
+      && m.cache_hit === false && lines === 0;
+    process.exit(ok ? 0 : 1);
+  ' "$TMP/probe.json" "$TMP/probe-offline.jsonl.meta.json" "$TMP/probe-offline.jsonl" 2>/dev/null; then
+    ok "离网 127.0.0.1:1 → E_GOTO（不是 E_CACHE_HIT）、meta.cache_hit=false、JSONL 0 行"
+  else
+    bad "离网分类异常（RC=$RC）$(node -e 'try{const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const m=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-")+" final_url="+(r.final_url||"-")+" cache_hit="+m.cache_hit)}catch(e){console.log("无产物")}' "$TMP/probe.json" "$TMP/probe-offline.jsonl.meta.json" 2>/dev/null)"
+  fi
   kill "$FXPID" 2>/dev/null || true; FXPID=""
 fi
 
