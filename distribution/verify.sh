@@ -49,7 +49,7 @@ echo "临时根目录：$TMP"
 
 # ---------------------------------------------------------------- 0. 入口文件
 echo "-- 0. 入口文件"
-for f in "l2/install.sh" "l2/manifest.json" "l3/install.sh" "l3/manifest.json" "l3/schema/platform.schema.json"; do
+for f in "l1/install.sh" "l1/manifest.json" "l1/capability/browser-farm.json" "l2/install.sh" "l2/manifest.json" "l3/install.sh" "l3/manifest.json" "l3/schema/platform.schema.json"; do
   if [ -f "$SRC/$f" ]; then ok "存在 $f"; else bad "缺 $f"; fi
 done
 if [ "$FAIL" -ne 0 ]; then
@@ -68,8 +68,56 @@ else
   warn "本机没有 ~/ds-bot-workspace，跳过边界校验"
 fi
 
-# ---------------------------------------------------------------- 1. L2
-echo "-- 1. L2 版本包 dsh-ecom-cbec"
+# ---------------------------------------------------------------- 1. L1
+echo "-- 1. L1 核心包 dsh-ecom-l1"
+L1T="$TMP/l1"
+OUT="$(bash "$SRC/l1/install.sh" "$L1T" 2>&1)"; RC=$?
+W="$(printf '%s\n' "$OUT" | sed -n 's/^== 汇总: write=\([0-9]*\) skip=\([0-9]*\) fail=\([0-9]*\) ==/\1 \2 \3/p' | tail -1)"
+if [ "$RC" -eq 0 ] && [ "$W" = "1 0 0" ]; then
+  ok "L1 install（write=1 skip=0 fail=0）"
+else
+  bad "L1 install（rc=$RC 汇总='${W:-无}'）"
+fi
+if printf '%s' "$OUT" | grep -q 'WARN 网关不可达'; then
+  warn "L1 网关不可达（安装器只 WARN，未挡安装）"
+fi
+MARKER="$L1T/.dsh/ecom-l1.json"
+if [ -f "$MARKER" ] && node -e '
+const m = require(process.argv[1]);
+if (m.name !== "dsh-ecom-l1" || m.capability !== "browser-farm") process.exit(1);
+' "$MARKER" 2>/dev/null; then
+  ok "L1 标记文件可解析（name=dsh-ecom-l1 capability=browser-farm）"
+else
+  bad "L1 标记文件缺失或不可解析"
+fi
+L1SUM1="$(shasum "$MARKER" 2>/dev/null | cut -d' ' -f1)"
+OUT="$(bash "$SRC/l1/install.sh" "$L1T" --check 2>&1)"; RC=$?
+LINE="$(printf '%s\n' "$OUT" | grep '^== CHECK' | tail -1)"
+L1SUM2="$(shasum "$MARKER" 2>/dev/null | cut -d' ' -f1)"
+if [ "$RC" -eq 0 ] && printf '%s' "$LINE" | grep -q 'would-write=0 '; then
+  ok "L1 --check 幂等（$LINE）"
+else
+  bad "L1 --check（rc=$RC ${LINE:-无 CHECK 行}）"
+fi
+if [ -z "$L1SUM1" ] || [ -z "$L1SUM2" ]; then
+  bad "L1 --check 后标记文件缺失或读不到 shasum"
+elif [ "$L1SUM1" = "$L1SUM2" ]; then
+  ok "L1 --check 未改标记文件（shasum 一致 ${L1SUM1:0:12}…）"
+else
+  bad "L1 --check 改了标记文件（$L1SUM1 -> $L1SUM2）"
+fi
+L1NEG="$TMP/l1-negative"; EMPTY_FARM="$TMP/empty-farm"
+mkdir -p "$L1NEG" "$EMPTY_FARM"
+OUT="$(bash "$SRC/l1/install.sh" "$L1NEG" --farm "$EMPTY_FARM" 2>&1)"; RC=$?
+[ "$RC" -ne 0 ] && ok "L1 负例 --farm 空目录退出码 $RC（非 0）" || bad "L1 负例 --farm 空目录退出码 0（应 FAIL）"
+printf '%s' "$OUT" | grep -q 'farm-mcp.js 不存在' \
+  && ok "L1 负例失败原因正确（farm-mcp.js 不存在）" \
+  || bad "L1 负例失败原因不符"
+L1NFILES="$(find "$L1NEG" -type f | wc -l | tr -d ' ')"
+[ "$L1NFILES" -eq 0 ] && ok "L1 负例目标 0 写入" || bad "L1 负例目标写了 $L1NFILES 个文件"
+
+# ---------------------------------------------------------------- 2. L2
+echo "-- 2. L2 版本包 dsh-ecom-cbec"
 OUT="$(bash "$SRC/l2/install.sh" "$WS" 2>&1)"; RC=$?
 printf '%s\n' "$OUT" | grep -E '^(== 汇总|INSTALL)' | sed 's/^/    /'
 [ "$RC" -eq 0 ] && ok "L2 install 退出码 0" || bad "L2 install 退出码 $RC"
@@ -83,8 +131,8 @@ FILES="$(find "$WS" -type f | wc -l | tr -d ' ')"
 SK="$(find "$WS/.dsh/skills" -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
 [ "$SK" -eq 4 ] && ok "L2 skills=4" || bad "L2 skills=$SK（期望 4）"
 
-# ---------------------------------------------------------------- 2. 平台逐个装
-echo "-- 2. L3 平台包（逐个装）"
+# ---------------------------------------------------------------- 3. 平台逐个装
+echo "-- 3. L3 平台包（逐个装）"
 PLATFORMS="$(bash "$SRC/l3/install.sh" --list | awk 'NR>1 {print $1}')"
 PCOUNT="$(printf '%s\n' "$PLATFORMS" | grep -c .)"
 [ "$PCOUNT" -eq 7 ] && ok "平台清单 7 个" || bad "平台清单 $PCOUNT 个（期望 7）"
@@ -101,8 +149,8 @@ done
 DIRS="$(find "$WS/95-engine/platforms" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
 [ "$DIRS" -eq 7 ] && ok "平台落点目录 7 个" || bad "平台落点目录 $DIRS 个（期望 7）"
 
-# ---------------------------------------------------------------- 3. 全量 --check
-echo "-- 3. 全量 --check（不写）"
+# ---------------------------------------------------------------- 4. 全量 --check
+echo "-- 4. 全量 --check（不写）"
 SUM_BEFORE="$(cd "$WS" && find . -type f | sort | xargs shasum | shasum | cut -d' ' -f1)"
 for p in $PLATFORMS; do
   OUT="$(bash "$SRC/l3/install.sh" "$p" "$WS" --check 2>&1)"; RC=$?
@@ -120,8 +168,8 @@ else
   bad "--check 改了文件（$SUM_BEFORE -> $SUM_AFTER）"
 fi
 
-# ---------------------------------------------------------------- 4. 空目录负例
-echo "-- 4. 负例：空目录装平台必须 FAIL 且 0 写入"
+# ---------------------------------------------------------------- 5. 空目录负例
+echo "-- 5. 负例：空目录装平台必须 FAIL 且 0 写入"
 E="$TMP/empty"
 mkdir -p "$E"
 OUT="$(bash "$SRC/l3/install.sh" ebay "$E" 2>&1)"; RC=$?
@@ -132,7 +180,7 @@ printf '%s' "$OUT" | grep -q 'FAIL 目标目录未装 L2' \
 EFILES="$(find "$E" -type f | wc -l | tr -d ' ')"
 [ "$EFILES" -eq 0 ] && ok "空目录 0 写入" || bad "空目录写了 $EFILES 个文件"
 
-# ---------------------------------------------------------------- 5. 边界
+# ---------------------------------------------------------------- 6. 边界
 if [ -n "$REAL_MTIME" ]; then
   NOW="$(stat -f %m "$REAL_WS" 2>/dev/null || stat -c %Y "$REAL_WS" 2>/dev/null || true)"
   if [ "$NOW" = "$REAL_MTIME" ]; then

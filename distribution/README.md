@@ -4,17 +4,22 @@
 
 | 层 | 包 | 入口 | 落点 | 状态 |
 |---|---|---|---|---|
-| L1 核心 | `browser-farm`（农场 capability） | `farm/mcp/farm-mcp.js` + DS Bot 共享能力注册 | DS Bot 工具表（7 个 `farm_*` 工具） | 已交付（M1），需用户在设置里 Allow |
+| L1 核心 | `dsh-ecom-l1`（`l1/`）+ 农场 `browser-farm` | `l1/install.sh <目标目录>` + DS Bot 共享能力注册 | `<目标>/.dsh/ecom-l1.json` 标记；7 个 `farm_*` 工具进 DS Bot 工具表 | 已交付（M1 能力 + L1 包），注册与 Allow 仍是人工两步 |
 | L2 版本包 | `dsh-ecom-cbec` | `l2/install.sh <目标目录>` | `<目标>/.dsh/skills/` + 工作区骨架 | 已交付（M2） |
 | L3 平台包 | `dsh-ecom-platform-framework` | `l3/install.sh <平台> <目标目录>` | `<目标>/95-engine/platforms/<id>/` | 框架 + 7 个平台已交付（M3 / M4） |
 
-L1 不在这个目录里：农场代码和 capability 适配层在仓库根的 `farm/`，`farm/mcp/farm-mcp.js` 是那 7 个工具的适配层。
+L1 的农场代码在仓库根的 `farm/`（`farm/mcp/farm-mcp.js` 是那 7 个工具的 stdio 适配层）；`l1/` 放它的安装包——capability 载荷、品牌占位、安装器与种子剧本。装包只校验并写标记文件，**真正的注册与 Allow 在 DS Bot 里人工做**，脚本不代做。
 
 ## 安装顺序
 
 ```bash
-# 1) L1：农场起网关（真网关）+ 在 DS Bot 设置里放行 browser-farm
+# 1) L1：装包（校验 node / farm / 载荷 / 品牌，写 .dsh/ecom-l1.json 标记并打印注册步骤）
+bash distribution/l1/install.sh ~/ds-bot-workspace
+
+# 1b) L1 第二步（人工，脚本不代做）：起网关 → 注册 capability → 用户 Allow
 cd farm && bash scripts/start-gateway.sh --daemon
+#    注册参数见 distribution/l1/capability/browser-farm.json，
+#    五步见 distribution/l1/SEED-L1.md
 
 # 2) L2：工作区骨架 + 4 个业务 skill
 bash distribution/l2/install.sh ~/ds-bot-workspace
@@ -36,7 +41,7 @@ bash distribution/verify.sh            # 跑完清掉临时目录
 bash distribution/verify.sh --keep     # 保留临时目录看现场
 ```
 
-它会在 `mktemp` 目录里依次跑：L2 安装 → 7 个平台逐个安装 → 全量 `--check`（前后 shasum 对比）→ 空目录负例（必须 FAIL 且 0 写入）→ 真工作区 mtime 边界校验，最后打 `PASS/FAIL/WARN` 汇总、`RESULT: READY / NOT_READY` 与退出码（0 / 1）。
+它会在 `mktemp` 目录里依次跑：L1 安装 → L2 安装 → 7 个平台逐个安装 → 全量 `--check`（前后 shasum 对比）→ L1 负例（`--farm` 指空目录必须 FAIL 且目标 0 写入）→ 空目录装平台负例（必须 FAIL 且 0 写入）→ 真工作区 mtime 边界校验，最后打 `PASS/FAIL/WARN` 汇总、`RESULT: READY / NOT_READY` 与退出码（0 / 1）。
 
 依赖：`bash` + `node`（L3 的 manifest 校验用 node；脚本会把 `/opt/homebrew/bin` 补进 PATH）。
 
@@ -44,6 +49,7 @@ bash distribution/verify.sh --keep     # 保留临时目录看现场
 
 **真的（已验过）**
 
+- L1：`l1/install.sh` 校验 node 绝对路径 / `farm/mcp/farm-mcp.js` 存在且语法过 / 载荷无明文 secret / 品牌占位 / 网关可达（只 WARN），写 `.dsh/ecom-l1.json` 标记，`--check` 幂等，`--farm` 空目录负例 FAIL 且 0 写入。
 - L2：30 个工作区文件 + 4 个业务 skill + 10 bot / 4 group 预设 + SEED 剧本，安装幂等。
 - L3：schema + 可复制模板（`example` 可直接跑通）+ 安装器（前置双证、非破坏、`--check`、`--force`）。
 - 7 个平台包都能装进已装 L2 的目录，每包 4 个文件，重复装/`--check` 都是 0 写入。
@@ -58,6 +64,7 @@ bash distribution/verify.sh --keep     # 保留临时目录看现场
 | 基线平台 skill | eBay / TikTok Shop / Shopee / Lazada / Walmart / AliExpress 都是 `skills.mode=inherit-l2`，没有平台专项 skill |
 | DSH bundle | L2 的 `bundle/` 只做静态校验，**没安装**；L3 是文件系统落点，没有 `bundle/` |
 | 数据源降级链 | 计划第 4 节的 `data_sources`（tier 优先级与降级）**没进 schema**，还没有消费方 |
+| L1 的真注册 | `l1/install.sh` 只校验与写标记；`save_capability` 和 Allow 在 DS Bot 侧，脚本不代做，也不能代做 |
 
 ## 边界
 
@@ -72,3 +79,4 @@ bash distribution/verify.sh --keep     # 保留临时目录看现场
 3. 7 个平台的官方 API 都未接入，`browser-farm` 也只声明「只读调研，绝不做登录态店铺操作」。
 4. L2 版本判不了：L2 的 `install.sh` 不把 `manifest.json` 落到目标目录，`requires.dsh-ecom-cbec>=0.1.0` 只能靠双证存在判。
 5. schema 没有 ajv 级校验，`l3/install.sh` 里是内置子集校验器。
+6. `verify.sh` 只能验本仓库的安装与载荷文件；DS Bot 里已注册的 capability 载荷原文不对外暴露，验不了「线上注册的是不是这份」。
