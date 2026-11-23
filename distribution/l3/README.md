@@ -14,7 +14,12 @@ l3/
 ├── platform-template/            新平台复制骨架（id=example，可直接跑通校验）
 └── platforms/
     ├── amazon/                   完整档 full：23 skill 只做引用声明
-    └── ebay/                     基线档 baseline：复用 L2 skill，只换平台参数
+    ├── aliexpress/               基线档 baseline：复用 L2 skill，只换平台参数
+    ├── ebay/                     基线档 baseline
+    ├── lazada/                   基线档 baseline
+    ├── shopee/                   基线档 baseline
+    ├── tiktokshop/               基线档 baseline
+    └── walmart/                  基线档 baseline
 ```
 
 ## 用法

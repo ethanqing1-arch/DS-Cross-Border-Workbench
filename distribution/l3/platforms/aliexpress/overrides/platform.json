@@ -1,0 +1,40 @@
+{
+  "platform": "aliexpress",
+  "tier": "baseline",
+  "values": {
+    "pricing.commission_rate": {
+      "value": null,
+      "csv_column": "平台佣金率",
+      "_note": "待业务确认；按类目与卖家类型分档"
+    },
+    "pricing.payment_fee_rate": {
+      "value": null,
+      "csv_column": "支付/汇损率",
+      "_note": "待业务确认；按结算币种与通道不同"
+    },
+    "pricing.fulfillment_fee": {
+      "value": null,
+      "csv_column": "履约费",
+      "_note": "待业务确认；菜鸟仓与自发货口径不同"
+    },
+    "pricing.storage_fee": {
+      "value": null,
+      "csv_column": "仓储费",
+      "_note": "待业务确认；仅菜鸟海外仓模式适用"
+    },
+    "pricing.refund_reserve_rate": {
+      "value": null,
+      "csv_column": "退货摊销",
+      "_note": "待业务确认"
+    },
+    "pricing.tax_rate": {
+      "value": null,
+      "csv_column": "（美国站售价不含税，本列仅非美站使用）",
+      "_note": "待业务确认；按站点不同"
+    }
+  },
+  "notes": [
+    "value=null 表示业务未确认，定价前必须补实值；框架不编数字。",
+    "csv_column 对应 L2 workspace/90-templates/pricing-model.csv 的参数列，方便回填时对锚。"
+  ]
+}

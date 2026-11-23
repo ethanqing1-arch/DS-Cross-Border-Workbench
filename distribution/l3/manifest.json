@@ -1,7 +1,7 @@
 {
   "name": "dsh-ecom-platform-framework",
   "version": "0.1.0",
-  "description": "跨境电商平台子模式框架（L3）：平台包 schema + 可复制模板 + 两个实例平台包（amazon 完整档 / ebay 基线档）+ 安装器。装到已装 L2 的工作区 95-engine/platforms/<id>/。",
+  "description": "跨境电商平台子模式框架（L3）：平台包 schema + 可复制模板 + 七个平台包（amazon 完整档 + ebay / tiktokshop / shopee / lazada / walmart / aliexpress 六个基线档）+ 安装器。装到已装 L2 的工作区 95-engine/platforms/<id>/。",
   "requires": {
     "dsh-ecom-cbec": ">=0.1.0",
     "browser-farm": ">=1.1.0"
@@ -14,9 +14,29 @@
         "tier": "full",
         "path": "platforms/amazon/"
       },
+      "aliexpress": {
+        "tier": "baseline",
+        "path": "platforms/aliexpress/"
+      },
       "ebay": {
         "tier": "baseline",
         "path": "platforms/ebay/"
+      },
+      "lazada": {
+        "tier": "baseline",
+        "path": "platforms/lazada/"
+      },
+      "shopee": {
+        "tier": "baseline",
+        "path": "platforms/shopee/"
+      },
+      "tiktokshop": {
+        "tier": "baseline",
+        "path": "platforms/tiktokshop/"
+      },
+      "walmart": {
+        "tier": "baseline",
+        "path": "platforms/walmart/"
       }
     }
   },

@@ -42,7 +42,7 @@ if [ "$LIST" -eq 1 ]; then
     id="$(basename "$d")"
     tier="$(sed -n 's/.*"tier"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$d/manifest.json" | head -1)"
     name="$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$d/manifest.json" | head -1)"
-    printf '  %-8s %-9s %s\n' "$id" "$tier" "$name"
+    printf '  %-11s %-9s %s\n' "$id" "$tier" "$name"
   done
   exit 0
 fi
