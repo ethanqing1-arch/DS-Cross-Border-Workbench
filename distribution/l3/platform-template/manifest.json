@@ -1,0 +1,30 @@
+{
+  "id": "example",
+  "version": "0.1.0",
+  "name": "示例平台（复制后改）",
+  "tier": "baseline",
+  "requires": {
+    "dsh-ecom-cbec": ">=0.1.0",
+    "browser-farm": ">=1.1.0"
+  },
+  "skills": {
+    "mode": "inherit-l2",
+    "count": 0,
+    "layers": [],
+    "note": "基线档：复用 L2 的 4 个业务 skill，不附平台专项 skill"
+  },
+  "connectors": [
+    {
+      "id": "browser-farm",
+      "tier": "T3",
+      "note": "自建农场只做只读调研，绝不做登录态店铺操作"
+    }
+  ],
+  "overrides": {
+    "path": "overrides/platform.json",
+    "note": "费率/佣金未确认前保持 null + _note 待业务确认"
+  },
+  "notes": [
+    "本目录是模板：复制到 platforms/<id>/ 后改 id/name/tier/skills/connectors，id 必须等于目录名。"
+  ]
+}

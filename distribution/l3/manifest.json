@@ -1,0 +1,35 @@
+{
+  "name": "dsh-ecom-platform-framework",
+  "version": "0.1.0",
+  "description": "跨境电商平台子模式框架（L3）：平台包 schema + 可复制模板 + 两个实例平台包（amazon 完整档 / ebay 基线档）+ 安装器。装到已装 L2 的工作区 95-engine/platforms/<id>/。",
+  "requires": {
+    "dsh-ecom-cbec": ">=0.1.0",
+    "browser-farm": ">=1.1.0"
+  },
+  "contents": {
+    "schema": "schema/platform.schema.json",
+    "template": "platform-template/",
+    "platforms": {
+      "amazon": {
+        "tier": "full",
+        "path": "platforms/amazon/"
+      },
+      "ebay": {
+        "tier": "baseline",
+        "path": "platforms/ebay/"
+      }
+    }
+  },
+  "install": {
+    "list": "bash install.sh --list",
+    "command": "bash install.sh <platform> <目标目录>",
+    "check": "bash install.sh <platform> <目标目录> --check",
+    "force": "bash install.sh <platform> <目标目录> --force"
+  },
+  "notes": [
+    "install.sh 只写 <目标目录>/95-engine/platforms/<id>/，不碰 ~/ds-bot-workspace、不碰 DS Bot 状态、不安装 bundle。",
+    "平台包里的费率/佣金一律为 null + _note 待业务确认，框架不编数字；install.sh 不校验业务数值。",
+    "amazon 的 23 个 skill 只做引用声明（platforms/amazon/skills/REFERENCES.md），内容不随包分发。",
+    "数据源 tier 优先级与降级链（计划第 4 节落地条款）本切未进 schema：还没有消费方，等有读取方再加，避免先冻错形状。"
+  ]
+}

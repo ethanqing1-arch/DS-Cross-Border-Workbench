@@ -1,0 +1,49 @@
+{
+  "id": "amazon",
+  "version": "0.1.0",
+  "name": "Amazon 美国站",
+  "tier": "full",
+  "requires": {
+    "dsh-ecom-cbec": ">=0.1.0",
+    "browser-farm": ">=1.1.0"
+  },
+  "skills": {
+    "mode": "referenced",
+    "count": 23,
+    "layers": ["00-router", "01-data", "02-market", "03-demand", "04-competitor", "05-product", "06-delivery", "07-system"],
+    "source": "cbec-selection-master",
+    "note": "只声明引用，内容不随包分发；本机未找到该源码，见 skills/REFERENCES.md；授权归属待定（计划第 6 节第 3 条）"
+  },
+  "connectors": [
+    {
+      "id": "amazon-spapi",
+      "tier": "T1",
+      "note": "官方 SP-API 取自家订单/库存/广告/结算；只走 T1 对账，未接入"
+    },
+    {
+      "id": "seller-sprite",
+      "tier": "T2",
+      "note": "第三方数据（卖家精灵类）取竞品/关键词/历史价格；按量付费，未接入",
+      "optional": true
+    },
+    {
+      "id": "sorftime",
+      "tier": "T2",
+      "note": "第三方数据（Sorftime 类）做类目与趋势交叉校验；未接入",
+      "optional": true
+    },
+    {
+      "id": "browser-farm",
+      "tier": "T3",
+      "note": "自建农场兜底补页面细节，只读调研，绝不做登录态店铺操作"
+    }
+  ],
+  "overrides": {
+    "path": "overrides/platform.json",
+    "note": "费率/佣金全部为 null，待业务确认"
+  },
+  "notes": [
+    "tier=full 依据计划第 3 节与第 5 节：Amazon 供给最全（存量 23 skill），当模板用。",
+    "本包不含任何费率数字，也不含 23 个 skill 的内容。"
+  ]
+}

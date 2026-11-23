@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ethanqing1-arch/DS-Cross-Border-Workbench/distribution/l3/schema/platform.schema.json",
+  "title": "DS Bot 跨境电商平台子模式包 manifest（L3）",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "name", "tier", "requires", "skills", "connectors", "overrides"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,31}$",
+      "description": "平台 id，必须与 platforms/<id>/ 目录名一致"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "平台包自身版本"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "展示名，如 eBay / Amazon 美国站"
+    },
+    "tier": {
+      "type": "string",
+      "enum": ["full", "baseline"],
+      "description": "full=有专项 skill + 可用数据源；baseline=复用 L2 通用 skill + overrides 换平台参数"
+    },
+    "requires": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dsh-ecom-cbec"],
+      "properties": {
+        "dsh-ecom-cbec": {
+          "type": "string",
+          "description": "最低 L2 版本约束，如 >=0.1.0"
+        },
+        "browser-farm": {
+          "type": "string",
+          "description": "最低农场版本约束，如 >=1.1.0"
+        }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["inherit-l2", "referenced", "bundled"],
+          "description": "inherit-l2=复用 L2 业务 skill；referenced=只声明引用不附带内容；bundled=包内自带"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "layers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "source": {
+          "type": "string",
+          "description": "来源包名或路径；referenced 模式必填"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "connectors": {
+      "type": "array",
+      "description": "平台数据源连接器声明；T1=平台官方 API / T2=第三方数据 / T3=自建农场",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "tier", "note"],
+        "properties": {
+          "id": { "type": "string" },
+          "tier": { "type": "string", "enum": ["T1", "T2", "T3"] },
+          "note": { "type": "string" },
+          "optional": { "type": "boolean" }
+        }
+      }
+    },
+    "overrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "相对平台包根目录的 overrides 文件路径"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

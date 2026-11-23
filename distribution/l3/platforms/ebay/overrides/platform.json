@@ -1,0 +1,40 @@
+{
+  "platform": "ebay",
+  "tier": "baseline",
+  "values": {
+    "pricing.commission_rate": {
+      "value": null,
+      "csv_column": "平台佣金率",
+      "_note": "待业务确认"
+    },
+    "pricing.payment_fee_rate": {
+      "value": null,
+      "csv_column": "支付/汇损率",
+      "_note": "待业务确认"
+    },
+    "pricing.fulfillment_fee": {
+      "value": null,
+      "csv_column": "履约费",
+      "_note": "待业务确认"
+    },
+    "pricing.storage_fee": {
+      "value": null,
+      "csv_column": "仓储费",
+      "_note": "待业务确认"
+    },
+    "pricing.refund_reserve_rate": {
+      "value": null,
+      "csv_column": "退货摊销",
+      "_note": "待业务确认"
+    },
+    "pricing.tax_rate": {
+      "value": null,
+      "csv_column": "（美国站售价不含税，本列仅非美站使用）",
+      "_note": "待业务确认"
+    }
+  },
+  "notes": [
+    "value=null 表示业务未确认，定价前必须补实值；框架不编数字。",
+    "eBay 的费率分档按类目与店铺等级走，填的时候要带生效日期，别只写一个数。"
+  ]
+}

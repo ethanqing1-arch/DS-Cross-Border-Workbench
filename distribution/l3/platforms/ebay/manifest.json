@@ -1,0 +1,37 @@
+{
+  "id": "ebay",
+  "version": "0.1.0",
+  "name": "eBay",
+  "tier": "baseline",
+  "requires": {
+    "dsh-ecom-cbec": ">=0.1.0",
+    "browser-farm": ">=1.1.0"
+  },
+  "skills": {
+    "mode": "inherit-l2",
+    "count": 0,
+    "layers": [],
+    "note": "基线档：复用 L2 的 4 个业务 skill（ecom-selection / ecom-listing / ecom-ops / ecom-cs），不附平台专项 skill；专项 skill 后补，不影响先跑通「装一个平台」。"
+  },
+  "connectors": [
+    {
+      "id": "ebay-api",
+      "tier": "T1",
+      "note": "官方 API 取自家订单/库存/结算；未接入，授权跑通前不启用",
+      "optional": true
+    },
+    {
+      "id": "browser-farm",
+      "tier": "T3",
+      "note": "自建农场只做只读调研（榜单/详情页），绝不做登录态店铺操作（改价/改库存/发货/回复）"
+    }
+  ],
+  "overrides": {
+    "path": "overrides/platform.json",
+    "note": "费率/佣金全部为 null，待业务确认"
+  },
+  "notes": [
+    "本包只声明平台身份与参数占位，不含任何费率数字。",
+    "tier=baseline 依据计划第 3 节：eBay 目前供给为零（无专项 skill）。"
+  ]
+}
