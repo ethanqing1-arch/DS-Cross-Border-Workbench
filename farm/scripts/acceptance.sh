@@ -129,6 +129,31 @@ curl -s -o /dev/null -w "%{http_code}" -H 'Authorization: Bearer T' "localhost:$
 curl -s -o /dev/null -w "%{http_code}" "localhost:$ACCEPT_PORT/v1/health?probe=1" | grep -qx 401 \
   && ok "health?probe=1 需鉴权" || no "health?probe=1 未鉴权"
 
+# 代理校验：带凭据 / 不支持 scheme 都必须在建会话前 400，且报错不回显 proxy 值
+NEG1_CODE="$(curl -s -o /tmp/acc-p1.json -w '%{http_code}' -X POST "localhost:$ACCEPT_PORT/v1/sessions" \
+  -H 'Authorization: Bearer T' -H 'Idempotency-Key: acc-neg-proxy-cred' -H 'Content-Type: application/json' \
+  -d '{"account":"neg-proxy","engine":"chromium","proxy":"http://user:secret@127.0.0.1:1080"}')"
+if [ "$NEG1_CODE" = "400" ] && grep -q 'E_PROXY_CREDENTIALS' /tmp/acc-p1.json \
+   && ! grep -q 'user:secret' /tmp/acc-p1.json; then
+  ok "proxy 带凭据 → 400 E_PROXY_CREDENTIALS（不回显）"
+else
+  no "proxy 带凭据未被拦（HTTP=$NEG1_CODE）"
+fi
+NEG2_CODE="$(curl -s -o /tmp/acc-p2.json -w '%{http_code}' -X POST "localhost:$ACCEPT_PORT/v1/sessions" \
+  -H 'Authorization: Bearer T' -H 'Idempotency-Key: acc-neg-proxy-scheme' -H 'Content-Type: application/json' \
+  -d '{"account":"neg-proxy","engine":"chromium","proxy":"ftp://127.0.0.1:1"}')"
+if [ "$NEG2_CODE" = "400" ] && grep -q 'E_PROXY_SCHEME' /tmp/acc-p2.json; then
+  ok "proxy scheme 不支持 → 400 E_PROXY_SCHEME"
+else
+  no "proxy scheme 未被拦（HTTP=$NEG2_CODE）"
+fi
+NEG_SESSIONS="$(curl -s -H 'Authorization: Bearer T' "localhost:$ACCEPT_PORT/v1/sessions")"
+if ! printf '%s' "$NEG_SESSIONS" | grep -q 'neg-proxy'; then
+  ok "proxy 两条负例未落台账（无 neg-proxy）"
+else
+  no "proxy 负例落进了台账：$(printf '%s' "$NEG_SESSIONS" | head -c 200)"
+fi
+
 if [ "$WITH_BROWSER" = "1" ]; then
   echo "== 6. 真机冒烟（起 chromium + 首检 + 任务）=="
   curl -s -X POST "localhost:$ACCEPT_CONTROL_PORT/instances" -H 'Content-Type: application/json' \

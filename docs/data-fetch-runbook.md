@@ -70,6 +70,14 @@ curl -x http://127.0.0.1:18080 -sS -o /dev/null -w 'bridge HTTP=%{http_code}\n' 
 > （TTL 24h，`server.js:169`），复用旧 key 拿到的是上一次的结果。缓存是**进程内 Map，网关一重启就清空**，
 > 所以重启后拿旧 key 重放不会命中（会当成新请求）。下面命令都用 `$(uuidgen)` 现生成。
 
+> 网关会挡两类无效 `proxy`（都在建会话之前返回 400，报错不回显 proxy 值）：
+> 带凭据 `scheme://user:pass@host:port` → `E_PROXY_CREDENTIALS`（Chromium 不认证，会悄悄直连）；
+> 非 `http/https/socks5/socks5h` → `E_PROXY_SCHEME`。带账号密码的代理要写在桥的 `UPSTREAM_PROXY`，
+> 会话的 `proxy` 只填桥地址 `http://127.0.0.1:18080`。
+>
+> 建完会话回读确认出口：`GET /v1/sessions` 每条记录都带 `proxy` 字段（直连显示 `(direct)`），
+> 应当看到 `"proxy":"http://127.0.0.1:18080"`；显示 `(direct)` 说明出口没挂上。
+
 CDP 引擎（chromium / chrome；linux150 只能 attach，不走这条）：
 
 ```bash

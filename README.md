@@ -37,7 +37,7 @@ cd farm && bash scripts/acceptance.sh --with-browser   # 跑前先 --stop 真网
 
 | 自检 | 结果 |
 |---|---|
-| `farm/scripts/acceptance.sh --with-browser` | `PASS=61 FAIL=0 WARN=0` / `READY` |
+| `farm/scripts/acceptance.sh --with-browser` | `PASS=64 FAIL=0 WARN=0` / `READY` |
 | `distribution/verify.sh` | `PASS=56 FAIL=0 WARN=0` / `READY` |
 | `distribution/e2e-smoke.sh` | `PASS=32 FAIL=0 WARN=1` / `READY`（WARN 是令牌 <32 位；farm/ 有未提交改动时改判为 31 PASS / 2 WARN，含 `transferSize>0` 反缓存假绿断言） |
 | `farm/scripts/test-proxy-bridge.sh` | `PASS=35`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |

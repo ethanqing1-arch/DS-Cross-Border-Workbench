@@ -143,6 +143,28 @@ const send = (res, code, obj, extraHeaders = {}) => {
 const err = (res, code, codeName, msg, extra = {}) =>
   send(res, code, Object.assign({ ok: false, code: codeName, message: msg }, extra));
 
+/* 代理校验：Chromium 不认 URL 里的 user:pass，带凭据会悄悄直连（比报错危险）；
+ * 只允许 http/https/socks5/socks5h。报错不回显 proxy 值，避免凭据进日志/响应。 */
+const PROXY_SCHEMES = new Set(['http:', 'https:', 'socks5:', 'socks5h:']);
+function validateProxy(raw) {
+  let u;
+  try {
+    u = new URL(String(raw));
+  } catch (e) {
+    return { code: 'E_PROXY_SCHEME', message: 'proxy 不是合法 URL；只允许 http/https/socks5/socks5h' };
+  }
+  if (!PROXY_SCHEMES.has(u.protocol)) {
+    return { code: 'E_PROXY_SCHEME', message: 'proxy scheme 不支持；只允许 http/https/socks5/socks5h' };
+  }
+  if (u.username || u.password) {
+    return {
+      code: 'E_PROXY_CREDENTIALS',
+      message: '凭据不能写进 proxy URL：Chromium 不认证，会悄悄直连。请起本地桥 `node farm/proxy-bridge.js --port 18080`，并把 proxy 设为 http://127.0.0.1:18080',
+    };
+  }
+  return null;
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let b = '', n = 0;
@@ -282,6 +304,10 @@ const server = http.createServer(async (req, res) => {
           { engine: b.engine || 'chromium', required: 'cdp',
             hint: 'docker run 起容器后 node farm.js attach --account <acct> --cdp http://127.0.0.1:9334 --engine linux150；或 POST /v1/sessions 带 cdp 直接走 attach' });
       }
+
+      /* 代理先校验：带凭据的 URL 会让 Chromium 悄悄直连，必须挡在调 control 之前 */
+      const proxyErr = b.proxy ? validateProxy(b.proxy) : null;
+      if (proxyErr) return err(res, 400, proxyErr.code, proxyErr.message);
 
       const sid = `${tenant}:${b.account}`;
       const list = await control('GET', '/instances').catch(() => ({ data: {} }));
