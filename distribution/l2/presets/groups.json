@@ -1,0 +1,33 @@
+{
+  "source": "CHIEF-INIT.md「建 4 个群聊」",
+  "groups": [
+    {
+      "name": "选品决策",
+      "admin": "Chief",
+      "mode": "admin",
+      "members": ["Scout", "Source", "Margin", "Compliance"],
+      "notice": "本群只管选品判断。默认 Goal：「判断 <候选SKU> 是否值得投入」。流程：Scout 出评分卡 → Margin 出定价与净利率 → Source 给 3 家报价与交期 → Compliance 出红线判定 → Chief 汇总成一段结论（pass/watch/drop + 最大风险 + 下一步）。群结论只留本群，不要带到别的群。"
+    },
+    {
+      "name": "上架交付",
+      "admin": "Chief",
+      "mode": "admin",
+      "members": ["Copy", "Compliance", "Margin"],
+      "notice": "本群只管上架交付。默认 Goal：「让 <SKU> 在 <站点> 可上架」。产出：listing-brief 全填完 + 合规签字 + 价格与 pricing.csv 一致。群结论只留本群，不要带到别的群。"
+    },
+    {
+      "name": "增长投放",
+      "admin": "Chief",
+      "mode": "admin",
+      "members": ["Ads", "Metrics", "Copy"],
+      "notice": "本群只管广告与增长。默认 Goal：「把 <SKU> 的 ACOS 压到 <目标>% 以内且不掉单量」。群结论只留本群，不要带到别的群。"
+    },
+    {
+      "name": "售后风控",
+      "admin": "Chief",
+      "mode": "admin",
+      "members": ["Care", "Compliance", "Metrics"],
+      "notice": "本群只管售后与风控。默认 Goal：「把 <SKU> 的退货率与差评率压到类目均值以下」。群结论只留本群，不要带到别的群。"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+# dsh-ecom-cbec —— L2 跨境电商版本包的 DSH bundle patch
+#
+# 只插一行：把本包 skills/ 挂成一个独立 skill provider（providerName: ecom-cbec）。
+# includeDefaultRoots: false —— 不重复扫项目/用户 skill 根；基础 profile 已有一个
+# 默认 skill-filesystem，这里只补充包内自带的 4 个业务 skill。
+#
+# 路径解析用现装 bundle（archify / open-design）同款写法：
+#   baseUrl 是 profile 的模块基准 → createRequire(baseUrl).resolve('<包名>/package.json')
+#   拿到本包目录 → 拼 'skills'。
+# 不写死绝对路径，换机器 / 换用户名都能解析。
+- insert:
+    - id: ecom-cbec-skill-filesystem
+      name: '@deepseek-ai/dsh-skill-filesystem'
+      config:
+        providerName: ecom-cbec
+        includeDefaultRoots: false
+        bundledSkillDir: !!js >-
+          process.getBuiltinModule('node:path').join(
+            process.getBuiltinModule('node:path').dirname(
+              process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('dsh-ecom-cbec/package.json')),
+            'skills')

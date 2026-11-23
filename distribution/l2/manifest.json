@@ -1,0 +1,52 @@
+{
+  "name": "dsh-ecom-cbec",
+  "version": "0.1.0",
+  "description": "跨境电商版 DS Bot 的 L2 版本包：工作区骨架 + 4 个业务 skill + 10 个 bot 预设 + 4 个群预设。装完由 Main Bot 按 SEED.md 播种。",
+  "requires": {
+    "browser-farm": ">=1.1.0"
+  },
+  "contents": {
+    "skills": [
+      "ecom-selection",
+      "ecom-listing",
+      "ecom-ops",
+      "ecom-cs"
+    ],
+    "bots": [
+      "Chief",
+      "Scout",
+      "Source",
+      "Margin",
+      "Copy",
+      "Ads",
+      "Care",
+      "Compliance",
+      "Metrics",
+      "Visual"
+    ],
+    "groups": [
+      "选品决策",
+      "上架交付",
+      "增长投放",
+      "售后风控"
+    ]
+  },
+  "paths": {
+    "workspace": "workspace/",
+    "skills": "skills/",
+    "bots": "presets/bots.json",
+    "groups": "presets/groups.json",
+    "bundle": "bundle/",
+    "seed": "SEED.md"
+  },
+  "install": {
+    "command": "bash install.sh <目标目录>",
+    "check": "bash install.sh <目标目录> --check",
+    "force": "bash install.sh <目标目录> --force"
+  },
+  "notes": [
+    "install.sh 只写 <目标目录>，不碰 ~/ds-bot-workspace、不碰 DS Bot 应用状态。",
+    "bundle/ 是给 plugin_manager 用的 DSH bundle 静态包，install.sh 不安装它。",
+    "bundle/skills/ 是 skills/ 的镜像，两份必须同步；install.sh --check 会报漂移。"
+  ]
+}
