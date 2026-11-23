@@ -88,15 +88,23 @@ function runWorkerTask(inst, type, params, timeoutMs) {
   });
 }
 
-/* camoufox 的健康：查 worker 的解释器能否 import camoufox。比「control 面通」真，但只到模块层，不启动浏览器 */
+/* camoufox 的健康：模块 + Python 版本一起查。只查 import 会假绿——3.14+/3.15 能 import，真跑任务会崩 */
+const CAMOUFOX_PROBE = 'import sys, json, importlib.metadata as m; print(json.dumps({"py": "%d.%d.%d" % sys.version_info[:3], "camoufox": m.version("camoufox")}))';
 async function probeWorkerCap() {
   const t0 = Date.now();
   try {
-    const { stdout } = await exec(CAMOUFOX_PY, ['-c', 'import importlib.metadata as m; print(m.version("camoufox"))'],
-      { timeout: 15000, maxBuffer: 65536 });
-    return { ok: true, ms: Date.now() - t0, check: 'import camoufox', python: CAMOUFOX_PY, version: String(stdout).trim().slice(0, 40) };
+    const { stdout } = await exec(CAMOUFOX_PY, ['-c', CAMOUFOX_PROBE], { timeout: 15000, maxBuffer: 65536 });
+    const line = String(stdout).trim().split('\n').filter(Boolean).pop();
+    const info = JSON.parse(line);
+    const py = String(info.py || '');
+    const base = { ms: Date.now() - t0, python: CAMOUFOX_PY, py, version: String(info.camoufox || '').slice(0, 40) };
+    if (py.split('.').slice(0, 2).join('.') !== '3.13') {
+      return Object.assign({ ok: false, check: 'camoufox 需 Python 3.13',
+        error: `解释器是 Python ${py}：camoufox 只在 3.13 上能生成指纹，3.14+ 会 TargetClosedError` }, base);
+    }
+    return Object.assign({ ok: true, check: 'import camoufox + Python 3.13' }, base);
   } catch (e) {
-    return { ok: false, ms: Date.now() - t0, check: 'import camoufox', python: CAMOUFOX_PY,
+    return { ok: false, ms: Date.now() - t0, check: 'import camoufox + Python 3.13', python: CAMOUFOX_PY,
       error: String((e && (e.stderr || e.message)) || e).slice(0, 200) };
   }
 }

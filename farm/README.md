@@ -328,8 +328,8 @@ CASE=...                                                # camoufox 走 Python wo
 官方注释明确：`launch_server()` **不支持 `persistent_context`**，Playwright 也无法把持久化上下文serve 成 ws 端点。所以 camoufox **没有 CDP 端点**，正确用法是「一账号一个常驻 worker，任务在 worker 内执行」。
 
 ```bash
-# 持久 venv（别放 /tmp：会被系统清掉）
-python3 -m venv ~/.dsh/venvs/camoufox
+# 持久 venv（别放 /tmp：会被系统清掉）。必须用 3.13：3.14+ 能 import，生成指纹会崩
+python3.13 -m venv ~/.dsh/venvs/camoufox
 ~/.dsh/venvs/camoufox/bin/pip install camoufox
 ~/.dsh/venvs/camoufox/bin/python -m camoufox fetch   # 下载浏览器（mac.arm64 约 1.3 GB）
 
@@ -339,7 +339,8 @@ python3 -m venv ~/.dsh/venvs/camoufox
 ```
 
 `start-gateway.sh` 会自动探测：`CAMOUFOX_PY` 未设且 `~/.dsh/venvs/camoufox/bin/python` 可执行时，
-启动时自动 `export` 并打印 `CAMOUFOX_PY=<解释器>`，不用每次手动带。
+启动时自动 `export` 并打印 `CAMOUFOX_PY=<解释器>`，不用每次手动带；随后打印
+`CAMOUFOX_PY_VERSION=<x.y.z>`，不是 3.13 会打一条明确警告（只告警不拒绝启动，其余引擎不受影响）。
 
 `--engine camoufox` 在 `farm.js` 里**只登记不起进程**（写 state 与台账，`cdp: null`、`mode: "worker"`）；
 任务由网关按需调 worker，所以 `CAMOUFOX_PY` 必须指向装了 camoufox 的解释器：
@@ -356,7 +357,10 @@ CAMOUFOX_PY=~/.dsh/venvs/camoufox/bin/python node gateway/server.js --port 19671
    在 `github.com` 连不通的网络上会卡在 `SYN_SENT → cdn-*.github.com`。可走 `api.github.com` 资产口下载同一份文件
    （`Accept: application/octet-stream`），按 `camoufox/fpgen-model.json` 的 sha256 逐个校验后写入
    `site-packages/fpgen/data/`，mtime 设 `2145916800`，再写 `.pinned-model` 戳。
-2. Python **3.15** 下 fpgen 解包会报 `binascii.Error: Incomplete Base85 group`，换 **3.13** 正常；本机用 3.13 的 venv。
+2. Python **3.15** 下 fpgen 生成指纹会崩，实测两种崩法：模型没装好时 `binascii.Error: Incomplete Base85 group`，
+   模型就绪后 `TargetClosedError`（exit 1）；**3.13 正常**（`readyState=complete`）。本机 canonical venv
+   `~/.dsh/venvs/camoufox` 已锁定 3.13.16 + camoufox 0.5.9。`health?probe=1` 的 camoufox 探针现在也查版本：
+   非 3.13 直接 `ok:false`、`check: "camoufox 需 Python 3.13"`，不会再出现「import 绿但跑不了任务」的假绿。
 
 ---
 
