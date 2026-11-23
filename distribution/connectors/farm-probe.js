@@ -34,6 +34,23 @@ const BLOCK_PATTERNS = [
   { name: 'error_page', re: /Error Page/i },
   { name: 'access_denied', re: /Access Denied/i },
   { name: 'captcha', re: /captcha/i },
+  { name: 'robot_or_human', re: /robot or human/i },
+  { name: 'activate_and_hold', re: /activate and hold/i },
+  { name: 'unusual_traffic', re: /unusual traffic/i },
+  { name: 'verify_you_are_human', re: /verify you are human/i },
+  { name: 'are_you_a_robot', re: /are you a robot/i },
+  { name: 'px_captcha', re: /px-captcha/i },
+  { name: 'just_a_moment', re: /just a moment/i },
+  { name: 'cf_challenge', re: /cf-challenge/i },
+  { name: 'access_denied_cloudflare', re: /access to this page has been denied/i },
+];
+
+/* URL 判据：拦截页常返回 200、标题正文也可能换皮，路径本身是硬证据 */
+const BLOCK_URL_PATTERNS = [
+  { name: 'url_blocked', re: /\/blocked(?:[/?#]|$)/i },
+  { name: 'url_captcha', re: /\/captcha(?:[/?#]|$)/i },
+  { name: 'url_sorry', re: /\/sorry(?:[/?#]|$)/i },
+  { name: 'url_challenge', re: /\/challenge/i },
 ];
 
 const EXIT = { ok: 0, blocked: 2, empty: 3, error: 1 };
@@ -305,7 +322,7 @@ function splitHttp(text) {
 
     /* 真上网校验：缓存命中时 transferSize=0。缓存页不能当 ok 返回（会把假绿传下去）。 */
     log('farm_task eval（navigation timing）');
-    const navExpr = "(() => { const es = performance.getEntriesByType('navigation'); const n = es && es[0]; return { has_entry: !!n, transfer_size: n ? n.transferSize : null, decoded_body_size: n ? n.decodedBodySize : null, duration: n ? Math.round(n.duration) : null, cache_hit: !(n && n.transferSize > 0) }; })()";
+    const navExpr = "(() => { const es = performance.getEntriesByType('navigation'); const n = es && es[0]; return { has_entry: !!n, transfer_size: n ? n.transferSize : null, decoded_body_size: n ? n.decodedBodySize : null, duration: n ? Math.round(n.duration) : null, response_status: n && n.responseStatus !== undefined ? n.responseStatus : null, cache_hit: !(n && n.transferSize > 0) }; })()";
     const navRes = await callTool(mcp, 'farm_task', {
       session_id: out.session_id,
       type: 'eval',
@@ -323,6 +340,7 @@ function splitHttp(text) {
       transfer_size: nv.transfer_size === undefined ? null : nv.transfer_size,
       decoded_body_size: nv.decoded_body_size === undefined ? null : nv.decoded_body_size,
       duration: nv.duration === undefined ? null : nv.duration,
+      response_status: nv.response_status === undefined ? null : nv.response_status,
       cache_hit: nv.cache_hit === undefined ? null : nv.cache_hit,
     };
     if (out.nav.cache_hit) {
@@ -349,13 +367,19 @@ function splitHttp(text) {
     const evData = (ev.data && ev.data.result) || null;
     const pageTitle = (evData && evData.title) || '';
     const pageText = (evData && evData.text) || '';
+    const pageUrl = (evData && evData.url) || out.final_url || '';
     const haystack = pageTitle + '\n' + pageText;
     const matched = BLOCK_PATTERNS.filter((p) => p.re.test(haystack)).map((p) => p.name);
+    let pathname = '';
+    try { pathname = new URL(pageUrl).pathname; } catch (e) { pathname = ''; }
+    for (const p of BLOCK_URL_PATTERNS) {
+      if (p.re.test(pathname)) matched.push(p.name);
+    }
 
     if (matched.length) {
       out.evidence = {
         page_title: pageTitle,
-        page_url: (evData && evData.url) || out.final_url,
+        page_url: pageUrl,
         ready_state: (evData && evData.readyState) || null,
         body_snippet: pageText.slice(0, 300),
         matched,
@@ -367,6 +391,20 @@ function splitHttp(text) {
       out.container_count = null;
       finish('blocked', EXIT.blocked);
       log('blocked: ' + matched.join(','));
+      return;
+    }
+
+    /* 拦截页可能换皮成普通 200 页；主文档状态码是兜底硬证据（blocked 已先判，403 墙仍归 blocked） */
+    const httpStatus = out.nav && typeof out.nav.response_status === 'number' ? out.nav.response_status : null;
+    if (httpStatus !== null && httpStatus >= 400) {
+      out.error = {
+        code: httpStatus === 404 ? 'E_NOT_FOUND' : 'E_HTTP_STATUS',
+        message: httpStatus === 404
+          ? '主文档 HTTP 404（页面不存在），不是可用数据页'
+          : '主文档 HTTP ' + httpStatus + '（请求失败），不是可用数据页',
+        detail: 'url=' + pageUrl + ' status=' + httpStatus,
+      };
+      finish('error', EXIT.error);
       return;
     }
 

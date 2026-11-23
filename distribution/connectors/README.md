@@ -59,7 +59,7 @@ stdout **只有一段 JSON**（诊断信息一律走 stderr）：
   "list": "article.product_pod | null",
   "proxy_set": false,
   "cache_bust": false,
-  "nav": { "transfer_size": 634, "decoded_body_size": 577, "duration": 1457, "cache_hit": false },
+  "nav": { "transfer_size": 634, "decoded_body_size": 577, "duration": 1457, "response_status": 200, "cache_hit": false },
   "fields": { "title": "...", "price": null },
   "missing": ["price"],
   "items": [ { "title": "...", "price": null } ],
@@ -76,11 +76,12 @@ stdout **只有一段 JSON**（诊断信息一律走 stderr）：
 | status | 判定 | 退出码 |
 |---|---|---|
 | `ok` | 页面未命中拦截特征，且至少一条记录取到非空字段（`item_count ≥ 1`） | `0` |
-| `blocked` | 页面标题或正文命中拦截特征（SORRY / Error Page / Access Denied / captcha，大小写不敏感）；`evidence.matched` 给出命中项，`body_snippet` 给原文片段 | `2` |
+| `blocked` | 命中拦截特征：标题/正文（SORRY / Error Page / Access Denied / captcha / Robot or human? / Activate and hold / unusual traffic / Verify you are human / Are you a robot / px-captcha / Just a moment / cf-challenge / Access to this page has been denied，大小写不敏感）**或**主文档 URL 路径（`/blocked`、`/captcha`、`/sorry`、`/challenge`）；`evidence.matched` 给出命中项（URL 项以 `url_` 开头），`body_snippet` 给原文片段 | `2` |
 | `empty` | 页面未命中拦截特征，但所有字段都为空（`item_count = 0`） | `3` |
-| `error` | 探针自身没跑完：token 缺失、网关不可达、会话建/删失败、导航超时、MCP 协议错、**缓存命中（`E_CACHE_HIT`）** | `1` |
+| `error` | 探针自身没跑完：token 缺失、网关不可达、会话建/删失败、导航超时、MCP 协议错、**缓存命中（`E_CACHE_HIT`）**、**主文档 404（`E_NOT_FOUND`）**、**主文档其他 ≥400（`E_HTTP_STATUS`）** | `1` |
 
 - **禁止返回 `ok` + `items: []`**；取不到东西必须落到 `blocked`（有证据）或 `empty`。
+- **判定顺序固定**：blocked（标题/正文/URL）→ HTTP 状态码 → items 提取。**blocked 压过一切**，不许出现「`ok` 但标题是 Robot or human?」；`ok` 只在未拦截、状态码 <400、且 `item_count ≥ 1` 时出现。
 - **缓存不算取数**：页面来自磁盘缓存时 `performance.getEntriesByType('navigation')[0].transferSize === 0`。此时不做 `blocked/empty` 判定，直接 `status: "error"`、`error.code = "E_CACHE_HIT"`、退出码 1；加 `--cache-bust` 重跑（`final_url` 会带 `_cb=` 参数，属正常）。这样「没真上网也返回 ok」的假绿被堵死。
 - **单页模式**（无 `--list`）：`items` 是一条记录（`[fields]` 或 `[]`），`fields/missing` 是抽取结果。
 - **列表模式**（`--list <容器CSS>`）：`items` 是多条记录；`item_count` 是真正取到字段的条数，`container_count` 是容器命中数（全空卡片被剔除，所以两者可能不同）；`fields/missing` 为 `null`。
