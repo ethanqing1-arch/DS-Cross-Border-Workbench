@@ -38,8 +38,8 @@ cd farm && bash scripts/acceptance.sh --with-browser   # 跑前先 --stop 真网
 | 自检 | 结果 |
 |---|---|
 | `farm/scripts/acceptance.sh --with-browser` | `PASS=67 FAIL=0 WARN=0` / `READY` |
-| `distribution/verify.sh` | `PASS=56 FAIL=0 WARN=0` / `READY` |
-| `distribution/e2e-smoke.sh` | `PASS=33 FAIL=0 WARN=1` / `READY`（WARN 是令牌 <32 位；farm/ 有未提交改动时改判为 32 PASS / 2 WARN，含 `transferSize>0` 反缓存假绿断言与离网 `E_GOTO` 断言） |
+| `distribution/verify.sh` | `PASS=61 FAIL=0 WARN=0` / `READY` |
+| `distribution/e2e-smoke.sh` | `PASS=34 FAIL=0 WARN=1` / `READY`（WARN 是令牌 <32 位；farm/ 有未提交改动时改判为 33 PASS / 2 WARN，含 `transferSize>0` 反缓存假绿断言与离网 `E_GOTO` 断言） |
 | `farm/scripts/test-proxy-bridge.sh` | `PASS=35`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |
 | `farm/scripts/proxy-selftest.sh --self-test` | `PASS=12`（无真代理也能验脚本本身） |
 | `farm/scripts/proxy-selftest.sh --worker-proxy` | `PASS=11 FAIL=0 INFO=1` / `READY`（camoufox worker 的真流量确实进出代理；venv 缺失时 WARN 跳过） |
