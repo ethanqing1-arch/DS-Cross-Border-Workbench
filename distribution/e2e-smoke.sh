@@ -120,9 +120,9 @@ L2_WORKSPACE_DIRS="$(find "$SRC/l2/workspace" -mindepth 1 -type d | wc -l | tr -
 L2_WRITES=$((L2_WORKSPACE_FILES + L2_SKILL_FILES + L2_WORKSPACE_DIRS))
 install_pkg "L2 安装" "$L2_WRITES 0 0" bash "$SRC/l2/install.sh" "$WS"
 
-AMAZON_FILES="$(find "$SRC/l3/platforms/amazon" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"
+AMAZON_FILES="$(bash "$SRC/l3/list-platform-files.sh" "$SRC/l3/platforms/amazon" | wc -l | tr -d ' ')"
 install_pkg "L3 amazon 安装" "$AMAZON_FILES 0 0" bash "$SRC/l3/install.sh" amazon "$WS"
-EBAY_FILES="$(find "$SRC/l3/platforms/ebay" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"
+EBAY_FILES="$(bash "$SRC/l3/list-platform-files.sh" "$SRC/l3/platforms/ebay" | wc -l | tr -d ' ')"
 install_pkg "L3 ebay 安装" "$EBAY_FILES 0 0" bash "$SRC/l3/install.sh" ebay "$WS"
 [ -f "$WS/.dsh/ecom-l1.json" ] && ok "L1 标记文件存在" || bad "L1 标记文件缺失"
 [ -f "$WS/95-engine/platforms/amazon/manifest.json" ] && ok "L3 amazon 落点存在" || bad "L3 amazon 落点缺失"

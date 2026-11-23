@@ -154,7 +154,7 @@ SRC_COUNT=0
 while IFS= read -r rel; do
   SRC_COUNT=$((SRC_COUNT+1))
   if [ "$CHECK" -eq 1 ]; then probe_file "$DEST_REL/$rel"; else copy_file "$PLATFORM_DIR/$rel" "$DEST_REL/$rel"; fi
-done < <(cd "$PLATFORM_DIR" && find . -path './bundle' -prune -o -type f ! -name '.DS_Store' -print | sed 's|^\./||' | sort)
+done < <(bash "$SRC/list-platform-files.sh" "$PLATFORM_DIR")
 echo "  （源文件 $SRC_COUNT 个）"
 
 # ---------------------------------------------------------------- 4. 落点校验

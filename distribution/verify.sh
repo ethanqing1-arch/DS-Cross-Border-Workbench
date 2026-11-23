@@ -159,7 +159,7 @@ for p in $PLATFORMS; do
   OUT="$(bash "$SRC/l3/install.sh" "$p" "$WS" 2>&1)"; RC=$?
   W="$(printf '%s\n' "$OUT" | sed -n 's/^== 汇总: write=\([0-9]*\) skip=\([0-9]*\) fail=\([0-9]*\) ==/\1 \2 \3/p' | tail -1)"
   LANDED="$(find "$WS/95-engine/platforms/$p" -type f 2>/dev/null | wc -l | tr -d ' ')"
-  EXPECTED="$(cd "$SRC/l3/platforms/$p" && find . -path './bundle' -prune -o -type f ! -name '.DS_Store' -print | wc -l | tr -d ' ')"
+  EXPECTED="$(bash "$SRC/l3/list-platform-files.sh" "$SRC/l3/platforms/$p" | wc -l | tr -d ' ')"
   if [ "$p" = "amazon" ]; then
     SK="$(find "$WS/95-engine/platforms/$p/skills" -type f -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
     [ "$SK" -eq 23 ] && ok "平台 $p skills=23" || bad "平台 $p skills=${SK}（期望 23）"
