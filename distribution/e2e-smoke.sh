@@ -442,7 +442,7 @@ JSON
     echo $?
   }
   # 5.1 正常页：ok 且 items>=1（走 --platform 预设，顺带验预设机制）
-  RC="$(probe_run --platform "$FX/preset-good.json" --cache-bust)"
+  RC="$(probe_run --platform "$FX/preset-good.json" --cache-bust --out "$TMP/probe-out.jsonl")"
   if [ "$RC" = "0" ] && node -e '
     const r = require(process.argv[1]);
     process.exit(r.status === "ok" && r.item_count >= 1 ? 0 : 1);
@@ -451,8 +451,27 @@ JSON
   else
     bad "本地 fixture 正常页（RC=$RC）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-"))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
   fi
+  # 5.1b --out 产物：JSONL 恰好 3 行、一行一条 item，meta 字段齐且 preset.verified 在
+  if node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.argv[1], "utf8").trim().split("\n").filter(Boolean);
+    const m = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+    const need = ["platform","query","url","final_url","status","exit_code","item_count",
+                  "container_count","transfer_size","cache_hit","engine","account"];
+    const miss = need.filter((k) => !(k in m));
+    const row = lines[0] ? JSON.parse(lines[0]) : {};
+    const rowNeed = ["platform","query","url","fetched_at","status","title","price"];
+    const rowMiss = rowNeed.filter((k) => !(k in row));
+    const presetOk = !!(m.preset && "verified" in m.preset);
+    process.exit(lines.length === 3 && miss.length === 0 && rowMiss.length === 0
+      && m.status === "ok" && m.exit_code === 0 && m.item_count === 3 && presetOk ? 0 : 1);
+  ' "$TMP/probe-out.jsonl" "$TMP/probe-out.jsonl.meta.json" 2>/dev/null; then
+    ok "--out 产物：JSONL 3 行 + meta 字段齐（status=ok）"
+  else
+    bad "--out 产物异常：$(node -e 'try{const fs=require("fs");const l=fs.readFileSync(process.argv[1],"utf8").trim().split("\n").filter(Boolean).length;const m=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));console.log("jsonl_lines="+l+" status="+m.status+" exit="+m.exit_code+" item_count="+m.item_count)}catch(e){console.log("无产物")}' "$TMP/probe-out.jsonl" "$TMP/probe-out.jsonl.meta.json" 2>/dev/null)"
+  fi
   # 5.2 机器人墙：blocked 且 matched 含 robot_or_human（blocked 必须压过 items）
-  RC="$(probe_run --url "http://127.0.0.1:$FXPORT/robot" --cache-bust)"
+  RC="$(probe_run --url "http://127.0.0.1:$FXPORT/robot" --cache-bust --out "$TMP/probe-blocked.jsonl")"
   if [ "$RC" = "2" ] && node -e '
     const r = require(process.argv[1]);
     const m = (r.evidence && r.evidence.matched) || [];
@@ -461,6 +480,18 @@ JSON
     ok "本地 fixture 机器人墙 → blocked（matched 含 robot_or_human）"
   else
     bad "本地 fixture 机器人墙（RC=$RC）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" matched="+JSON.stringify((r.evidence&&r.evidence.matched)||[])+" code="+((r.error&&r.error.code)||"-"))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
+  fi
+  # 5.2b --out 产物：没有数据也能解释为什么——JSONL 0 行，但 meta=blocked 且带 matched
+  if node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.argv[1], "utf8").trim().split("\n").filter(Boolean);
+    const m = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+    process.exit(lines.length === 0 && m.status === "blocked" && m.exit_code === 2
+      && Array.isArray(m.matched) && m.matched.includes("robot_or_human") ? 0 : 1);
+  ' "$TMP/probe-blocked.jsonl" "$TMP/probe-blocked.jsonl.meta.json" 2>/dev/null; then
+    ok "--out 产物：blocked 时 JSONL 0 行、meta 带 matched"
+  else
+    bad "--out blocked 产物异常：$(node -e 'try{const fs=require("fs");const l=fs.readFileSync(process.argv[1],"utf8").trim().split("\n").filter(Boolean).length;const m=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));console.log("jsonl_lines="+l+" status="+m.status+" matched="+JSON.stringify(m.matched))}catch(e){console.log("无产物")}' "$TMP/probe-blocked.jsonl" "$TMP/probe-blocked.jsonl.meta.json" 2>/dev/null)"
   fi
   # 5.3 预设缺 list_selector：E_PLATFORM_INCOMPLETE / EXIT=1，不许退回单页模式
   RC="$(probe_run --platform "$FX/preset-bad.json")"

@@ -67,7 +67,8 @@ curl -x http://127.0.0.1:18080 -sS -o /dev/null -w 'bridge HTTP=%{http_code}\n' 
 > （`gateway/server.js:272`、`:390`）；缺了直接 `400 E_BAD_REQUEST`，body 是
 > `{"ok":false,"code":"E_BAD_REQUEST","message":"Idempotency-Key required"}`。
 > 规则：**每次新建/删除都生成一个新 key；同一次请求重试必须复用同一个 key**——网关按 key 缓存响应
-> （TTL 24h，`server.js:169`），复用旧 key 拿到的是上一次的结果。下面命令都用 `$(uuidgen)` 现生成。
+> （TTL 24h，`server.js:169`），复用旧 key 拿到的是上一次的结果。缓存是**进程内 Map，网关一重启就清空**，
+> 所以重启后拿旧 key 重放不会命中（会当成新请求）。下面命令都用 `$(uuidgen)` 现生成。
 
 CDP 引擎（chromium / chrome；linux150 只能 attach，不走这条）：
 

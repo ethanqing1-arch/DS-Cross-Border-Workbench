@@ -9,7 +9,10 @@
  *   node distribution/connectors/farm-probe.js --url <url> \
  *     [--selectors title,price] [--list <容器CSS>] [--proxy <url>]
  *     [--account e2e-smoke] [--engine chromium] [--timeout-ms 45000]
- *     [--mcp <farm-mcp.js>] [--verbose]
+ *     [--mcp <farm-mcp.js>] [--out <path>] [--verbose]
+ *
+ * --out：成功时写 JSONL（一行一条 item），四态都写 <path>.meta.json
+ * （含 status/exit_code/item_count/...；blocked 带 matched）。不传则行为不变。
  *
  * 契约见同目录 README.md：status = ok | blocked | empty | error；
  * ok 必须 item_count ≥ 1；items 为 0 时只能是 blocked（带证据）或 empty。
@@ -70,6 +73,7 @@ function parseArgs(argv) {
     engine: 'chromium',
     timeoutMs: 45000,
     mcp: path.resolve(__dirname, '..', '..', 'farm', 'mcp', 'farm-mcp.js'),
+    out: '',
     verbose: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -90,9 +94,10 @@ function parseArgs(argv) {
       case '--engine': a.engine = next(); break;
       case '--timeout-ms': a.timeoutMs = Math.max(5000, parseInt(next(), 10) || 45000); break;
       case '--mcp': a.mcp = path.resolve(next()); break;
+      case '--out': a.out = path.resolve(next()); break;
       case '--verbose': a.verbose = true; break;
       case '-h': case '--help':
-        process.stderr.write('用法：node farm-probe.js (--url <url> | --platform <id|预设.json> [--query <q>]) [--selectors title,price] [--list <容器CSS>] [--proxy <url>] [--cache-bust] [--account e2e-smoke]\n');
+        process.stderr.write('用法：node farm-probe.js (--url <url> | --platform <id|预设.json> [--query <q>]) [--selectors title,price] [--list <容器CSS>] [--proxy <url>] [--cache-bust] [--account e2e-smoke] [--out <path>]\n');
         process.exit(0);
         break;
       default:
@@ -291,6 +296,44 @@ function resolvePlatform(args) {
   };
 }
 
+/* ---------------------------------------------------------------- 产物（--out） */
+/* JSONL 只写 ok 的 items；无论四态都写 meta，没有数据时能解释为什么没有。 */
+function writeArtifacts(out, args, exitCode) {
+  const jsonlPath = args.out;
+  const metaPath = jsonlPath + '.meta.json';
+  fs.mkdirSync(path.dirname(jsonlPath), { recursive: true });
+
+  const base = {
+    platform: out.platform ? out.platform.id : null,
+    query: out.query || null,
+    url: out.url || null,
+  };
+  const fetchedAt = new Date().toISOString();
+  const rows = (out.status === 'ok' ? (out.items || []) : []).map((item) =>
+    Object.assign({}, base, { fetched_at: fetchedAt, status: 'ok' }, item)
+  );
+  fs.writeFileSync(jsonlPath, rows.length ? rows.map((r) => JSON.stringify(r)).join('\n') + '\n' : '');
+
+  const meta = {
+    platform: base.platform,
+    query: base.query,
+    url: base.url,
+    final_url: out.final_url || null,
+    status: out.status,
+    exit_code: exitCode,
+    item_count: out.item_count || 0,
+    container_count: out.container_count === undefined ? null : out.container_count,
+    transfer_size: out.nav ? out.nav.transfer_size : null,
+    cache_hit: out.nav ? out.nav.cache_hit : null,
+    engine: args.engine || null,
+    account: out.account || null,
+    preset: out.platform ? { id: out.platform.id, verified: out.platform.verified || null } : null,
+  };
+  if (out.status === 'blocked') meta.matched = (out.evidence && out.evidence.matched) || [];
+  if (out.error) meta.error = { code: out.error.code || null, message: out.error.message || null };
+  fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n');
+}
+
 /* ---------------------------------------------------------------- 主流程 */
 (async () => {
   const out = {
@@ -316,6 +359,7 @@ function resolvePlatform(args) {
     cleanup: { deleted: false, delete_ok: null, data_retained: null },
   };
 
+  let args = null;
   let child = null;
   let mcp = null;
   let created = false;
@@ -332,7 +376,7 @@ function resolvePlatform(args) {
   }
 
   try {
-    const args = parseArgs(process.argv.slice(2));
+    args = parseArgs(process.argv.slice(2));
     LOG_VERBOSE = args.verbose;
     let effUrl = args.url;
     let effList = args.list;
@@ -346,6 +390,7 @@ function resolvePlatform(args) {
       log('platform: ' + r.platform.id + ' preset=' + r.platform.preset);
     }
     out.url = effUrl;
+    out.query = args.query || null;
     out.account = args.account;
     out.selectors = buildSelectorMap(effSelectors || 'title');
     out.list = effList || null;
@@ -609,6 +654,13 @@ function resolvePlatform(args) {
         out.cleanup.delete_ok = false;
         out.cleanup.deleted = false;
         out.cleanup.error = redact((e2 && e2.message) || e2);
+      }
+    }
+    if (args && args.out) {
+      try {
+        writeArtifacts(out, args, exitCode);
+      } catch (e) {
+        process.stderr.write('[farm-probe] 写 --out 失败：' + redact((e && e.message) || e) + '\n');
       }
     }
     writeOut();

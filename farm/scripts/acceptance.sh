@@ -16,7 +16,7 @@ wn(){ printf "  \033[33mWARN\033[0m %s\n" "$1"; WARN=$((WARN+1)); }
 
 echo "== 1. 文件完整性 =="
 for f in farm.js control.js ledger.js driver.js contract.js proxy-bridge.js gateway/server.js mcp/farm-mcp.js docker/Dockerfile docker/entry.sh \
-         scripts/mock-ip-echo.js scripts/verify-dual-env.sh scripts/test-proxy-bridge.sh scripts/proxy-selftest.sh camoufox_worker.py \
+         scripts/mock-ip-echo.js scripts/verify-dual-env.sh scripts/test-proxy-bridge.sh scripts/proxy-selftest.sh scripts/ledger-clean.sh camoufox_worker.py \
          docs/dsbot-workbench-architecture.md docs/dsbot-workbench-review.md; do
   [ -f "$f" ] && ok "$f" || no "缺文件 $f"
 done
@@ -29,6 +29,7 @@ python3 -c "import ast;ast.parse(open('camoufox_worker.py').read())" 2>/dev/null
 bash -n scripts/verify-dual-env.sh 2>/dev/null && ok "verify-dual-env.sh" || no "verify-dual-env.sh 语法错"
 bash -n scripts/test-proxy-bridge.sh 2>/dev/null && ok "test-proxy-bridge.sh" || no "test-proxy-bridge.sh 语法错"
 bash -n scripts/proxy-selftest.sh 2>/dev/null && ok "proxy-selftest.sh" || no "proxy-selftest.sh 语法错"
+bash -n scripts/ledger-clean.sh 2>/dev/null && ok "ledger-clean.sh" || no "ledger-clean.sh 语法错"
 # bridge 配置校验：无上游 / 坏格式 / socks5 缺端口 / 不支持的协议都必须拒绝启动（exit 2；不联网不监听）
 # 注意：这里不断言 socks5 不可用——socks5/socks5h 是受支持的上游，只校验坏配置会退出。
 node -e '
@@ -77,6 +78,35 @@ const cols=l.db.prepare('PRAGMA table_info(accounts)').all().map(c=>c.name);
 const need=['fp_seed','engine','cdp'];
 const miss=need.filter(x=>!cols.includes(x));
 process.exit(miss.length?1:0)" 2>/dev/null && ok "accounts 含 fp_seed/engine/cdp" || no "台账缺 fp_seed/engine/cdp"
+
+# ledger-clean.sh：dry-run 只列不删 / --apply 先备份再删 / 有 running 行必须拒绝
+# 用 19672/19572 避开自检自己随后要占的 19671/19571，让三条断言与真网关状态无关
+CLEAN_DB="$TMP/clean-test.db"
+FARM_DB="$CLEAN_DB" node -e "require('./ledger.js')" >/dev/null 2>&1
+sqlite3 "$CLEAN_DB" "INSERT INTO accounts (account,status,created_at,updated_at) VALUES ('probe:health:1','stopped','t','t'),('probe:health:2','stopped','t','t')"
+CLEAN_OUT1="$(GATEWAY_PORT=19672 CONTROL_PORT=19572 bash "$SRC/scripts/ledger-clean.sh" --db "$CLEAN_DB" --account 'probe:health:%' 2>&1)"; CLEAN_RC1=$?
+if [ "$CLEAN_RC1" -eq 0 ] && printf '%s' "$CLEAN_OUT1" | grep -q 'probe:health:1' \
+   && [ "$(sqlite3 "$CLEAN_DB" 'SELECT count(*) FROM accounts')" = "2" ]; then
+  ok "ledger-clean dry-run 只列不删（2 行）"
+else
+  no "ledger-clean dry-run 异常（EXIT=$CLEAN_RC1）"
+fi
+CLEAN_OUT2="$(GATEWAY_PORT=19672 CONTROL_PORT=19572 bash "$SRC/scripts/ledger-clean.sh" --db "$CLEAN_DB" --account 'probe:health:%' --apply 2>&1)"; CLEAN_RC2=$?
+CLEAN_BAK=0; for f in "$CLEAN_DB".bak-*; do [ -s "$f" ] && CLEAN_BAK=1; done
+if [ "$CLEAN_RC2" -eq 0 ] && [ "$CLEAN_BAK" = "1" ] \
+   && [ "$(sqlite3 "$CLEAN_DB" 'SELECT count(*) FROM accounts')" = "0" ]; then
+  ok "ledger-clean --apply 备份后删除（2→0）"
+else
+  no "ledger-clean --apply 异常（EXIT=$CLEAN_RC2）"
+fi
+sqlite3 "$CLEAN_DB" "INSERT INTO accounts (account,status,created_at,updated_at) VALUES ('live:acc','running','t','t')"
+CLEAN_OUT3="$(GATEWAY_PORT=19672 CONTROL_PORT=19572 bash "$SRC/scripts/ledger-clean.sh" --db "$CLEAN_DB" --all-stopped --apply 2>&1)"; CLEAN_RC3=$?
+if [ "$CLEAN_RC3" -ne 0 ] && printf '%s' "$CLEAN_OUT3" | grep -q 'running' \
+   && [ "$(sqlite3 "$CLEAN_DB" 'SELECT count(*) FROM accounts')" = "1" ]; then
+  ok "ledger-clean 拒删 running 行（EXIT=$CLEAN_RC3）"
+else
+  no "ledger-clean 未拒绝 running 行（EXIT=$CLEAN_RC3）"
+fi
 
 echo "== 5. 控制面 + 网关 =="
 node control.js --port "$ACCEPT_CONTROL_PORT" >/tmp/acc-c.log 2>&1 & CPID=$!

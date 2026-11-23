@@ -46,6 +46,7 @@ node distribution/connectors/farm-probe.js \
 | `--engine` | `chromium` | 引擎名（linux150 需 attach，不在本探针范围） |
 | `--timeout-ms` | `45000` | goto / extract / 列表 eval 的等待上限 |
 | `--mcp` | `<仓库>/farm/mcp/farm-mcp.js` | stdio 适配层路径（一般不用改） |
+| `--out` | 空（不写文件） | 产物路径：成功写 JSONL（一行一条），四态都写 `<path>.meta.json`；父目录自动建、覆盖写 |
 
 内置选择器（`--selectors` 里只写字段名时）：
 
@@ -54,6 +55,15 @@ node distribution/connectors/farm-probe.js \
 | `title` | `title`（文档标题元素） |
 | `price` | `[itemprop="price"], .s-item__price, .a-price .a-offscreen, .price` |
 | 其他 | 字段名本身当作 CSS 选择器 |
+
+## 产物（`--out`）
+
+给了 `--out <path>` 后：
+
+- 成功（`ok`）写 JSONL：一行一条 item，字段 `platform / query / url / fetched_at / status / title / price / <预设字段>`。
+- 四态都写 `<path>.meta.json`：`platform / query / url / final_url / status / exit_code / item_count / container_count / transfer_size / cache_hit / engine / account / preset.verified`；`blocked` 额外带 `matched`，`error` 额外带 `error`。
+- 没有数据时也能从 meta 解释为什么没有（blocked 看 `matched`，error 看 `error.code`）。
+- 不传 `--out` 时行为完全不变：stdout 仍是一段 JSON。
 
 ## 平台预设（`platforms/`）
 
