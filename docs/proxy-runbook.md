@@ -124,7 +124,7 @@ node distribution/connectors/farm-probe.js \
 GATEWAY_TOKEN="换成你的令牌" bash farm/scripts/test-proxy-bridge.sh
 ```
 
-预期：`PASS=16 FAIL=0` / `RESULT: READY` / `EXIT=0`。覆盖：
+预期：`PASS=35 FAIL=0` / `RESULT: READY` / `EXIT=0`（HTTP 与 SOCKS5/SOCKS5H 上游都覆盖，含浏览器产品路径）。覆盖：
 
 - 假上游要求 `Proxy-Authorization`，缺失/错误一律 407；
 - curl `-x` 走 `https`（CONNECT 隧道）与 `http`（绝对 URI）都 200；

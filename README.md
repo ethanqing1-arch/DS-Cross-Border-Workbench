@@ -38,10 +38,12 @@ cd farm && bash scripts/acceptance.sh --with-browser   # 跑前先 --stop 真网
 | 自检 | 结果 |
 |---|---|
 | `farm/scripts/acceptance.sh --with-browser` | `PASS=56 FAIL=0 WARN=0` / `READY` |
-| `distribution/verify.sh` | `PASS=40 FAIL=0 WARN=0` / `READY` |
-| `distribution/e2e-smoke.sh` | `PASS=26`（含 `transferSize>0` 反缓存假绿断言） |
+| `distribution/verify.sh` | `PASS=56 FAIL=0 WARN=0` / `READY` |
+| `distribution/e2e-smoke.sh` | `PASS=30 FAIL=0 WARN=1` / `READY`（WARN 是令牌 <32 位；farm/ 有未提交改动时改判为 29 PASS / 2 WARN，含 `transferSize>0` 反缓存假绿断言） |
 | `farm/scripts/test-proxy-bridge.sh` | `PASS=35`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |
 | `farm/scripts/proxy-selftest.sh --self-test` | `PASS=12`（无真代理也能验脚本本身） |
+
+计数会随覆盖收编而变，以脚本实际输出为准（本表是 2026-11-23 的一次快照）。
 
 ## 关键口径
 

@@ -200,10 +200,10 @@ M1 和 M2 可以并行。M3 先做 Amazon 不是因为它优先，而是因为�
 | 项 | 内容 | 入口 | 自证 |
 |---|---|---|---|
 | L1 核心包 | capability 载荷 + 品牌占位 + 安装器 + 种子剧本 | [`distribution/l1/`](../distribution/l1/) | 装 / `--check` 幂等 / 负例 FAIL / 网关不可达只 WARN（commit `d9b43c4`） |
-| 总装验收 | L1→L2→7 平台全链 + 负例 + 真工作区边界 | [`distribution/verify.sh`](../distribution/verify.sh) | 连跑两次 `PASS=40 FAIL=0 WARN=0` / `READY`（commit `ac8f61c`） |
-| e2e 冒烟 | 装链 + 真 MCP 往返 + 产物落工作区 + 真上网断言 | [`distribution/e2e-smoke.sh`](../distribution/e2e-smoke.sh) | `PASS=26`，`transferSize>0` 反缓存假绿（commits `55d141e`、`3840787`） |
+| 总装验收 | L1→L2→7 平台全链 + 负例 + 真工作区边界 | [`distribution/verify.sh`](../distribution/verify.sh) | 连跑两次 `PASS=56 FAIL=0 WARN=0` / `READY`（commit `ac8f61c`） |
+| e2e 冒烟 | 装链 + 真 MCP 往返 + 产物落工作区 + 真上网断言 | [`distribution/e2e-smoke.sh`](../distribution/e2e-smoke.sh) | `PASS=30`，`transferSize>0` 反缓存假绿（commits `55d141e`、`3840787`） |
 | 取页探针 | 四态契约 `ok/blocked/empty/error`，0 条不许报 ok | [`distribution/connectors/`](../distribution/connectors/) | example.com `ok`、eBay `blocked`、缺选择器 `empty`、缓存命中 `E_CACHE_HIT`（commits `9c002f8`、`4b51c3f`） |
-| 代理桥 | 凭据不进 Chromium argv：本地桥注入 Basic 头；HTTP 与 SOCKS5/SOCKS5H 上游 | [`farm/proxy-bridge.js`](../farm/proxy-bridge.js) + [runbook](proxy-runbook.md) | 桥测试 `PASS=35`（含浏览器产品路径）、acceptance `PASS=54`（commits `9eb8d8f`、`092c310`） |
+| 代理桥 | 凭据不进 Chromium argv：本地桥注入 Basic 头；HTTP 与 SOCKS5/SOCKS5H 上游 | [`farm/proxy-bridge.js`](../farm/proxy-bridge.js) + [runbook](proxy-runbook.md) | 桥测试 `PASS=35`（含浏览器产品路径）、acceptance `PASS=56`（commits `9eb8d8f`、`092c310`） |
 
 **代理的两条硬事实**
 
