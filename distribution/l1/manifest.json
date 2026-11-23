@@ -1,0 +1,27 @@
+{
+  "name": "dsh-ecom-l1",
+  "version": "0.1.0",
+  "description": "跨境电商版 L1 核心包：把仓库里的 browser-farm 农场固化成可注册的 DSH capability（stdio 适配层），附品牌占位与安装器。",
+  "requires": {
+    "browser-farm": ">=1.1.0"
+  },
+  "contents": {
+    "capability": "capability/browser-farm.json",
+    "branding": "branding/brand.json",
+    "seed": "SEED-L1.md"
+  },
+  "paths": {
+    "farm": "farm/",
+    "mcp": "farm/mcp/farm-mcp.js"
+  },
+  "install": {
+    "command": "bash install.sh <目标目录>",
+    "check": "bash install.sh <目标目录> --check",
+    "farm_override": "bash install.sh <目标目录> --farm <farm 目录>"
+  },
+  "notes": [
+    "L1 不打包 DS Bot 应用：只是把仓库里的 farm/ 注册成共享能力，再让用户本人点一次 Allow。",
+    "capability 载荷里的令牌只写 $DSH_SECRET_GATEWAY_TOKEN 占位，任何 secret 明文都不进文件。",
+    "branding/ 是占位，不包含任何 DS Bot 现成商标或图标资产。"
+  ]
+}
