@@ -184,12 +184,12 @@ fork 后保留 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app` 两层，加
 
 ## 5 顺序与里程碑
 
-| 阶段 | 内容 | 产出 |
-|---|---|---|
-| M1 | 农场 capability 化（第 2 节六件事，含 Camoufox 归一） | 可被任意 bot 调用的 `browser-farm` |
-| M2 | L2 版本包打包 | `dsh-ecom-cbec` 可安装 |
-| M3 | 平台子模式框架 + Amazon 完整档（复用存量 23 skill） | 子模式框架成立，Amazon 能跑 |
-| M4 | 其余平台铺基线档（eBay/TikTok Shop/Shopee/Lazada/Walmart/AliExpress） | 证明「装一个新平台」可复制 |
+| 阶段 | 内容 | 产出 | 状态（2026-11-23） |
+|---|---|---|---|
+| M1 | 农场 capability 化（第 2 节六件事，含 Camoufox 归一） | 可被任意 bot 调用的 `browser-farm` | ✅ 完成：capability 已 Allow，7 个工具端到端验过（commit `f953265`） |
+| M2 | L2 版本包打包 | `dsh-ecom-cbec` 可安装 | ✅ v0.1.0：`distribution/l2/` 41 文件，install / `--check` / 版本闸自证过（commit `1bea873`） |
+| M3 | 平台子模式框架 + Amazon 完整档（复用存量 23 skill） | 子模式框架成立，Amazon 能跑 | 🟡 框架完成、Amazon 仅名义 full：`distribution/l3/` 7 平台包（commit `61cc43a`）；`cbec-selection-master` 本机缺失，只能引用声明 |
+| M4 | 其余平台铺基线档（eBay/TikTok Shop/Shopee/Lazada/Walmart/AliExpress） | 证明「装一个新平台」可复制 | ✅ 包层完成：5 个基线包逐平台装通（commit `ee69505`）；所有官方 API 与费率仍为 null/未接入 |
 
 M1 和 M2 可以并行。M3 先做 Amazon 不是因为它优先，而是因为它供给最全、能当模板；M4 用同一套模板铺开其余平台。
 
