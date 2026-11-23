@@ -180,7 +180,46 @@ printf '%s' "$OUT" | grep -q 'FAIL 目标目录未装 L2' \
 EFILES="$(find "$E" -type f | wc -l | tr -d ' ')"
 [ "$EFILES" -eq 0 ] && ok "空目录 0 写入" || bad "空目录写了 $EFILES 个文件"
 
-# ---------------------------------------------------------------- 6. 边界
+# ---------------------------------------------------------------- 6. 取页器与平台预设（静态）
+echo "-- 6. 取页器与平台预设（静态）"
+CONN="$SRC/connectors"
+node --check "$CONN/farm-probe.js" 2>/dev/null && ok "node --check farm-probe.js" || bad "语法错 farm-probe.js"
+PN=0
+for p in amazon ebay tiktokshop shopee lazada walmart aliexpress; do
+  [ -f "$CONN/platforms/$p.json" ] && PN=$((PN+1)) || bad "缺平台预设 $p.json"
+done
+[ "$PN" -eq 7 ] && ok "平台预设 7 个齐全" || bad "平台预设只有 $PN 个（期望 7）"
+# schema：逐文件校验；verified 只允许「命中…」或「未验…」开头（不许写 ok/true 之类的假声明）
+while IFS=$'\t' read -r pfile verdict reason; do
+  [ -n "$pfile" ] || continue
+  if [ "$verdict" = "1" ]; then
+    ok "预设 $pfile 合规（id/name/search_url_template/list_selector/fields/verified/notes）"
+  else
+    bad "预设 $pfile 不合规：$reason"
+  fi
+done < <(node -e '
+const fs = require("fs"), path = require("path");
+const dir = process.argv[1];
+const need = ["id", "name", "search_url_template", "list_selector", "fields", "verified", "notes"];
+for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".json")).sort()) {
+  let p = null;
+  try { p = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")); } catch (e) { console.log(f + "\t0\t不是合法 JSON"); continue; }
+  const miss = [];
+  for (const k of need) if (p[k] === undefined || p[k] === null || String(p[k]).trim() === "") miss.push("缺 " + k);
+  if (p.fields && (typeof p.fields !== "object" || !Object.keys(p.fields).length)) miss.push("fields 为空");
+  if (p.verified && (typeof p.verified !== "object" || !Object.keys(p.verified).length)) miss.push("verified 为空");
+  if (p.verified && typeof p.verified === "object") {
+    for (const [k, v] of Object.entries(p.verified)) {
+      const s = String(v);
+      if (!(s.startsWith("命中") || s.startsWith("未验"))) miss.push("verified." + k + " 不是 命中/未验 开头");
+    }
+  }
+  if (p.notes !== undefined && (!Array.isArray(p.notes) || !p.notes.length)) miss.push("notes 为空");
+  if (p.id && String(p.id) !== path.basename(f, ".json")) miss.push("id 与文件名不一致");
+  console.log(f + "\t" + (miss.length ? "0" : "1") + "\t" + miss.join("；"));
+}' "$CONN/platforms")
+
+# ---------------------------------------------------------------- 7. 边界
 if [ -n "$REAL_MTIME" ]; then
   NOW="$(stat -f %m "$REAL_WS" 2>/dev/null || stat -c %Y "$REAL_WS" 2>/dev/null || true)"
   if [ "$NOW" = "$REAL_MTIME" ]; then

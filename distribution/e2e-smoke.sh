@@ -16,6 +16,7 @@
 #       initialize → tools/list(7) → farm_health(ok:true) → farm_session_create
 #       → farm_task goto（唯一 query URL）→ farm_task eval（transferSize 验真上网）
 #       → farm_task extract title
+#       → 本地 fixture 取页器（ok / blocked / 预设缺字段，不碰真站）
 #       → farm_session_delete → 写 95-engine/smoke/report.json 并断言字段。
 #
 # 边界：只写 mktemp 工作区；farm 只新增/更新一行默认租户会话（收尾删除，台账保留）。
@@ -44,6 +45,7 @@ warn() { WARN=$((WARN+1)); echo "  WARN $*"; }
 TMP="$(mktemp -d /tmp/dsh-ecom-e2e.XXXXXX)" || { echo "FAIL 无法创建临时目录"; exit 2; }
 WS="$TMP/workspace"
 cleanup() {
+  kill "${FXPID:-}" 2>/dev/null || true
   if [ "$KEEP" -eq 1 ]; then
     echo
     echo "临时工作区保留：$WS"
@@ -384,8 +386,97 @@ else
   bad "report.json 缺失（$REPORT）"
 fi
 
-# ---------------------------------------------------------------- 5. 会话与边界
-echo "-- 5. 会话收尾与边界"
+# ---------------------------------------------------------------- 5. 取页器本地 fixture（四态契约）
+# 起一个只服务 127.0.0.1 的临时 HTTP 服务：正常列表页 / 机器人墙页；不碰任何真电商站。
+echo "-- 5. 取页器本地 fixture（ok / blocked / 预设缺字段）"
+FX="$TMP/fixture"; mkdir -p "$FX"
+cat > "$FX/normal.html" <<'HTML'
+<!doctype html><html><head><meta charset="utf-8"><title>Fixture Books</title></head><body>
+<article class="pod"><h3><a href="/b/1">Book One</a></h3><span class="price">$10.00</span></article>
+<article class="pod"><h3><a href="/b/2">Book Two</a></h3><span class="price">$12.50</span></article>
+<article class="pod"><h3><a href="/b/3">Book Three</a></h3><span class="price">$9.99</span></article>
+</body></html>
+HTML
+cat > "$FX/robot.html" <<'HTML'
+<!doctype html><html><head><meta charset="utf-8"><title>Robot or human?</title></head><body>
+<p>Activate and hold the button to confirm that you are human.</p>
+</body></html>
+HTML
+node -e '
+const http = require("http"), fs = require("fs"), path = require("path");
+const dir = process.argv[1];
+const pages = { "/normal": "normal.html", "/robot": "robot.html" };
+const srv = http.createServer((req, res) => {
+  const p = String(req.url || "/").split("?")[0];
+  const f = pages[p];
+  if (!f) {
+    res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
+    res.end("<html><head><title>Not Found</title></head><body>404</body></html>");
+    return;
+  }
+  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+  res.end(fs.readFileSync(path.join(dir, f)));
+});
+srv.listen(0, "127.0.0.1", () => fs.writeFileSync(path.join(dir, "port"), String(srv.address().port)));
+process.on("SIGTERM", () => srv.close(() => process.exit(0)));
+' "$FX" & FXPID=$!
+FXPORT=""
+for _ in $(seq 1 50); do [ -s "$FX/port" ] && { FXPORT="$(cat "$FX/port")"; break; }; sleep 0.1; done
+if [ -z "$FXPORT" ]; then
+  bad "本地 fixture 服务器未就绪（127.0.0.1）"
+else
+  ok "本地 fixture 服务器就绪（127.0.0.1:$FXPORT）"
+  FXACC="${E2E_ACCOUNT:-e2e-smoke}"
+  cat > "$FX/preset-good.json" <<JSON
+{"id":"fx-local","name":"e2e 本地 fixture","search_url_template":"http://127.0.0.1:$FXPORT/normal",
+ "list_selector":"article.pod","fields":{"title":"h3 a","price":".price"},
+ "verified":{"list_selector":"未验：e2e 本地 fixture，只验机制"},"notes":["e2e 本地 fixture，不碰真电商站"]}
+JSON
+  cat > "$FX/preset-bad.json" <<'JSON'
+{"id":"fx-bad","name":"e2e 缺字段 fixture","search_url_template":"http://127.0.0.1:1/normal",
+ "fields":{"title":"h3 a"},"verified":{"list_selector":"未验：故意缺 list_selector"},"notes":["负例：缺 list_selector"]}
+JSON
+  PROBE="$SRC/connectors/farm-probe.js"
+  probe_run() {   # 参数原样给探针；stdout 落到 $TMP/probe.json，echo 探针退出码
+    node "$PROBE" --account "$FXACC" "$@" >"$TMP/probe.json" 2>"$TMP/probe.err"
+    echo $?
+  }
+  # 5.1 正常页：ok 且 items>=1（走 --platform 预设，顺带验预设机制）
+  RC="$(probe_run --platform "$FX/preset-good.json" --cache-bust)"
+  if [ "$RC" = "0" ] && node -e '
+    const r = require(process.argv[1]);
+    process.exit(r.status === "ok" && r.item_count >= 1 ? 0 : 1);
+  ' "$TMP/probe.json" 2>/dev/null; then
+    ok "本地 fixture 正常页 → ok（$(node -e 'const r=require(process.argv[1]);console.log("item_count="+r.item_count+" container_count="+r.container_count)' "$TMP/probe.json")）"
+  else
+    bad "本地 fixture 正常页（RC=$RC）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-"))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
+  fi
+  # 5.2 机器人墙：blocked 且 matched 含 robot_or_human（blocked 必须压过 items）
+  RC="$(probe_run --url "http://127.0.0.1:$FXPORT/robot" --cache-bust)"
+  if [ "$RC" = "2" ] && node -e '
+    const r = require(process.argv[1]);
+    const m = (r.evidence && r.evidence.matched) || [];
+    process.exit(r.status === "blocked" && m.includes("robot_or_human") ? 0 : 1);
+  ' "$TMP/probe.json" 2>/dev/null; then
+    ok "本地 fixture 机器人墙 → blocked（matched 含 robot_or_human）"
+  else
+    bad "本地 fixture 机器人墙（RC=$RC）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" matched="+JSON.stringify((r.evidence&&r.evidence.matched)||[])+" code="+((r.error&&r.error.code)||"-"))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
+  fi
+  # 5.3 预设缺 list_selector：E_PLATFORM_INCOMPLETE / EXIT=1，不许退回单页模式
+  RC="$(probe_run --platform "$FX/preset-bad.json")"
+  if [ "$RC" = "1" ] && node -e '
+    const r = require(process.argv[1]);
+    process.exit(r.status === "error" && r.error && r.error.code === "E_PLATFORM_INCOMPLETE" ? 0 : 1);
+  ' "$TMP/probe.json" 2>/dev/null; then
+    ok "--platform 缺 list_selector → E_PLATFORM_INCOMPLETE（EXIT=1，未退回单页模式）"
+  else
+    bad "--platform 缺 list_selector（RC=$RC）$(node -e 'try{const r=require(process.argv[1]);console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-")+" list="+JSON.stringify(r.list))}catch(e){console.log("无 JSON")}' "$TMP/probe.json" 2>/dev/null)"
+  fi
+  kill "$FXPID" 2>/dev/null || true; FXPID=""
+fi
+
+# ---------------------------------------------------------------- 6. 会话与边界
+echo "-- 6. 会话收尾与边界"
 SESS_JSON="$(printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" | curl -sS -K - "${GATEWAY_URL%/}/v1/sessions" 2>/dev/null || true)"
 ALIVE="$(printf '%s' "$SESS_JSON" | node -e '
   let s = "";

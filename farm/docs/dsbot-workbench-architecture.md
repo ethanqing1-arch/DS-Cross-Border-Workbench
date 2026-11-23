@@ -126,7 +126,7 @@ node farm.js dup
 - **引擎能力与传输**：`ENGINE_CAPS` 在 `contract.js`，四引擎声明 `transport`（`cdp` / `worker`）与实测可跑的任务子集。`camoufox` 走 worker 传输：`/v1/tasks` 的 `goto/eval/shot/scan` 由网关起一次 `camoufox_worker.py` 执行，结果按 `{ok:true, ...}` 与 CDP 通道同形（`goto` 已实测逐字相同）；该引擎不支持的其它任务返回 `422`，body 带 `supported` 列表。
 - **版本契约**：农场版本号在 `package.json`（现 `1.1.0`），契约版本在 `contract.js`（`contract_version: 2`）。平台子模式包装之前用 `GET /v1/version?require=x.y.z` 校验，不足返回 `409 E_VERSION_REQUIRED`；离线用 `node contract.js check --require x.y.z`。
 - **profile 分区**：`profiles/<platform>/<account>`，未声明平台落 `profiles/_unsorted/`；台账 `accounts.platform` 与两个列表接口的 `?platform=` 对齐。
-- **health 的 `engines`**：不带 `?probe=1` 时 CDP 引擎按 control 面判 `up`/`down`，worker 引擎与需外部容器的引擎报 `unverified`；带 `?probe=1` 时 chromium/chrome 真起临时实例跑一次 `goto`，camoufox 真查 worker 解释器能否 `import camoufox`（只到模块层，不启动浏览器），linux150 仍 `unverified`。`degraded` 取值已退役。
+- **health 的 `engines`**：不带 `?probe=1` 时 CDP 引擎按 control 面判 `up`/`down`，worker 引擎与需外部容器的引擎报 `unverified`；带 `?probe=1` 时 chromium/chrome 真起临时实例跑一次 `goto`；camoufox 真查 worker 解释器：同一条 check 里同时验 `import camoufox` 与 Python 版本，`sys.version_info[:2] == (3,13)` 才判 `up`（`check` 写 `import camoufox + Python 3.13`），非 3.13 直接判 `down`（`check: "camoufox 需 Python 3.13"`，`error` 写明当前解释器与版本）——只验 import 会在 3.14+/3.15 上假绿，那种环境能 import 但生成指纹会 `TargetClosedError`；linux150 仍 `unverified`。`degraded` 取值已退役。
 
 ### 3.3 示例（实测返回）
 
