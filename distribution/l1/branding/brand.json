@@ -14,11 +14,10 @@
   "icon": {
     "path": "assets/icon.svg",
     "present": true,
-    "placeholder": true
+    "placeholder": false
   },
   "_notes": [
-    "名称已定稿，配色与图标仍为占位。",
-    "assets/ 中的 SVG 是几何占位图。",
+    "名称与图标已定稿，配色仍为占位。",
     "上线前须过商标检查。品牌资产须使用已获授权的名称、图形、字体和配色。"
   ]
 }

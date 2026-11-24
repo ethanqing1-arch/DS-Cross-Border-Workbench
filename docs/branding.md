@@ -2,6 +2,8 @@
 
 品牌名称已定为「跨浪」（Kualang），技术 ID 为 `kualang`，域名为 `getkualang.com`。换名时更新 `distribution/l1/branding/brand.json` 和 `distribution/installer/FIRST-RUN.md` 的标题，并同步品牌目录 `assets/` 中含旧名称的资产。`distribution/make-bundle.sh` 从 `brand.json` 读取 `name` 作为 DMG 卷标。
 
+图标已定为候选 03 错位交接，正式文件为 `distribution/l1/branding/assets/icon.svg`，`icon.placeholder` 已设为 `false`。配色仍为占位。
+
 - 在 `brand.json` 更新 `name`、`name_en` 和 `domain`，确认定稿后将 `name_status` 改成 `final`。
 - 换色时更新 `colors.primary`、`accent`、`surface`、`ink` 的十六进制色值，确认文字与背景的对比度。
 - 换图标时把 SVG 放入 `assets/` 并更新 `icon.path`。保持 `icon.present=true`，图标获批后将 `icon.placeholder` 改为 `false`。SVG 首字节必须以 `<svg` 开始，设置 `width="256"`、`height="256"` 和 `viewBox="0 0 256 256"`。
@@ -14,6 +16,6 @@
 
 ## 发布前的三步
 
-1. 由发布负责人确认名称、图标和配色的商标检查结果。
-2. 写入经确认的品牌文件，替换几何占位图并移除占位标记。
-3. 用 `bash distribution/l1/install.sh <临时目标目录> --check` 验证，确认图标校验通过且占位警告消失，再重打安装包。
+1. 发布前由发布负责人确认名称、图标和配色的商标检查结果。
+2. 名称和图标已写入品牌配置，图标占位标记已关闭。配色定稿后更新 `brand.json`。
+3. 本轮图标已通过 `bash distribution/l1/install.sh <临时目标目录> --check` 校验，并已重新打包。配色定稿后复验并重新打包。

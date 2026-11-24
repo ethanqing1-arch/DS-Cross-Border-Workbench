@@ -14,9 +14,9 @@
 | 能力 | 状态 | 证据 |
 |---|---|---|
 | 装 | 通 | `bash distribution/verify.sh` → `PASS=69 FAIL=0 WARN=0` / `RESULT: READY`（2026-11-24 本机实测） |
-| 跑 | 样例已跑通 | `bash distribution/flow-smoke.sh` → `PASS=8 FAIL=0 WARN=4` / `RESULT: READY`，四类产物通过内容校验（图标占位和三件插件缺源。网关不可达时 L1、L2 各多 1 条 WARN，共 6 条） |
+| 跑 | 样例已跑通 | `bash distribution/flow-smoke.sh` → `PASS=8 FAIL=0 WARN=3` / `RESULT: READY`，四类产物通过内容校验（三件插件缺源。网关不可达时 L1、L2 各多 1 条 WARN，共 5 条） |
 | 取数 | 缺外部条件 | eBay 已接 L2 connector（`scripts/ebay_fetch.py` + 假服务自检），其余 6 个平台的 T1 尚未接入降级链。各平台 API 真端点均未验证。无出口代理，`shopee` / `tiktokshop` 选择器标注「未验」。 |
-| 卖 | 待定稿与授权确认 | 品牌名称已定为跨浪（Kualang），配色与图标仍为占位，三件插件待入包，L3 Amazon skill 授权归属待确认。授权校验与安装包已就绪（默认不启用 licence）。 |
+| 卖 | 待定稿与授权确认 | 品牌名称已定为跨浪（Kualang），图标已定为 03 错位交接，配色仍为占位，三件插件待入包，L3 Amazon skill 授权归属待确认。授权校验与安装包已就绪（默认不启用 licence）。 |
 
 三条容易误判的事实：
 
@@ -139,14 +139,14 @@ grep -n "camoufox:" farm/contract.js                          # tasks: TASK_TYPE
 grep -n "requires.browser-farm" distribution/l3/install.sh
 
 # 业务脚本输入
-bash distribution/flow-smoke.sh                               # PASS=8 FAIL=0 WARN=4 / READY（图标占位和三件插件缺源。网关离线时 WARN=6）
+bash distribution/flow-smoke.sh                               # PASS=8 FAIL=0 WARN=3 / READY（三件插件缺源。网关离线时 WARN=5）
 grep -n "os.path.join(BASE, \"data\"" distribution/l2/workspace/scripts/*.py
 
 # 红线无拦截
 grep -rn "readonly\|E_FORBIDDEN\|allowlist\|白名单" farm/gateway/server.js farm/contract.js   # 无输出
 
-# L1 占位与 fork 状态
-grep -n '"placeholder"' distribution/l1/branding/brand.json    # icon.placeholder=true
+# L1 图标与 fork 状态
+grep -n '"placeholder"' distribution/l1/branding/brand.json    # icon.placeholder=false
 cd ~/Projects/deepseek-harness && git log -1 --format='%h %s' && git rev-list --left-right --count origin/master...HEAD
 
 # 外部依赖现状
