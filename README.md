@@ -18,6 +18,7 @@
 ## 快速开始
 
 用发行包试装可从[试装指南](docs/trial-kit.md)开始。
+需要 Amazon 官方目录或销售数据时，见 [SP-API 接入与无凭证自检](docs/sp-api-setup.md)。
 
 ```bash
 # 1) 起网关（令牌只从环境变量读，永不落文件）

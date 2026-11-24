@@ -151,11 +151,11 @@ else
 fi
 # skill 承诺的脚本与话术库必须真的随包装进工作区（曾漏发过）
 L2_MISSING=""
-for f in scripts/cs_router.py scripts/gen_listing.py scripts/ops_report.py scripts/score_products.py data/faq.json; do
+for f in scripts/cs_router.py scripts/gen_listing.py scripts/ops_report.py scripts/score_products.py scripts/spapi_fetch.py data/faq.json; do
   [ -s "$WS/$f" ] || L2_MISSING="$L2_MISSING $f"
 done
 if [ -z "$L2_MISSING" ]; then
-  ok "L2 工作区随包脚本 4 个 + faq.json 齐全"
+  ok "L2 工作区随包脚本 5 个 + faq.json 齐全"
 else
   bad "L2 工作区缺随包文件：${L2_MISSING# }"
 fi
@@ -322,7 +322,16 @@ for (const p of fs.readdirSync(path.join(root, "l3/platforms")).sort()) {
   console.log(p + "\t1\t" + pp);
 }' "$SRC")
 
-# ---------------------------------------------------------------- 7. 边界
+# ---------------------------------------------------------------- 7. SP-API 本地假服务
+echo "-- 7. SP-API 本地假服务"
+if OUT="$(bash "$CONN/spapi-selftest.sh" 2>&1)" && printf '%s\n' "$OUT" | grep -Fxq 'RESULT: READY'; then
+  ok "SP-API 本地假服务自检（catalog / report）"
+else
+  bad "SP-API 本地假服务自检"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
+# ---------------------------------------------------------------- 8. 边界
 if [ -n "$REAL_MTIME" ]; then
   NOW="$(stat -f %m "$REAL_WS" 2>/dev/null || stat -c %Y "$REAL_WS" 2>/dev/null || true)"
   if [ "$NOW" = "$REAL_MTIME" ]; then

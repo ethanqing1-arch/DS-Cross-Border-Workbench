@@ -12,7 +12,8 @@
       "ecom-listing",
       "ecom-ops",
       "ecom-cs",
-      "ecom-guardrails"
+      "ecom-guardrails",
+      "ecom-sp-api"
     ],
     "bots": [
       "Chief",
