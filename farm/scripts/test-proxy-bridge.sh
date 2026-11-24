@@ -543,7 +543,7 @@ TARGET_URL="https://example.com/?proxy-bridge=$(date +%s)-$RANDOM"
 before_browser="$(grep -c 'HDR_OK CONNECT example.com:443' "$RECEIPT" 2>/dev/null || true)"
 [ -n "$before_browser" ] || before_browser=0
 
-env GATEWAY_URL="$GATEWAY_URL" GATEWAY_TOKEN="$TOKEN" \
+GATEWAY_URL="$GATEWAY_URL" GATEWAY_TOKEN="$TOKEN" \
     MCP_PATH="$SRC/mcp/farm-mcp.js" TEST_ACCOUNT="e2e-smoke" \
     TEST_PROXY="http://127.0.0.1:$BPORT" TEST_TARGET="$TARGET_URL" SID_FILE="$TMP/sid" \
     node "$TMP/mcp-client.js" >"$TMP/mcp.json" 2>"$TMP/mcp.err"
@@ -572,7 +572,7 @@ SOCKS_TARGET="https://example.com/?proxy-bridge-socks=$(date +%s)-$RANDOM"
 before_socks="$(grep -c 'SOCKS_CONNECT example.com:443' "$RECEIPT" 2>/dev/null || true)"
 [ -n "$before_socks" ] || before_socks=0
 
-env GATEWAY_URL="$GATEWAY_URL" GATEWAY_TOKEN="$TOKEN" \
+GATEWAY_URL="$GATEWAY_URL" GATEWAY_TOKEN="$TOKEN" \
     MCP_PATH="$SRC/mcp/farm-mcp.js" TEST_ACCOUNT="e2e-smoke" \
     TEST_PROXY="http://127.0.0.1:$BPORT2" TEST_TARGET="$SOCKS_TARGET" SID_FILE="$TMP/sid2" \
     node "$TMP/mcp-client.js" >"$TMP/mcp-socks.json" 2>"$TMP/mcp-socks.err"
@@ -617,9 +617,9 @@ for f in "$TMP/bridge-socksh.log" "$TMP/bridge-socks.log" "$TMP/fake-socks.log" 
 done
 [ "$leak_socks" -eq 0 ] && ok "SOCKS 桥/fake-socks/mcp 输出里 grep 不到 SOCKS 凭据" || no "输出里出现 SOCKS 凭据（$leak_socks 个文件）"
 
-grep -qF "$TOKEN" "$TMP/bridge.log" 2>/dev/null && no "bridge 日志里出现网关 token" || ok "bridge 日志里没有网关 token"
-grep -qF "$TOKEN" "$TMP/bridge-socksh.log" 2>/dev/null && no "socks5h 桥日志里出现网关 token" || ok "socks5h 桥日志里没有网关 token"
-grep -qF "$TOKEN" "$TMP/bridge-socks.log" 2>/dev/null && no "socks5 桥日志里出现网关 token" || ok "socks5 桥日志里没有网关 token"
+printf '%s\n' "$TOKEN" | grep -qF -f - "$TMP/bridge.log" 2>/dev/null && no "bridge 日志里出现网关 token" || ok "bridge 日志里没有网关 token"
+printf '%s\n' "$TOKEN" | grep -qF -f - "$TMP/bridge-socksh.log" 2>/dev/null && no "socks5h 桥日志里出现网关 token" || ok "socks5h 桥日志里没有网关 token"
+printf '%s\n' "$TOKEN" | grep -qF -f - "$TMP/bridge-socks.log" 2>/dev/null && no "socks5 桥日志里出现网关 token" || ok "socks5 桥日志里没有网关 token"
 
 if grep -qF "$UP_PASS" "$TMP/bridge.log" 2>/dev/null || grep -qF "$UP_PASS" "$TMP/fake.log" 2>/dev/null; then
   no "bridge/fake 日志出现上游密码"

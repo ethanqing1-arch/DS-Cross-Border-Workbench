@@ -128,7 +128,7 @@ L2_DIRS="$(find "$L2_WORKSPACE" -mindepth 1 -type d | wc -l | tr -d ' ')"
 L2_SKILL_FILES="$(find "$L2_SKILLS" -mindepth 2 -type f | wc -l | tr -d ' ')"
 EXPECTED_FILES=$((L2_FILES+L2_SKILL_FILES))
 EXPECTED_WRITES=$((EXPECTED_FILES+L2_DIRS))
-OUT="$(GATEWAY_TOKEN= bash "$SRC/l2/install.sh" "$WS" 2>&1)"; RC=$?
+OUT="$(bash "$SRC/l2/install.sh" "$WS" 2>&1)"; RC=$?
 printf '%s\n' "$OUT" | grep -E '^(== 汇总|INSTALL)' | sed 's/^/    /'
 [ "$RC" -eq 0 ] && ok "L2 install 退出码 0" || bad "L2 install 退出码 $RC"
 if printf '%s\n' "$OUT" | grep -Fxq "== 汇总: write=$EXPECTED_WRITES skip=0 fail=0 =="; then
@@ -192,7 +192,7 @@ DIRS="$(find "$WS/95-engine/platforms" -mindepth 1 -maxdepth 1 -type d 2>/dev/nu
 # ---------------------------------------------------------------- 4. 全量 --check
 echo "-- 4. 全量 --check（不写）"
 SUM_BEFORE="$(cd "$WS" && find . -type f -print0 | sort -z | xargs -0 shasum | shasum | cut -d' ' -f1)"
-OUT="$(GATEWAY_TOKEN= bash "$SRC/l2/install.sh" "$WS" --check 2>&1)"; RC=$?
+OUT="$(bash "$SRC/l2/install.sh" "$WS" --check 2>&1)"; RC=$?
 LINE="$(printf '%s\n' "$OUT" | grep '^== CHECK' | tail -1)"
 if [ "$RC" -eq 0 ] && printf '%s\n' "$LINE" | grep -q 'would-write=0 '; then
   ok "L2 --check 幂等（${LINE}）"

@@ -56,7 +56,7 @@ gw_probe() {
   local tmp code auth
   tmp="$(mktemp)"
   if [ -n "${GATEWAY_TOKEN:-}" ]; then
-    code="$(curl -sS --max-time 3 -o "$tmp" -w '%{http_code}' -H "Authorization: Bearer ${GATEWAY_TOKEN}" "${GATEWAY_URL%/}/v1/version" 2>/dev/null)"
+    code="$(printf 'Authorization: Bearer %s\n' "$GATEWAY_TOKEN" | curl -sS --max-time 3 -o "$tmp" -w '%{http_code}' -H @- "${GATEWAY_URL%/}/v1/version" 2>/dev/null)"
   else
     code="$(curl -sS --max-time 3 -o "$tmp" -w '%{http_code}' "${GATEWAY_URL%/}/v1/version" 2>/dev/null)"
   fi

@@ -26,7 +26,7 @@ trap 'exit 1' HUP INT TERM
 
 echo "== dsh-ecom 业务流冒烟 =="
 for layer in l1 l2; do
-  if ! OUT="$(GATEWAY_TOKEN= bash "$SRC/$layer/install.sh" "$WS" 2>&1)"; then
+  if ! OUT="$(bash "$SRC/$layer/install.sh" "$WS" 2>&1)"; then
     bad "$layer 安装失败"
     printf '%s\n' "$OUT"
     finish

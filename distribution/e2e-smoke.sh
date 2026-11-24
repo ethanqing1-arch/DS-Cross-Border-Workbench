@@ -564,7 +564,7 @@ if [ "$FARM_DIRTY2" -le "$FARM_DIRTY1" ]; then
 else
   bad "farm/ 跑后多了 $((FARM_DIRTY2 - FARM_DIRTY1)) 行改动（$FARM_DIRTY1 → ${FARM_DIRTY2}，e2e 不许写 farm/）"
 fi
-if grep -rqF -- "$TOKEN" "$WS" 2>/dev/null; then
+if printf '%s\n' "$TOKEN" | grep -rqF -f - "$WS" 2>/dev/null; then
   bad "临时工作区出现 token 明文"
 else
   ok "临时工作区无 token 明文（只经环境变量传子进程）"

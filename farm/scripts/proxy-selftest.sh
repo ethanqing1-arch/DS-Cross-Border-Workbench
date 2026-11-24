@@ -320,7 +320,7 @@ else
 fi
 
 echo "== 3. 探针走桥（example.com 必须 ok）=="
-env -u UPSTREAM_PROXY HOME="${HOME:-/tmp}" PATH="$PATH" GATEWAY_TOKEN="$TOKEN" \
+GATEWAY_TOKEN="$TOKEN" env -u UPSTREAM_PROXY HOME="${HOME:-/tmp}" PATH="$PATH" \
   node "$PROBE" --url 'https://example.com/' --proxy "http://127.0.0.1:$PORT" \
   --cache-bust --timeout-ms "$TIMEOUT_MS" >"$TMP/probe1.json" 2>"$TMP/probe1.err"
 rc1=$?
@@ -333,7 +333,7 @@ fi
 
 echo "== 4. 目标站经桥探一次（blocked 记 INFO，不算 FAIL）=="
 echo "  INFO target=$TEST_TARGET"
-env -u UPSTREAM_PROXY HOME="${HOME:-/tmp}" PATH="$PATH" GATEWAY_TOKEN="$TOKEN" \
+GATEWAY_TOKEN="$TOKEN" env -u UPSTREAM_PROXY HOME="${HOME:-/tmp}" PATH="$PATH" \
   node "$PROBE" --url "$TEST_TARGET" --proxy "http://127.0.0.1:$PORT" \
   --cache-bust --timeout-ms "$TIMEOUT_MS" >"$TMP/probe2.json" 2>"$TMP/probe2.err"
 rc2=$?
@@ -363,7 +363,7 @@ for f in "$TMP/bridge.log" "$TMP/probe1.json" "$TMP/probe1.err" "$TMP/probe2.jso
   if [ -n "$UP_USER" ] && grep -Fq "$UP_USER:" "$f"; then leak=$((leak + 1)); fi
 done
 if [ "$leak" -eq 0 ]; then ok "凭据 grep 0（桥日志/探针输出/curl/假上游）"; else no "凭据出现在输出里（命中 $leak 处）"; fi
-if grep -Fq "$TOKEN" "$TMP/bridge.log" 2>/dev/null; then no "网关 token 出现在桥日志"; else ok "网关 token 未出现在任何输出"; fi
+if printf '%s\n' "$TOKEN" | grep -Fq -f - "$TMP/bridge.log" 2>/dev/null; then no "网关 token 出现在桥日志"; else ok "网关 token 未出现在任何输出"; fi
 
 echo "== 汇总: PASS=$PASS FAIL=$FAIL WARN=$WARN INFO=$INFO =="
 if [ "$FAIL" -gt 0 ]; then
