@@ -239,10 +239,10 @@ GATEWAY_TOKEN="$DSH_SECRET_GATEWAY_TOKEN" bash distribution/e2e-smoke.sh   # 要
 cd farm && bash scripts/acceptance.sh --with-browser                        # 跑前先 --stop 真网关（同端口）
 ```
 
-README 里 2026-11-23 的快照基线（数字会随覆盖变化，以脚本实际输出为准）：
+README 里 2026-11-24 的快照基线（数字会随覆盖变化，以脚本实际输出为准）：
 
 ```
-farm/scripts/acceptance.sh --with-browser  PASS=67 FAIL=0 WARN=0 / READY
+farm/scripts/acceptance.sh --with-browser  PASS=69 FAIL=0 WARN=0 / READY
 distribution/verify.sh                     PASS=61 FAIL=0 WARN=0 / READY
 distribution/e2e-smoke.sh                  PASS=34 FAIL=0 WARN=1 / READY
 ```

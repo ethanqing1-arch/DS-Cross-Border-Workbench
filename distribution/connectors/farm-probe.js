@@ -461,7 +461,15 @@ function writeArtifacts(out, args, exitCode) {
     });
     const g = goto.data || {};
     if (goto.isError || g.status !== 'succeeded' || !g.result || g.result.ok !== true) {
-      out.error = { code: 'E_GOTO', message: 'goto 未成功', detail: redact(goto.text).slice(0, 800) };
+      /* 契约 3：失败的 goto 只带 error{}，没有 result/final_url。
+         没成功导航就不可能是缓存命中，cache_hit 记 false（不是 null）。 */
+      out.nav = { transfer_size: null, decoded_body_size: null, duration: null, response_status: null, cache_hit: false };
+      const ge = g.error || {};
+      out.error = {
+        code: ge.code || 'E_GOTO',
+        message: ge.message || 'goto 未成功',
+        detail: redact(goto.text).slice(0, 800),
+      };
       finish('error', EXIT.error);
       return;
     }
@@ -477,7 +485,8 @@ function writeArtifacts(out, args, exitCode) {
       timeout_ms: args.timeoutMs,
       wait_ms: args.timeoutMs + 15000,
     });
-    const nv = (navRes.data && navRes.data.result) || null;
+    const navResult = (navRes.data && navRes.data.result) || null;
+    const nv = (navResult && navResult.value) || navResult;   // 契约 3：eval 返回 {ok,value}；兼容旧形状
     if (navRes.isError || !navRes.data || navRes.data.status !== 'succeeded' || !nv) {
       out.error = { code: 'E_NAV_TIMING', message: 'navigation timing 取不到', detail: redact(navRes.text).slice(0, 800) };
       finish('error', EXIT.error);
@@ -524,7 +533,8 @@ function writeArtifacts(out, args, exitCode) {
       timeout_ms: args.timeoutMs,
       wait_ms: args.timeoutMs + 15000,
     });
-    const evData = (ev.data && ev.data.result) || null;
+    const evResult = (ev.data && ev.data.result) || null;
+    const evData = (evResult && evResult.value) || evResult;   // 契约 3：eval 返回 {ok,value}；兼容旧形状
     const pageTitle = (evData && evData.title) || '';
     const pageText = (evData && evData.text) || '';
     const pageUrl = (evData && evData.url) || out.final_url || '';
@@ -578,7 +588,8 @@ function writeArtifacts(out, args, exitCode) {
         timeout_ms: args.timeoutMs,
         wait_ms: args.timeoutMs + 15000,
       });
-      const lr = (listRes.data && listRes.data.result) || null;
+      const listResult = (listRes.data && listRes.data.result) || null;
+      const lr = (listResult && listResult.value) || listResult;   // 契约 3：eval 返回 {ok,value}；兼容旧形状
       if (listRes.isError || !listRes.data || listRes.data.status !== 'succeeded' || !lr) {
         out.error = { code: 'E_LIST', message: '列表模式 eval 未成功', detail: redact(listRes.text).slice(0, 800) };
         finish('error', EXIT.error);

@@ -295,7 +295,8 @@ async function callTool(mcp, name, args) {
         session_id: sessionId, type: 'eval',
         params: { expr: navExpr }, wait_ms: 60000,
       });
-      const nv = (nav.data && nav.data.result) || {};
+      const navResult = (nav.data && nav.data.result) || {};
+      const nv = (navResult && navResult.value) || navResult;   // 契约 3：eval 返回 {ok,value}；兼容旧形状
       report.nav.transfer_size = nv.transfer_size === undefined ? null : nv.transfer_size;
       report.nav.decoded_body_size = nv.decoded_body_size === undefined ? null : nv.decoded_body_size;
       report.nav.duration = nv.duration === undefined ? null : nv.duration;
@@ -523,11 +524,10 @@ JSON
     const m = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
     const lines = fs.readFileSync(process.argv[3], "utf8").trim().split("\n").filter(Boolean).length;
     const ok = r.status === "error" && r.error && r.error.code === "E_GOTO"
-      && /^chrome-error:\/\//.test(String(r.final_url || ""))
       && m.cache_hit === false && lines === 0;
     process.exit(ok ? 0 : 1);
   ' "$TMP/probe.json" "$TMP/probe-offline.jsonl.meta.json" "$TMP/probe-offline.jsonl" 2>/dev/null; then
-    ok "离网 127.0.0.1:1 → E_GOTO（不是 E_CACHE_HIT）、meta.cache_hit=false、JSONL 0 行"
+    ok "离网 127.0.0.1:1 → E_GOTO（不是 E_CACHE_HIT）、meta.cache_hit=false、JSONL 0 行（final_url 可缺失）"
   else
     bad "离网分类异常（RC=${RC}）$(node -e 'try{const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const m=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));console.log("status="+r.status+" code="+((r.error&&r.error.code)||"-")+" final_url="+(r.final_url||"-")+" cache_hit="+m.cache_hit)}catch(e){console.log("无产物")}' "$TMP/probe.json" "$TMP/probe-offline.jsonl.meta.json" 2>/dev/null)"
   fi

@@ -132,6 +132,7 @@ stdout **只有一段 JSON**（诊断信息一律走 stderr）：
 - **禁止返回 `ok` + `items: []`**；取不到东西必须落到 `blocked`（有证据）或 `empty`。
 - **判定顺序固定**：blocked（标题/正文/URL）→ HTTP 状态码 → items 提取。**blocked 压过一切**，不许出现「`ok` 但标题是 Robot or human?」；`ok` 只在未拦截、状态码 <400、且 `item_count ≥ 1` 时出现。
 - **缓存不算取数**：页面来自磁盘缓存时 `performance.getEntriesByType('navigation')[0].transferSize === 0`。此时不做 `blocked/empty` 判定，直接 `status: "error"`、`error.code = "E_CACHE_HIT"`、退出码 1；加 `--cache-bust` 重跑（`final_url` 会带 `_cb=` 参数，属正常）。这样「没真上网也返回 ok」的假绿被堵死。**错误页不是缓存**：`final_url` 以 `chrome-error://` 开头时先判 `E_GOTO`（`meta.cache_hit` 记 `false`）——那是出口/网络不通或目标不可达，别按缓存排障。
+- **goto 失败一律 `E_GOTO` + `meta.cache_hit=false`**：契约 3 起失败任务只返回 `error{}`，没有 `result`/`final_url`；这不是缓存问题，`final_url` 可能缺失。
 - **单页模式**（无 `--list`）：`items` 是一条记录（`[fields]` 或 `[]`），`fields/missing` 是抽取结果。
 - **列表模式**（`--list <容器CSS>`）：`items` 是多条记录；`item_count` 是真正取到字段的条数，`container_count` 是容器命中数（全空卡片被剔除，所以两者可能不同）；`fields/missing` 为 `null`。
 - 命中拦截时不再取数（被拦页面取出来的也是空值，跑了只会混淆）；`fields/items` 为 `null/[]`。

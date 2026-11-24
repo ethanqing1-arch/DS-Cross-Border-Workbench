@@ -122,7 +122,7 @@ GATEWAY_URL=http://127.0.0.1:19671 GATEWAY_TOKEN="$DSH_SECRET_GATEWAY_TOKEN" \
 | `ok` | 0 | 未拦截 + 主文档 <400 + `item_count ≥ 1` | 取 `fields`；字段真命中才回填预设 |
 | `blocked` | 2 | 标题/正文/URL 命中拦截特征（**压过 items**） | 先看 `evidence.matched`，见第 7 节 |
 | `empty` | 3 | 页面正常但 `item_count = 0` | 查 `container_count`：0 是选择器不对；>0 是字段选择器空（SPA 壳、懒加载） |
-| `error` | 1 | 看 `error.code` | `E_GOTO` 导航失败（`final_url=chrome-error://…` 也归这里：出口/网络不通，不是缓存）；`E_NOT_FOUND` 主文档 404（URL 选错）；`E_CACHE_HIT` 加 `--cache-bust`；`E_PLATFORM_INCOMPLETE` 预设缺字段；`E_NO_TOKEN` 令牌没传进去 |
+| `error` | 1 | 看 `error.code` | `E_GOTO` 导航失败（含契约 3 的 `error{}`、以及 `final_url=chrome-error://…`：出口/网络不通，不是缓存；`cache_hit` 记 `false`，`final_url` 可能缺失）；`E_NOT_FOUND` 主文档 404（URL 选错）；`E_CACHE_HIT` 加 `--cache-bust`；`E_PLATFORM_INCOMPLETE` 预设缺字段；`E_NO_TOKEN` 令牌没传进去 |
 
 `container_count` 比 `item_count` 大是正常的（空卡片），比如 amazon 22 个容器 / 20 条数据。
 
