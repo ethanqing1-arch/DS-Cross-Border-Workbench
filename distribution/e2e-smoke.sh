@@ -21,6 +21,7 @@
 #
 # 边界：只写 mktemp 工作区；farm 只新增/更新一行默认租户会话（收尾删除，台账保留）。
 # 硬闸：网关探不通直接 FAIL（与 verify.sh 的 WARN 口径不同）。
+# 并发：已有浏览器自检时输出 RESULT: SKIPPED，退出 3。
 # =============================================================================
 set -uo pipefail
 
@@ -32,7 +33,7 @@ KEEP=0
 for arg in "$@"; do
   case "$arg" in
     --keep) KEEP=1 ;;
-    -h|--help) sed -n '3,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '3,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "未知参数：${arg}（可用 --keep）" >&2; exit 2 ;;
   esac
 done
@@ -41,6 +42,80 @@ PASS=0; FAIL=0; WARN=0
 ok()   { PASS=$((PASS+1)); echo "  PASS $*"; }
 bad()  { FAIL=$((FAIL+1)); echo "  FAIL $*"; }
 warn() { WARN=$((WARN+1)); echo "  WARN $*"; }
+
+GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:19671}"
+TOKEN="${GATEWAY_TOKEN:-${DSH_SECRET_GATEWAY_TOKEN:-}}"
+if [ -z "$TOKEN" ]; then
+  echo "FAIL GATEWAY_TOKEN 未设置（也可用 DSH_SECRET_GATEWAY_TOKEN）"
+  exit 2
+fi
+export GATEWAY_TOKEN="$TOKEN"
+TOKEN_LEN=${#TOKEN}
+
+print_intro() {
+  echo "== dsh-ecom e2e 冒烟 =="
+  echo "仓库：$ROOT"
+  echo "网关：$GATEWAY_URL"
+  [ -z "${WS:-}" ] || echo "临时工作区：$WS"
+  echo "-- 0. 网关硬闸（探不通直接 FAIL）"
+  [ "$TOKEN_LEN" -ge 32 ] || warn "GATEWAY_TOKEN 长度 $TOKEN_LEN < 32（建议 openssl rand -hex 32；本次照跑）"
+}
+
+# ---------------------------------------------------------------- 0. 网关硬闸
+HCODE="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "${GATEWAY_URL%/}/v1/health" 2>/dev/null || true)"
+if [ "$HCODE" != "200" ]; then
+  print_intro
+  bad "网关不可达或未就绪（${GATEWAY_URL%/}/v1/health HTTP=${HCODE:-000}）"
+  echo
+  echo "== 汇总: PASS=$PASS FAIL=$FAIL WARN=$WARN =="
+  echo "RESULT: NOT_READY（网关硬闸未过，后续未跑）"
+  exit 1
+fi
+
+# ---------------------------------------------------------------- 并发前置探测
+# 只读打开脚本本身作锁，文件描述符由本次运行持有，无需创建锁文件。
+exec 9<"$SRC/e2e-smoke.sh" || { echo "FAIL 无法打开 e2e 自检锁"; exit 2; }
+if command -v flock >/dev/null 2>&1; then
+  flock -n -E 3 9
+else
+  # macOS 没有自带 flock 命令。Perl 对同一个描述符调用系统的非阻塞排他锁。
+  perl -MFcntl=:flock -e '
+    open my $lock, "<&=9" or die "打开 e2e 自检锁: $!\n";
+    exit 0 if flock($lock, LOCK_EX | LOCK_NB);
+    exit 3 if $!{EWOULDBLOCK};
+    die "获取 e2e 自检锁: $!\n";
+  '
+fi
+LOCK_RC=$?
+case "$LOCK_RC" in
+  0|3) ;;
+  *) echo "FAIL 无法获取 e2e 自检锁（exit=$LOCK_RC）"; exit 2 ;;
+esac
+
+# exec 避免命令替换的子 shell 在快照里重复显示本脚本。
+PS_SNAPSHOT="$(exec ps -Ao pid=,command=)" || { echo "FAIL 无法读取浏览器自检进程"; exit 2; }
+BROWSER_CHECK_PIDS="$(awk -v self="$$" -v parent="$PPID" '
+  $1 == self || $1 == parent { next }
+  {
+    script = 2
+    if ($script ~ /(^|\/)(bash|sh|zsh)$/) {
+      script++
+      while (script <= NF && $script ~ /^-/) {
+        if ($script ~ /^-[^-]*c/) next
+        script++
+      }
+    }
+    if ($script ~ /(^|\/)(acceptance|test-proxy-bridge|proxy-selftest|e2e-smoke)\.sh$/) {
+      printf "%s%s", separator, $1
+      separator = ", "
+    }
+  }
+' <<< "$PS_SNAPSHOT")" || { echo "FAIL 无法识别浏览器自检进程"; exit 2; }
+if [ "$LOCK_RC" -eq 3 ] || [ -n "$BROWSER_CHECK_PIDS" ]; then
+  echo "SKIP 检测到并发的浏览器自检（pid ${BROWSER_CHECK_PIDS:-未能确认}），e2e 必须单跑"
+  echo "RESULT: SKIPPED"
+  exit 3
+fi
 
 TMP="$(mktemp -d /tmp/dsh-ecom-e2e.XXXXXX)" || { echo "FAIL 无法创建临时目录"; exit 2; }
 WS="$TMP/workspace"
@@ -54,34 +129,8 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
-
-GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:19671}"
-TOKEN="${GATEWAY_TOKEN:-${DSH_SECRET_GATEWAY_TOKEN:-}}"
-if [ -z "$TOKEN" ]; then
-  echo "FAIL GATEWAY_TOKEN 未设置（也可用 DSH_SECRET_GATEWAY_TOKEN）"
-  exit 2
-fi
-export GATEWAY_TOKEN="$TOKEN"
-TOKEN_LEN=${#TOKEN}
-
-echo "== dsh-ecom e2e 冒烟 =="
-echo "仓库：$ROOT"
-echo "网关：$GATEWAY_URL"
-echo "临时工作区：$WS"
-
-# ---------------------------------------------------------------- 0. 网关硬闸
-echo "-- 0. 网关硬闸（探不通直接 FAIL）"
-[ "$TOKEN_LEN" -ge 32 ] || warn "GATEWAY_TOKEN 长度 $TOKEN_LEN < 32（建议 openssl rand -hex 32；本次照跑）"
-HCODE="$(curl -sS --max-time 5 -o "$TMP/health.json" -w '%{http_code}' "${GATEWAY_URL%/}/v1/health" 2>/dev/null || true)"
-if [ "$HCODE" = "200" ]; then
-  ok "网关可达（${GATEWAY_URL%/}/v1/health 200）"
-else
-  bad "网关不可达或未就绪（${GATEWAY_URL%/}/v1/health HTTP=${HCODE:-000}）"
-  echo
-  echo "== 汇总: PASS=$PASS FAIL=$FAIL WARN=$WARN =="
-  echo "RESULT: NOT_READY（网关硬闸未过，后续未跑）"
-  exit 1
-fi
+print_intro
+ok "网关可达（${GATEWAY_URL%/}/v1/health 200）"
 
 # ---------------------------------------------------------------- 1. 边界快照
 echo "-- 1. 边界快照"

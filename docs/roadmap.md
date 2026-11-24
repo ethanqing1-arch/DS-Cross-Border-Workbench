@@ -2,7 +2,7 @@
 
 日期：2026-11-24 (Asia/Shanghai)
 依据：[产品化方案 v1](dsh-ecom-productization-plan.md) + 2026-11-24 缺口核查（核查命令见文末附录）
-状态为阶段 0 的 0.1–0.4 已完成，清残留仍待授权。阶段 1–4 各有前置条件。
+阶段 0 的 0.1–0.4 已完成，0.5 已删除 7 个孤儿 profile 目录，台账清理另行安排。阶段 1–4 各有前置条件。
 
 ## 0 一句话目标
 
@@ -38,7 +38,7 @@
 | 0.2 | L3 版本闸 | `distribution/l3/install.sh` 增 `/v1/version` 比对，复用 L2 的 `ver_ge`；负例：把平台包 `requires["browser-farm"]` 抬到 `99.0.0` 必须 FAIL | 农场版本不够也照装，报错会晚到且难查 | S |
 | 0.3 | Camoufox 任务对齐 | `farm/camoufox_worker.py` 先补 `extract` + `wait`（Playwright 原生能力），再补 `click` + `type`；同步 `farm/contract.js:35` 的 tasks 4 项 → 8 项 | 同一份契约下两个引擎只能跑一半任务，上层不敢用 camoufox | M×2 |
 | 0.4 | 文档校准 | 产品化方案 §5 的 M1 状态（第 6 件未做）、§5.2 台账数字（写「10 行」，实际 5 行）；README 已指向本规划 | 规划与实际漂移，后来人会照着错的数看 | S |
-| 0.5 | 清残留（**需用户点头**） | 删 `farm/profiles/` 下 `probe:health:chrome`、`probe:health:chromium`、`default:m1-*`（4 个）、`default:verify-01`；台账 4 个 stopped 测试账号用 `farm/scripts/ledger-clean.sh` 清 | 只影响整洁与误判，不影响功能；但动台账必须用户批准 | S |
+| 0.5 | 清残留 | 已删除 `farm/profiles/` 下 7 个孤儿目录。保留 `default:e2e-smoke` 供 e2e 自检。 | `default:chief-probe`、`default:diag-shape`、`default:diag-dead` 这 3 个 stopped 测试账号留待另行安排。`farm/scripts/ledger-clean.sh` 的两道拒删闸当前都触发。一是 19671 或 19555 有服务监听，当前两端口均在监听。二是台账有 `running` 行或存活 PID，当前 `default:mkt-probe-amazon` 仍在运行。待运行会话结束、相关 PID 退出且服务停止后再清理。 | S |
 
 验收：
 
