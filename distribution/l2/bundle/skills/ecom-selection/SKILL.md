@@ -51,7 +51,8 @@ metadata:
 
 ## 素材与命令
 
-工作区 `~/Desktop/dsh-ecom`：
+所有相对路径（`data/…`、`scripts/…`、`out/…`）以**当前 Bot 的 work_dir（团队工作区根）**为基准，不是 shell 的 cwd；
+Bot 没有独立 work_dir 时，用团队工作区根。
 
 - 输入 `data/candidates.csv`（列：品类/商品名/1688进价/预估售价/运费/推广费率/平均退货率/月搜索量/在售竞品数/头部评论数/供应稳定性分/差异化点）
 - 跑 `python3 scripts/score_products.py`（`--top N` / `--category 宠物`）

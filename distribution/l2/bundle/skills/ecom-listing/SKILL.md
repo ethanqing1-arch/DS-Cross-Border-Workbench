@@ -47,7 +47,8 @@ metadata:
 
 ## 素材与命令
 
-工作区 `~/Desktop/dsh-ecom`：
+所有相对路径（`data/…`、`scripts/…`、`out/…`）以**当前 Bot 的 work_dir（团队工作区根）**为基准，不是 shell 的 cwd；
+Bot 没有独立 work_dir 时，用团队工作区根。
 
 - 输入 `data/products.csv`（SKU/商品名/类目/规格/售价/进价/运费/库存/主图数/卖点1-3/目标人群）
 - 跑 `python3 scripts/gen_listing.py`（`--sku HM-001`）

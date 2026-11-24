@@ -2,7 +2,7 @@
 
 跨境电商 AI 工作台的**能力层与交付层**：把浏览器指纹农场抽成可被任意 bot 调用的共享能力（DSH capability），再把业务侧打成 L1 → L2 → L3 三层可安装包，最后补上「取页 → 判定 → 落文件」的取数通路。
 
-配套的 DSH fork 在 [`ethanqing1-arch/deepseek-harness`](https://github.com/ethanqing1-arch/deepseek-harness)（MIT，独立仓，不设 submodule）。本仓不打包 DS Bot 应用本身。
+配套的 DSH fork 在 [`ethanqing1-arch/deepseek-harness`](https://github.com/ethanqing1-arch/deepseek-harness)（MIT，独立仓，不设 submodule），本仓验证所用版本固定为 `4b399c39a6`（dsh 0.2.3-alpha.2，2026-11-22）。本仓不打包 DS Bot 应用本身。
 
 ## 目录
 

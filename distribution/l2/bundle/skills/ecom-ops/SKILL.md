@@ -53,7 +53,8 @@ metadata:
 
 ## 素材与命令
 
-工作区 `~/Desktop/dsh-ecom`：
+所有相对路径（`data/…`、`scripts/…`、`out/…`）以**当前 Bot 的 work_dir（团队工作区根）**为基准，不是 shell 的 cwd；
+Bot 没有独立 work_dir 时，用团队工作区根。
 
 - `data/orders.csv`（日期/订单号/SKU/数量/实付金额/推广费分摊/退款金额/状态/渠道/买家ID）
 - `data/products.csv`（算成本要用）

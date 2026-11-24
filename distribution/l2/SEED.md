@@ -19,10 +19,10 @@
 | `instructions` | `bots[i].instructions`（原文） |
 | `section` | `"跨境电商"` |
 | `model` / `effort` | 不传（用团队默认） |
-| `work_dir` | 只有 `Dev` 传 `bots[i].work_dir`（技术线在独立目录，不在团队工作区）；其余不传（继承团队工作区） |
+| `work_dir` | 只有 `Dev` 传：把 `bots[i].work_dir` 的 `<本机 …>` 占位符替换成这台机器上仓库的绝对路径（技术线不在团队工作区）；没克隆仓库就不传（继承团队工作区，并在自检里记为待补）。其余 10 个不传（继承团队工作区） |
 
 必须建满 11 个：Chief、Scout、Source、Margin、Copy、Ads、Care、Compliance、Metrics、Visual、Dev。
-建完自检：`list_bots` 里这 11 个都在，且 role 与表一致；`Dev` 的 work_dir 是它自己的技术目录，不是团队工作区。
+建完自检：`list_bots` 里这 11 个都在，且 role 与表一致；`Dev` 的 work_dir 是这台机器上真实存在的仓库目录（没克隆仓库时为继承团队工作区，需记为待补），不是占位符本身。
 
 ## 2. 建 5 个群（bot 建完再建）
 

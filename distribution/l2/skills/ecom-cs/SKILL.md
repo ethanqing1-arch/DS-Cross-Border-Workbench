@@ -55,7 +55,8 @@ metadata:
 
 ## 素材与命令
 
-工作区 `~/Desktop/dsh-ecom`：
+所有相对路径（`data/…`、`scripts/…`、`out/…`）以**当前 Bot 的 work_dir（团队工作区根）**为基准，不是 shell 的 cwd；
+Bot 没有独立 work_dir 时，用团队工作区根。
 
 - 话术库 `data/faq.json`（19 意图 + escalate 风险词 + fallback）
 - 消息 `data/messages.csv`（时间/买家ID/订单金额/消息）
