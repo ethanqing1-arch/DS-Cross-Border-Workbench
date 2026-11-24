@@ -58,7 +58,7 @@ metadata:
 所有相对路径（`data/…`、`scripts/…`、`out/…`）以**当前 Bot 的 work_dir（团队工作区根）**为基准，不是 shell 的 cwd；
 Bot 没有独立 work_dir 时，用团队工作区根。
 
-- 随包：`scripts/` 下 4 个脚本与 `data/faq.json` 由 L2 装进工作区（本 skill 用 `cs_router.py`）；`data/messages.csv` 需自行导出
+- 随包：`scripts/` 下 4 个脚本与 `data/faq.json` 由 L2 装进工作区（本 skill 用 `cs_router.py`）。随包带 `data/messages.sample.csv` 样例，真数据请自行导出到 `data/messages.csv`，覆盖已有的同名输入文件。
 - 话术库 `data/faq.json`（19 意图 + escalate 风险词 + fallback）
 - 消息 `data/messages.csv`（时间/买家ID/订单金额/消息）
 - 跑 `python3 scripts/cs_router.py`

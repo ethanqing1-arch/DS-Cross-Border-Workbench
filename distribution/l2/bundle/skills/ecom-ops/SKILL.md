@@ -56,7 +56,7 @@ metadata:
 所有相对路径（`data/…`、`scripts/…`、`out/…`）以**当前 Bot 的 work_dir（团队工作区根）**为基准，不是 shell 的 cwd；
 Bot 没有独立 work_dir 时，用团队工作区根。
 
-- 随包：`scripts/` 下 4 个脚本与 `data/faq.json` 由 L2 装进工作区（本 skill 用 `ops_report.py`）；`data/orders.csv`、`data/products.csv` 需自行导出
+- 随包：`scripts/` 下 4 个脚本与 `data/faq.json` 由 L2 装进工作区（本 skill 用 `ops_report.py`）。随包带 `data/orders.sample.csv`、`data/products.sample.csv` 样例，真数据请自行导出到 `data/orders.csv`、`data/products.csv`，覆盖已有的同名输入文件。
 - `data/orders.csv`（日期/订单号/SKU/数量/实付金额/推广费分摊/退款金额/状态/渠道/买家ID）
 - `data/products.csv`（算成本要用）
 - 跑 `python3 scripts/ops_report.py --days 7`

@@ -50,7 +50,7 @@ metadata:
 所有相对路径（`data/…`、`scripts/…`、`out/…`）以**当前 Bot 的 work_dir（团队工作区根）**为基准，不是 shell 的 cwd；
 Bot 没有独立 work_dir 时，用团队工作区根。
 
-- 随包：`scripts/` 下 4 个脚本与 `data/faq.json` 由 L2 装进工作区（本 skill 用 `gen_listing.py`）；`data/products.csv` 需自行导出
+- 随包：`scripts/` 下 4 个脚本与 `data/faq.json` 由 L2 装进工作区（本 skill 用 `gen_listing.py`）。随包带 `data/products.sample.csv` 样例，真数据请自行导出到 `data/products.csv`，覆盖已有的同名输入文件。
 - 输入 `data/products.csv`（SKU/商品名/类目/规格/售价/进价/运费/库存/主图数/卖点1-3/目标人群）
 - 跑 `python3 scripts/gen_listing.py`（`--sku HM-001`）
 - 产出：`out/上架包/<SKU>_<名>.md`、`out/合规检测报告.md`、`out/平台导入表.csv`、`out/上下架台账.csv`

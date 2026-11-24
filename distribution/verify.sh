@@ -6,7 +6,7 @@
 #   bash verify.sh            # 跑完清掉临时目录
 #   bash verify.sh --keep     # 保留临时目录，便于事后看现场
 #
-# 流程：临时目录里依次 L2 → 7 个平台 → 全量 --check → 空目录负例（必须 FAIL 且 0 写入），
+# 流程：临时目录里依次 L2 → 7 个平台 → 全量 --check → 空目录与农场版本闸负例，
 #       最后打 PASS/FAIL/WARN 汇总、RESULT 与退出码（0 / 1）。
 #
 # 边界：只写 mktemp 目录；不碰 ~/ds-bot-workspace、不碰 DS Bot 状态、不碰 farm。
@@ -128,7 +128,7 @@ L2_DIRS="$(find "$L2_WORKSPACE" -mindepth 1 -type d | wc -l | tr -d ' ')"
 L2_SKILL_FILES="$(find "$L2_SKILLS" -mindepth 2 -type f | wc -l | tr -d ' ')"
 EXPECTED_FILES=$((L2_FILES+L2_SKILL_FILES))
 EXPECTED_WRITES=$((EXPECTED_FILES+L2_DIRS))
-OUT="$(bash "$SRC/l2/install.sh" "$WS" 2>&1)"; RC=$?
+OUT="$(GATEWAY_TOKEN= bash "$SRC/l2/install.sh" "$WS" 2>&1)"; RC=$?
 printf '%s\n' "$OUT" | grep -E '^(== 汇总|INSTALL)' | sed 's/^/    /'
 [ "$RC" -eq 0 ] && ok "L2 install 退出码 0" || bad "L2 install 退出码 $RC"
 if printf '%s\n' "$OUT" | grep -Fxq "== 汇总: write=$EXPECTED_WRITES skip=0 fail=0 =="; then
@@ -192,7 +192,7 @@ DIRS="$(find "$WS/95-engine/platforms" -mindepth 1 -maxdepth 1 -type d 2>/dev/nu
 # ---------------------------------------------------------------- 4. 全量 --check
 echo "-- 4. 全量 --check（不写）"
 SUM_BEFORE="$(cd "$WS" && find . -type f -print0 | sort -z | xargs -0 shasum | shasum | cut -d' ' -f1)"
-OUT="$(bash "$SRC/l2/install.sh" "$WS" --check 2>&1)"; RC=$?
+OUT="$(GATEWAY_TOKEN= bash "$SRC/l2/install.sh" "$WS" --check 2>&1)"; RC=$?
 LINE="$(printf '%s\n' "$OUT" | grep '^== CHECK' | tail -1)"
 if [ "$RC" -eq 0 ] && printf '%s\n' "$LINE" | grep -q 'would-write=0 '; then
   ok "L2 --check 幂等（${LINE}）"
@@ -226,6 +226,38 @@ printf '%s' "$OUT" | grep -q 'FAIL 目标目录未装 L2' \
   || bad "空目录失败原因不符：$(printf '%s\n' "$OUT" | grep FAIL | tail -1 || echo 无 FAIL 行)"
 EFILES="$(find "$E" -type f | wc -l | tr -d ' ')"
 [ "$EFILES" -eq 0 ] && ok "空目录 0 写入" || bad "空目录写了 $EFILES 个文件"
+
+# ---------------------------------------------------------------- 5a. 农场版本闸负例
+echo "-- 5a. 负例：农场版本不满足必须 FAIL 且 0 写入"
+NEG_L3="$TMP/l3-version-negative"
+NEG_TARGET="$TMP/version-negative-target"
+if mkdir -p "$NEG_L3/platforms" "$NEG_TARGET" &&
+   cp "$SRC/l3/"{install.sh,list-platform-files.sh,check-bundle-skills.js,manifest.json} "$NEG_L3/" &&
+   cp -R "$SRC/l3/schema" "$NEG_L3/" &&
+   cp -R "$SRC/l3/platforms/ebay" "$NEG_L3/platforms/" &&
+   node -e '
+const fs = require("fs");
+const file = process.argv[1];
+const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+manifest.requires["browser-farm"] = "99.0.0";
+fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+' "$NEG_L3/platforms/ebay/manifest.json"; then
+  OUT="$(bash "$NEG_L3/install.sh" ebay "$NEG_TARGET" 2>&1)"; RC=$?
+  if [ -n "$(find "$NEG_TARGET" -mindepth 1 -print -quit)" ]; then
+    bad "L3 农场版本闸负例写入了目标目录"
+  elif [ "$RC" -ne 0 ] && printf '%s\n' "$OUT" | grep -q '^FAIL browser-farm .* < 要求 99\.0\.0$'; then
+    printf '%s\n' "$OUT" | grep '^FAIL browser-farm ' | sed 's/^/    /'
+    ok "L3 农场版本闸负例（rc=$RC，目标 0 写入）"
+  elif [ "$RC" -ne 0 ] && printf '%s\n' "$OUT" | grep -q '^FAIL 目标目录未装 L2' &&
+       printf '%s\n' "$OUT" | grep -q '^WARN .*跳过版本闸$'; then
+    warn "L3 农场版本闸负例跳过：$(printf '%s\n' "$OUT" | grep '^WARN .*跳过版本闸$')"
+  else
+    bad "L3 农场版本闸负例未按预期失败（rc=$RC）"
+    printf '%s\n' "$OUT" | sed 's/^/    /'
+  fi
+else
+  bad "无法准备 L3 农场版本闸负例的平台包副本"
+fi
 
 # ---------------------------------------------------------------- 6. 取页器与平台预设（静态）
 echo "-- 6. 取页器与平台预设（静态）"

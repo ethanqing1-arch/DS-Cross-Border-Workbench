@@ -11,6 +11,7 @@
 # 前置（目标目录已装 L2，双证）：
 #   <目标目录>/CHIEF-INIT.md
 #   <目标目录>/.dsh/skills/ecom-selection/SKILL.md
+# 环境变量：GATEWAY_URL 默认 http://127.0.0.1:19671，GATEWAY_TOKEN 可选。
 #
 # 落点：<目标目录>/95-engine/platforms/<platform>/
 #
@@ -21,7 +22,7 @@ set -uo pipefail
 SRC="$(cd "$(dirname "$0")" && pwd)"
 command -v node >/dev/null 2>&1 || export PATH="/opt/homebrew/bin:$PATH"
 
-usage() { sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '3,18p' "$0" | sed 's/^# \{0,1\}//'; }
 
 PLATFORM=""; TARGET=""; CHECK=0; FORCE=0; LIST=0
 for arg in "$@"; do
@@ -111,6 +112,71 @@ else
   echo "== 汇总: write=$WROTE skip=$SKIPPED fail=$FAILED =="
   echo "INSTALL FAILED（平台 manifest 不合法，未写任何文件）"
   exit 1
+fi
+
+# ---------------------------------------------------------------- 农场版本闸
+ver_ge() { # $1 >= $2 ?
+  local IFS=.
+  local -a a b
+  a=($1); b=($2)
+  local i ai bi
+  for i in 0 1 2; do
+    ai="${a[$i]:-0}"; bi="${b[$i]:-0}"
+    ai="${ai//[!0-9]/}"; bi="${bi//[!0-9]/}"
+    [ -n "$ai" ] || ai=0; [ -n "$bi" ] || bi=0
+    [ "$ai" -gt "$bi" ] && return 0
+    [ "$ai" -lt "$bi" ] && return 1
+  done
+  return 0
+}
+
+echo "-- 农场版本闸"
+if ! REQUIRED_FARM="$(node -e '
+const requires = require(process.argv[1]).requires;
+const version = requires["browser-farm"];
+if (version === undefined) process.exit(0);
+if (typeof version !== "string" || !/^(>=)?\d+\.\d+\.\d+$/.test(version)) process.exit(1);
+console.log(version.replace(/^>=/, ""));
+' "$PLATFORM_DIR/manifest.json" 2>/dev/null)"; then
+  echo "FAIL requires.browser-farm 不是有效的最低版本"
+  exit 1
+fi
+if [ -n "$REQUIRED_FARM" ]; then
+  GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:19671}"
+  if GW_VER="$(GATEWAY_URL="$GATEWAY_URL" node -e '
+const token = process.env.GATEWAY_TOKEN;
+const endpoint = token ? "/v1/version" : "/v1/health";
+const base = process.env.GATEWAY_URL.replace(/\/+$/, "");
+const warn = message => { console.log("WARN " + message + "，跳过版本闸"); process.exitCode = 1; };
+(async () => {
+  const response = await fetch(base + endpoint, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    redirect: "manual",
+    signal: AbortSignal.timeout(3000),
+  });
+  if (response.status !== 200) {
+    await response.body?.cancel();
+    return warn(`网关 ${endpoint} 返回 HTTP ${response.status}`);
+  }
+  const body = await response.json().catch(() => null);
+  if (typeof body?.version !== "string" || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$/.test(body.version)) {
+    return warn("网关响应无有效 version 字段");
+  }
+  console.log(body.version);
+})().catch(() => warn("网关不可达"));
+' 2>/dev/null)"; then
+    if ver_ge "${GW_VER%%[-+]*}" "$REQUIRED_FARM"; then
+      echo "PASS browser-farm ${GW_VER} >= ${REQUIRED_FARM}"
+    else
+      echo "FAIL browser-farm ${GW_VER} < 要求 ${REQUIRED_FARM}"
+      echo
+      echo "== 汇总: write=0 skip=0 fail=1 =="
+      echo "INSTALL FAILED（农场版本不满足，未写任何文件）"
+      exit 1
+    fi
+  else
+    echo "${GW_VER:-WARN 无法读取网关版本，跳过版本闸}"
+  fi
 fi
 
 # ---------------------------------------------------------------- 2. L2 前置双证
