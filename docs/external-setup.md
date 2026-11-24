@@ -244,10 +244,10 @@ README 里 2026-11-24 的快照基线（数字会随覆盖变化，以脚本实�
 ```
 farm/scripts/acceptance.sh --with-browser  PASS=70 FAIL=0 WARN=0 / READY
 distribution/verify.sh                     PASS=63 FAIL=0 WARN=0 / READY
-distribution/e2e-smoke.sh                  PASS=34 FAIL=0 WARN=0 / READY
+distribution/e2e-smoke.sh                  PASS=34 FAIL=0 WARN=1 / READY（WARN 是令牌 8 位 <32；须单跑）
 ```
 
-`e2e-smoke.sh` 的基线使用独立临时网关和由环境变量传入的测试令牌，令牌长度为 64 个十六进制字符。
+`e2e-smoke.sh` 走 `GATEWAY_URL`（默认 `http://127.0.0.1:19671`）指向的现有网关，令牌取 `GATEWAY_TOKEN` 或 `DSH_SECRET_GATEWAY_TOKEN`；令牌 <32 位时多 1 条 WARN（8 位即为本例）。它必须与其它浏览器自检错开跑：并发会因资源争抢报 `E_TIMEOUT` 假红。
 
 ---
 

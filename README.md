@@ -41,12 +41,12 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 | `farm/scripts/acceptance.sh --with-browser` | `PASS=70 FAIL=0 WARN=0` / `READY`（网关 19681，控制面 19581） |
 | `distribution/verify.sh` | `PASS=63 FAIL=0 WARN=0` / `READY` |
 | `distribution/flow-smoke.sh` | `PASS=4 FAIL=0 WARN=0` / `READY` |
-| `distribution/e2e-smoke.sh` | `PASS=34 FAIL=0 WARN=0` / `READY`（临时网关，含 `transferSize>0` 与离网 `E_GOTO` 断言） |
+| `distribution/e2e-smoke.sh` | `PASS=34 FAIL=0 WARN=1` / `READY`（临时网关，含 `transferSize>0` 与离网 `E_GOTO` 断言；WARN 是令牌 8 位 <32） |
 | `farm/scripts/test-proxy-bridge.sh` | `PASS=35 FAIL=0` / `READY`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |
-| `farm/scripts/proxy-selftest.sh --self-test` | `PASS=12 FAIL=0 WARN=0 INFO=1` / `READY`（假上游） |
+| `farm/scripts/proxy-selftest.sh --self-test` | `PASS=12 FAIL=0 WARN=1 INFO=1` / `READY`（假上游；WARN 同上，令牌长度） |
 | `farm/scripts/proxy-selftest.sh --worker-proxy` | `PASS=11 FAIL=0 WARN=0 INFO=1` / `READY`（Camoufox worker 经代理连到假上游，venv 缺失时 WARN 跳过） |
 
-计数以脚本实际输出为准。
+计数以脚本实际输出为准。两条口径：令牌 <32 位时 `e2e-smoke.sh` 与 `proxy-selftest.sh` 各多 1 条 WARN，换成 ≥32 位后归零；`e2e-smoke.sh` 必须单跑，与其它浏览器自检并发会因资源争抢报 `E_TIMEOUT` 假红（实测 32 PASS / 2 FAIL，单跑 34 PASS / 0 FAIL）。
 
 ## 关键口径
 
