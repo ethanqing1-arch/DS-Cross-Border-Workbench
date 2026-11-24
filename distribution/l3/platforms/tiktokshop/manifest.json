@@ -11,7 +11,7 @@
     "mode": "inherit-l2",
     "count": 0,
     "layers": [],
-    "note": "基线档：复用 L2 的 4 个业务 skill（ecom-selection / ecom-listing / ecom-ops / ecom-cs），不附平台专项 skill；专项 skill 后补，不影响先跑通「装一个平台」。"
+    "note": "基线档：复用 L2 安装的业务 skill，不附平台专项 skill；专项 skill 后补，不影响先跑通「装一个平台」。"
   },
   "connectors": [
     {
