@@ -534,6 +534,204 @@ else
   printf '%s\n' "$OUT" | sed 's/^/    /'
 fi
 
+SCREEN_OK="$TMP/screen-ok-fixture"
+SCREEN_OK_OUT="$TMP/screen-ok-out"
+OUT=""
+if [ ! -e "$SCREEN_FIXTURE/amazon_search_ok.json" ] && [ ! -e "$SCREEN_FIXTURE/amazon_products_ok.json" ]; then
+  warn "跳过 Amazon 真实样本需求侧断言（本轮未能取到可用样本，见 docs/amazon-throttle.md）"
+elif mkdir -p "$SCREEN_OK" &&
+     cp "$SCREEN_FIXTURE/amazon_search_ok.json" "$SCREEN_OK/amazon_search.json" &&
+     cp "$SCREEN_FIXTURE/amazon_products_ok.json" "$SCREEN_OK/amazon_products.json" &&
+     cp "$SCREEN_FIXTURE/aliexpress_search.json" "$SCREEN_OK/" &&
+     OUT="$(python3 "$SCREEN_SCRIPT" "pet slow feeder" --top 10 --from-json "$SCREEN_OK" --out "$SCREEN_OK_OUT" 2>&1)" &&
+     OUT="$(python3 - "$SCREEN_OK/amazon_search.json" "$SCREEN_OK_OUT/$SCREEN_NAME.csv" 2>&1 <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+raw = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if raw.get("error") or len(raw.get("rows", [])) != 10:
+    sys.exit("Amazon ok 搜索样本需要包含 10 条商品卡片")
+with Path(sys.argv[2]).open(encoding="utf-8", newline="") as file:
+    metrics = {row["指标"]: row for row in csv.DictReader(file)}
+for name in ("搜索结果总数", "广告密度", "评论数中位数", "评论数最大", "评论数>1000占比", "评分中位数", "价格带"):
+    row = metrics.get(name, {})
+    if row.get("证据等级") != "B" or row.get("值") in (None, "", "NA"):
+        sys.exit(f"Amazon 真实样本需求侧指标异常：{name} {row!r}")
+PY
+)"; then
+  ok "Amazon 真实样本需求侧指标均为 B 且有值"
+else
+  bad "Amazon 真实样本需求侧校验失败"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
+# ---------------------------------------------------------------- 7e. 粗筛离线重放与估算闸门
+echo "-- 7e. 粗筛离线重放与估算闸门"
+SCREEN_CAPTURE="$TMP/screen-capture"
+SCREEN_REPLAY="$TMP/screen-replay"
+if OUT="$(python3 -B - "$SCREEN_SCRIPT" "$SCREEN_FIXTURE" "$SCREEN_CAPTURE" 2>&1 <<'PY'
+import json
+import sys
+from pathlib import Path
+from subprocess import CompletedProcess
+from unittest.mock import patch
+
+script, fixture, out = map(Path, sys.argv[1:])
+sys.path.insert(0, str(script.parent))
+import screen_keyword
+
+keyword = "pet slow feeder"
+product_sequence = json.loads((fixture / "amazon_products_503.json").read_text(encoding="utf-8"))["rows"]
+products = {row["asin"]: row for row in product_sequence}
+amazon = {"keyword": keyword, "rows": [{"asin": asin} for asin in products]}
+ali = json.loads((fixture / "aliexpress_search.json").read_text(encoding="utf-8"))
+calls = []
+waits = []
+
+
+def fetch(command, **kwargs):
+    fetcher = Path(command[1]).name
+    if fetcher == "fetch_aliexpress.py":
+        payload = ali
+    elif fetcher == "fetch_amazon.py" and command[2] == "product":
+        asin = command[3]
+        if command[4:] != ["--min-interval", "5"]:
+            sys.exit(f"商品页重试未沿用默认采集间隔：{command[4:]!r}")
+        calls.append(asin)
+        payload = products[asin]
+    elif fetcher == "fetch_amazon.py":
+        payload = amazon
+    else:
+        sys.exit(f"意外调用抓取器：{fetcher}")
+    return CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
+
+
+argv = [str(script), keyword, "--top", str(len(products)), "--out", str(out)]
+with patch.object(sys, "argv", argv), patch.object(screen_keyword.subprocess, "run", side_effect=fetch):
+    with patch.object(screen_keyword.time, "sleep", side_effect=waits.append):
+        with patch.object(screen_keyword, "now", return_value="2026-02-01T12:00:00+08:00"):
+            screen_keyword.main()
+(out / "calls.json").write_text(json.dumps({"asins": calls, "waits": waits}), encoding="utf-8")
+PY
+)" &&
+   [ -s "$SCREEN_CAPTURE/raw/amazon_search.json" ] &&
+   [ -s "$SCREEN_CAPTURE/raw/amazon_products.json" ] &&
+   [ -s "$SCREEN_CAPTURE/raw/aliexpress_search.json" ] &&
+   OUT="$(python3 "$SCREEN_SCRIPT" "pet slow feeder" --top 6 --from-json "$SCREEN_CAPTURE/raw" --out "$SCREEN_REPLAY" 2>&1)" &&
+   cmp -s "$SCREEN_CAPTURE/$SCREEN_NAME.csv" "$SCREEN_REPLAY/$SCREEN_NAME.csv"; then
+  ok "粗筛在线路径落盘三份 raw，离线重放 CSV 逐字一致"
+else
+  bad "粗筛 raw 落盘或离线重放 CSV 不一致"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
+if OUT="$(python3 - "$SCREEN_FIXTURE" "$SCREEN_CAPTURE" "$SCREEN_REPLAY/$SCREEN_NAME" 2>&1 <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+fixture, capture, replay = map(Path, sys.argv[1:])
+sequence = json.loads((fixture / "amazon_products_503.json").read_text(encoding="utf-8"))["rows"]
+calls = json.loads((capture / "calls.json").read_text(encoding="utf-8"))
+raw = json.loads((capture / "raw/amazon_products.json").read_text(encoding="utf-8"))
+expected_asins = [row["asin"] for row in sequence[:-1]]
+if (calls != {"asins": expected_asins, "waits": [2] + [5] * len(expected_asins)}
+    or [row["asin"] for row in raw["rows"]] != expected_asins or raw.get("skipped_after_503") != 1):
+    sys.exit(f"商品页停止点或间隔不符：{calls!r} {raw!r}")
+for md in (capture / replay.with_suffix(".md").name, replay.with_suffix(".md")):
+    if "提前停止：剩余 1 个商品页未抓，原因 503" not in md.read_text(encoding="utf-8"):
+        sys.exit(f"{md} 缺少提前停止原因")
+with replay.with_suffix(".csv").open(encoding="utf-8", newline="") as file:
+    metrics = {row["指标"]: row for row in csv.DictReader(file)}
+fba = metrics["FBA占比"]
+if (fba["值"], fba["样本量"], fba["备注"]) != ("0.2", "5", "fba=1，fbm=1，unknown=3"):
+    sys.exit(f"FBA 占比分母不符：{fba!r}")
+if metrics["上架月龄中位数"]["样本量"] != "2/5" or metrics["卖家数"]["样本量"] != "2/5":
+    sys.exit(f"进入难度统计含未抓样本：{metrics!r}")
+PY
+)"; then
+  ok "连续 503 提前停止，在线及重放报告标记剩余页数，未抓页不计入统计"
+else
+  bad "连续 503 提前停止或进入难度统计校验失败"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
+ESTIMATE_SCRIPT="$(dirname "$SCREEN_SCRIPT")/estimate_columns.py"
+ESTIMATE_OUT="$TMP/estimate.csv"
+ESTIMATE_SCORE="$TMP/estimate-score.csv"
+if OUT="$(python3 - "$WS/data/candidates.sample.csv" 2>&1 <<'PY'
+import csv
+import sys
+with open(sys.argv[1], encoding="utf-8-sig", newline="") as file:
+    print(next(csv.DictReader(file))["预估售价"])
+PY
+)" &&
+   OUT="$(python3 "$ESTIMATE_SCRIPT" --from-json "$SCREEN_FIXTURE" --out "$ESTIMATE_OUT" \
+                  --as-score-input "$ESTIMATE_SCORE" --score-price "$OUT" 2>&1)" &&
+   OUT="$(python3 "$ESTIMATE_SCRIPT" "$SCREEN_OUT/$SCREEN_NAME.csv" --out "$TMP/estimate-from-csv.csv" 2>&1)" &&
+   cmp -s "$ESTIMATE_OUT" "$TMP/estimate-from-csv.csv" &&
+   OUT="$(python3 - "$ESTIMATE_OUT" 2>&1 <<'PY'
+import csv
+import sys
+with open(sys.argv[1], encoding="utf-8", newline="") as file:
+    reader = csv.DictReader(file)
+    if reader.fieldnames != ["指标", "估算值", "公式", "证据等级", "不确定性", "备注"]:
+        sys.exit(f"估算表头不符：{reader.fieldnames!r}")
+    records = list(reader)
+    if len(records) != 5:
+        sys.exit(f"估算行数不符：{len(records)}")
+rows = {row["指标"]: row for row in records}
+expected = {"估算_在售竞品数", "估算_1688进价", "估算_月搜索量", "估算_平均退货率", "估算_运费"}
+if set(rows) != expected or any(
+    not all((value or "").strip() for value in row.values()) or "输入指标" not in row["备注"]
+    for row in rows.values()
+):
+    sys.exit(f"估算指标或行内证据不完整：{rows!r}")
+for name, row in rows.items():
+    if name == "估算_1688进价":
+        if row["证据等级"] != "C" or not float(row["估算值"]) > 0 or "上界" not in row["公式"]:
+            sys.exit(f"货源价上界参考不符：{row!r}")
+    elif (row["估算值"], row["证据等级"]) != ("NA", "D"):
+        sys.exit(f"缺少来源的指标应为 NA、D：{row!r}")
+PY
+)"; then
+  ok "粗筛 CSV 与 JSON 估算一致，五项均有公式、输入指标、证据等级和不确定性"
+else
+  bad "估算表内容或 CSV 与 JSON 一致性校验失败"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
+if cp "$ESTIMATE_SCORE" "$WS/data/candidates.csv" &&
+   OUT="$(python3 "$WS/scripts/score_products.py" 2>&1)" &&
+   printf '%s\n' "$OUT" | grep -Fq "补数据" &&
+   ! printf '%s\n' "$OUT" | grep -Fq "上架测试" &&
+   OUT="$(python3 - "$ESTIMATE_SCORE" "$WS/out/选品打分.csv" 2>&1 <<'PY'
+import csv
+import sys
+
+missing = {"在售竞品数", "1688进价", "月搜索量", "平均退货率", "运费"}
+with open(sys.argv[1], encoding="utf-8", newline="") as file:
+    fields = csv.DictReader(file).fieldnames
+    if missing.intersection(fields) or not {f"估算_{name}" for name in missing}.issubset(fields):
+        sys.exit(f"估算打分输入表头未保留前缀：{fields!r}")
+with open(sys.argv[2], encoding="utf-8-sig", newline="") as file:
+    rows = list(csv.DictReader(file))
+if not rows or any(row["决策"] != "补数据" for row in rows):
+    sys.exit(f"打分未保留补数据：{rows!r}")
+for row in rows:
+    if not missing.issubset(row["诊断"].removeprefix("[D] 缺失：").split("、")):
+        sys.exit(f"估算值被打分脚本采信：{row!r}")
+PY
+)"; then
+  ok "估算列保留估算_前缀，选品打分仍为补数据"
+else
+  bad "估算打分安全闸校验失败"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
 # ---------------------------------------------------------------- 8. 授权与安装包自检
 echo "-- 8. 授权与安装包自检"
 for selftest in licence-selftest installer-selftest; do

@@ -243,8 +243,8 @@ README 里 2026-11-24 的快照基线（数字会随覆盖变化，以脚本实�
 
 ```
 farm/scripts/acceptance.sh --with-browser  PASS=72 FAIL=0 WARN=0 / READY
-distribution/verify.sh                     PASS=63 FAIL=0 WARN=0 / READY
-distribution/flow-smoke.sh                 PASS=8 FAIL=0 WARN=0 / READY（网关 19671 在跑；离线时 L1、L2 各一条 WARN）
+distribution/verify.sh                     PASS=79 FAIL=0 WARN=1 / READY（WARN 是 Amazon 真实样本断言跳过）
+distribution/flow-smoke.sh                 PASS=9 FAIL=0 WARN=3 / READY（三条 WARN 是三件插件缺源；网关离线时 L1、L2 各多一条）
 distribution/e2e-smoke.sh                  PASS=34 FAIL=0 WARN=1 / READY（WARN 是令牌 8 位 <32；须单跑）
 ```
 

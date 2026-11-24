@@ -1,0 +1,26 @@
+{
+  "_fixture": "离线控制流测试，使用虚构标识与字段，非真实抓取",
+  "rows": [
+    {
+      "asin": "TEST000001",
+      "date_first_available": "January 1, 2026",
+      "fulfillment": "fba",
+      "sold_by": "测试卖家 A"
+    },
+    {"asin": "TEST000002", "error": "http_503"},
+    {
+      "asin": "TEST000003",
+      "date_first_available": "January 1, 2025",
+      "fulfillment": "fbm",
+      "sold_by": "测试卖家 B"
+    },
+    {"asin": "TEST000004", "error": "http_503"},
+    {"asin": "TEST000005", "error": "http_503"},
+    {
+      "asin": "TEST000006",
+      "date_first_available": "January 1, 2026",
+      "fulfillment": "fba",
+      "sold_by": "测试卖家 C"
+    }
+  ]
+}

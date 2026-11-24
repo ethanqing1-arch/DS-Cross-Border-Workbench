@@ -131,3 +131,58 @@ python3 distribution/l2/workspace/scripts/score_products.py /tmp/score-in.csv
 3. `docs/amazon-throttle.md` 里的诊断结论；
 4. 一次在线粗筛的完整 CSV（哪怕是全 NA 也要贴）；
 5. `diff -qr distribution/l2/skills distribution/l2/bundle/skills` 的输出（应为空）。
+
+### 1. 总装验收原文
+
+```text
+  WARN 跳过 Amazon 真实样本需求侧断言（本轮未能取到可用样本，见 docs/amazon-throttle.md）
+-- 7e. 粗筛离线重放与估算闸门
+  PASS 粗筛在线路径落盘三份 raw，离线重放 CSV 逐字一致
+  PASS 连续 503 提前停止，在线及重放报告标记剩余页数，未抓页不计入统计
+  PASS 粗筛 CSV 与 JSON 估算一致，五项均有公式、输入指标、证据等级和不确定性
+  PASS 估算列保留估算_前缀，选品打分仍为补数据
+
+== 汇总: PASS=79 FAIL=0 WARN=1 ==
+RESULT: READY
+```
+
+### 2. 业务流冒烟汇总原文
+
+```text
+== 汇总: PASS=9 FAIL=0 WARN=3 ==
+RESULT: READY
+```
+
+### 3. Amazon 限流诊断结论原文
+
+本轮搜索页连续 9 次返回 HTTP 503，最后一次 503 出现在 `2026-11-24T23:02:54+08:00`。`2026-11-24T23:03:54+08:00` 首次观测到 HTTP 200，抓取器返回 3 条商品卡片。搜索页在 15 分钟观察窗口内恢复。固定冷却时长未知，商品页可用性以实际抓取结果为准。
+
+探测后，两次正式验收中的搜索又返回 HTTP 503。本轮观测到的恢复未持续。复采 Top 10 在 `2026-11-24T23:07:06+08:00` 仍返回 HTTP 503。本轮未能取到可用样本。
+
+### 4. Top 10 在线粗筛完整 CSV
+
+```csv
+指标,值,样本量,来源,证据等级,备注
+搜索结果总数,NA,0 页,amazon,D,http_503；原文：null；解析：null
+广告密度,NA,NA,amazon,D,http_503
+评论数中位数,NA,0/0,amazon,D,http_503
+评论数最大,NA,0/0,amazon,D,http_503
+评论数>1000占比,NA,0/0,amazon,D,http_503
+评分中位数,NA,0/0,amazon,D,http_503
+价格带,NA,0/0,amazon,D,http_503
+上架月龄中位数,NA,0/0,amazon,D,无 Amazon 搜索样本；unknown=0
+新品占比(<12个月),NA,0,amazon,D,无 Amazon 搜索样本；分母为能解析出月龄的样本数
+FBA占比,NA,0,amazon,D,无 Amazon 搜索样本；fba=0，fbm=0，unknown=0
+卖家数,NA,0/0,amazon,D,无 Amazon 搜索样本；有效样本 0/0
+货源价中位数,4.08,9/10,aliexpress,B,USD；有效样本 9/10
+货源折扣中位数,NA,9/10,aliexpress,D,discount_pct 缺失或无法解析
+货源销量中位数,33.5,8/10,aliexpress,B,有效样本 8/10
+零货倍数,NA,Amazon 0/0；AliExpress 9/10,aliexpress,D,Amazon 价格中位数缺失或为 0
+```
+
+### 5. Skills 镜像差异
+
+`diff -qr distribution/l2/skills distribution/l2/bundle/skills` 退出码为 0，输出为空。
+
+```text
+```

@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse, json, re, subprocess, sys, time, random, csv, io
 from datetime import datetime
 from html import unescape
+from math import isfinite
 from pathlib import Path
 
 UA_POOL = [
@@ -30,6 +31,8 @@ UA_POOL = [
 COOKIE = "i18n-prefs=USD; lc-main=en_US"
 UNAVAILABLE_REVIEW_FIELDS = ("rating_histogram", "customers_say", "review_text")
 MAX_BATCH_SIZE = 20
+DEFAULT_RETRIES = 3
+THROTTLE_CODES = (429, 503)
 NEED_INPUT = "NEED_INPUT"
 BATCH_FIELDS = (
     "asin", "品类", "商品名", "预估售价", "头部评论数", "月搜索量", "在售竞品数",
@@ -38,10 +41,9 @@ BATCH_FIELDS = (
 )
 
 
-def fetch(url: str, retries: int = 2) -> tuple[str, int]:
+def fetch(url: str, retries: int = DEFAULT_RETRIES, *, min_interval: float = 0) -> tuple[str, int]:
     """用 curl 取 HTML（已验证可用，urllib/内置抓取器会被 503）"""
-    last = ""
-    for i in range(retries + 1):
+    for attempt in range(retries + 1):
         cmd = [
             "curl", "-sS", "-L", "-m", "30", "--compressed",
             "-A", random.choice(UA_POOL),
@@ -51,6 +53,7 @@ def fetch(url: str, retries: int = 2) -> tuple[str, int]:
             "-w", "\n__HTTP__%{http_code}",
             url,
         ]
+        started_at = time.monotonic()
         try:
             out = subprocess.run(cmd, capture_output=True, text=True, timeout=45).stdout
         except subprocess.TimeoutExpired:
@@ -58,12 +61,10 @@ def fetch(url: str, retries: int = 2) -> tuple[str, int]:
         m = re.search(r"\n__HTTP__(\d{3})\s*$", out)
         code = int(m.group(1)) if m else 0
         body = out[: m.start()] if m else out
-        if code == 200 and len(body) > 50_000:
+        if (code == 200 and len(body) > 50_000) or attempt == retries:
             return body, code
-        last = body
-        if i < retries:
-            time.sleep(max(2.0, 1.5 * (i + 1) + random.random()))
-    return last, code
+        backoff = 2 ** attempt if code in THROTTLE_CODES else max(2.0, 1.5 * (attempt + 1) + random.random())
+        time.sleep(max(backoff, min_interval - (time.monotonic() - started_at)))
 
 
 def _blocked(html: str, code: int) -> str | None:
@@ -178,8 +179,8 @@ def parse_product(html: str, asin: str) -> dict:
     }
 
 
-def fetch_product(asin: str) -> dict:
-    html, code = fetch(f"https://www.amazon.com/dp/{asin}")
+def fetch_product(asin: str, *, retries: int = DEFAULT_RETRIES, min_interval: float = 0) -> dict:
+    html, code = fetch(f"https://www.amazon.com/dp/{asin}", retries=retries, min_interval=min_interval)
     bad = _blocked(html, code)
     if bad:
         return {"error": bad, **parse_product("", asin)}
@@ -229,7 +230,9 @@ def candidate_row(product: dict) -> dict:
     return row
 
 
-def write_batch(asins: list[str], output: Path, readme: Path) -> None:
+def write_batch(
+    asins: list[str], output: Path, readme: Path, *, retries: int = DEFAULT_RETRIES, min_interval: float = 0
+) -> None:
     notes = [
         "# Amazon 商品页抓取说明",
         "",
@@ -244,8 +247,8 @@ def write_batch(asins: list[str], output: Path, readme: Path) -> None:
     rows = []
     for i, asin in enumerate(asins):
         if i:
-            time.sleep(random.uniform(2.0, 4.0))
-        product = fetch_product(asin)
+            time.sleep(max(random.uniform(2.0, 4.0), min_interval))
+        product = fetch_product(asin, retries=retries, min_interval=min_interval)
         row = candidate_row(product)
         rows.append(row)
         missing = "、".join(key for key, value in row.items() if value == NEED_INPUT)
@@ -265,10 +268,16 @@ def main():
     ap.add_argument("target", nargs="?")
     ap.add_argument("--limit", type=int, default=60)
     ap.add_argument("--csv", action="store_true")
+    ap.add_argument("--min-interval", type=float, default=0, help="两次请求发起的最小间隔（秒），默认 0")
+    ap.add_argument("--retries", type=int, default=DEFAULT_RETRIES, help="失败后的最大重试次数，默认 3")
     ap.add_argument("--asin-file", type=Path, help="商品批量模式，读取每行一个 ASIN 或含 asin 表头的 CSV")
     ap.add_argument("--output", type=Path, help="批量 CSV 输出路径，默认为 amazon-candidates.csv")
     a = ap.parse_args()
 
+    if not isfinite(a.min_interval) or a.min_interval < 0:
+        ap.error("--min-interval 必须是有限的非负数")
+    if a.retries < 0:
+        ap.error("--retries 必须是非负整数")
     if a.asin_file is not None:
         if a.mode != "product" or a.target is not None:
             ap.error("--asin-file 只用于 product 模式，且不能同时指定单个 ASIN")
@@ -277,7 +286,7 @@ def main():
         try:
             if a.asin_file.resolve() in (output.resolve(), readme.resolve()):
                 raise ValueError("批量输出不能覆盖 ASIN 输入文件")
-            write_batch(load_asins(a.asin_file), output, readme)
+            write_batch(load_asins(a.asin_file), output, readme, retries=a.retries, min_interval=a.min_interval)
         except (OSError, ValueError, csv.Error) as exc:
             ap.error(str(exc))
         print(f"CSV 写入: {output}")
@@ -290,7 +299,7 @@ def main():
 
     if a.mode == "search":
         url = f"https://www.amazon.com/s?k={a.target.replace(' ', '+')}"
-        html, code = fetch(url)
+        html, code = fetch(url, retries=a.retries, min_interval=a.min_interval)
         bad = _blocked(html, code)
         if bad:
             print(json.dumps({"error": bad, "degraded": True, "rows": []}, ensure_ascii=False))
@@ -308,7 +317,7 @@ def main():
             "degraded": None,
         }
     else:
-        payload = fetch_product(a.target)
+        payload = fetch_product(a.target, retries=a.retries, min_interval=a.min_interval)
 
     if a.csv and a.mode == "search":
         buf = io.StringIO()
