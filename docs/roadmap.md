@@ -56,7 +56,7 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 
 | # | 事项 | 说明 |
 |---|---|---|
-| 1.1 | 找试装者 | 1–3 人，**至少 1 个 Windows**（macOS 一条路验不出跨平台问题） |
+| 1.1 | 找试装者 | 1–3 人，**至少 1 个 Windows**（macOS 一条路验不出跨平台问题）。[试装包已就绪](trial-kit.md)，macOS 解压验收实测 `PASS=63 FAIL=0 WARN=0`。 |
 | 1.2 | 换令牌 | `GATEWAY_TOKEN` 现在 8 位，门槛 ≥32；`openssl rand -hex 32` 换掉，启动与 e2e 的 WARN 才会消 |
 | 1.3 | 回收 5 条 | 按 [onboard-from-zero.md](onboard-from-zero.md) §11，要原文输出，不要转述 |
 | 1.4 | 修卡点 | 按回收结果改文档/脚本，估 M（不确定，取决于卡点） |

@@ -17,6 +17,8 @@
 
 ## 快速开始
 
+用发行包试装可从[试装指南](docs/trial-kit.md)开始。
+
 ```bash
 # 1) 起网关（令牌只从环境变量读，永不落文件）
 GATEWAY_TOKEN="$(openssl rand -hex 32)" bash farm/scripts/start-gateway.sh --daemon

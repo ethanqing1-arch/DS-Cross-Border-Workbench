@@ -114,8 +114,9 @@ if (c.name !== "browser-farm") errs.push("name=" + c.name);
 if (c.kind !== "mcp") errs.push("kind=" + c.kind);
 if (c.transport !== "stdio") errs.push("transport=" + c.transport);
 if (!Array.isArray(c.args) || !c.args[0]) errs.push("args 缺失");
-if (c.command !== process.env.NODE_BIN) errs.push("command=" + c.command + " 与本机 node " + process.env.NODE_BIN + " 不一致");
-if (c.args && c.args[0] && c.args[0] !== process.env.MCP_PATH) errs.push("args[0] 未指向当前 farm：" + c.args[0]);
+// 发行包的路径占位由安装时的位置解析，源码载荷仍校验写明的绝对路径。
+if (c.command !== "$NODE_BIN" && c.command !== process.env.NODE_BIN) errs.push("command=" + c.command + " 与本机 node " + process.env.NODE_BIN + " 不一致");
+if (c.args && c.args[0] && c.args[0] !== "$FARM_MCP_PATH" && c.args[0] !== process.env.MCP_PATH) errs.push("args[0] 未指向当前 farm：" + c.args[0]);
 if (((c.env || {}).GATEWAY_TOKEN || "") !== "$DSH_SECRET_GATEWAY_TOKEN") errs.push("env.GATEWAY_TOKEN 不是 $DSH_SECRET_GATEWAY_TOKEN 占位，疑似明文 secret");
 if (errs.length) { for (const e of errs) console.log("  FAIL " + e); process.exit(1); }
 process.exit(0);
@@ -168,7 +169,7 @@ fi
 
 # ---------------------------------------------------------------- 7. 标记文件
 echo "-- 7. 标记文件"
-NEW_JSON="$(MANIFEST="$SRC/manifest.json" CAP="$CAP" FARM_PATH="$FARM" NODE_PATH="$NODE_BIN" GW_URL="$GATEWAY_URL" node -e '
+NEW_JSON="$(MANIFEST="$SRC/manifest.json" CAP="$CAP" FARM_PATH="$FARM" MCP_PATH="$MCP" NODE_PATH="$NODE_BIN" GW_URL="$GATEWAY_URL" node -e '
 const fs = require("fs");
 const mf = JSON.parse(fs.readFileSync(process.env.MANIFEST, "utf8"));
 const cap = JSON.parse(fs.readFileSync(process.env.CAP, "utf8"));
@@ -182,7 +183,7 @@ const out = {
   farm: process.env.FARM_PATH,
   node: process.env.NODE_PATH,
   gateway_url: process.env.GW_URL,
-  mcp: cap.args[0]
+  mcp: process.env.MCP_PATH
 };
 process.stdout.write(JSON.stringify(out, null, 2) + "\n");
 ')"
@@ -204,7 +205,7 @@ if [ "$FAILED" -eq 0 ] && [ "$CHECK" -eq 0 ] && [ "$WROTE" -gt 0 ]; then
   cat <<'STEPS'
   1) 起网关（令牌只从环境变量，不进 argv）：
        GATEWAY_TOKEN="$DSH_SECRET_GATEWAY_TOKEN" bash farm/scripts/start-gateway.sh --daemon
-  2) 注册共享能力 browser-farm（载荷原文见 capability/browser-farm.json）：
+  2) 注册共享能力 browser-farm（载荷见 capability/browser-farm.json；本机绝对路径见 .dsh/ecom-l1.json 的 node 和 mcp）：
        kind=mcp   transport=stdio
        command=<node 绝对路径>
        args=[<仓库>/farm/mcp/farm-mcp.js]
