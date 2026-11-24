@@ -1,0 +1,26 @@
+[
+  {
+    "id": "prompt-enhancer",
+    "name": "dsh-prompt-enhancer",
+    "required": true,
+    "status": "ready",
+    "note": "本机 1.2.2 的 package.json 声明 MIT，LICENSE 允许再分发并要求保留版权及许可声明。",
+    "source_hint": "~/.dsh/plugins/dsh-prompt-enhancer（本机核查路径，含 LICENSE 和 package.json）"
+  },
+  {
+    "id": "retrace",
+    "name": "dsh-retrace",
+    "required": true,
+    "status": "missing-source",
+    "note": "本机 ~/.dsh/plugins 下未找到插件源码。",
+    "source_hint": "请提供包含 LICENSE 和 package.json 的插件包目录，或提供仓库地址和对应版本。"
+  },
+  {
+    "id": "rollback-withdraw",
+    "name": "dsh-rollback-withdraw",
+    "required": true,
+    "status": "missing-source",
+    "note": "本机 ~/.dsh/plugins 下未找到插件源码。",
+    "source_hint": "请提供包含 LICENSE 和 package.json 的插件包目录，或提供仓库地址和对应版本。"
+  }
+]

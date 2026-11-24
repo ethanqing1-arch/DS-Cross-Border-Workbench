@@ -1,6 +1,7 @@
 {
   "id": "dsh-ecom",
   "name": "Cross-Border Workbench",
+  "name_status": "placeholder",
   "subtitle": "Amazon-first cross-border e-commerce workspace",
   "colors": {
     "primary": "#0B5FFF",
@@ -10,11 +11,12 @@
   },
   "icon": {
     "path": "assets/icon.svg",
-    "present": false
+    "present": true,
+    "placeholder": true
   },
   "_notes": [
     "全部为占位：名称、副标题、配色、图标都还没定稿，替换只改本文件（和 assets/ 里的文件）。",
-    "不拷任何 DS Bot 现成商标、图标或字体资产：assets/ 现在是空的（只有 .gitkeep）。",
-    "logo 与图标要上线前须确认商标合规，别直接拿平台（Amazon/eBay 等）的 logo 用。"
+    "assets/ 中的 SVG 是几何占位图。",
+    "上线前须过商标检查。品牌资产须使用已获授权的名称、图形、字体和配色。"
   ]
 }

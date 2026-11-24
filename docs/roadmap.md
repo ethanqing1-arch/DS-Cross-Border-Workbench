@@ -13,10 +13,10 @@
 
 | 能力 | 状态 | 证据 |
 |---|---|---|
-| 装 | 通 | `bash distribution/verify.sh` → `PASS=66 FAIL=0 WARN=0` / `RESULT: READY`（2026-11-24 本机实测） |
+| 装 | 通 | `bash distribution/verify.sh` → `PASS=68 FAIL=0 WARN=0` / `RESULT: READY`（2026-11-24 本机实测） |
 | 跑 | 样例已跑通 | `bash distribution/flow-smoke.sh` → `PASS=8 FAIL=0 WARN=0` / `RESULT: READY`，四类产物通过内容校验（网关不可达时 L1、L2 各出一条 WARN，即 `WARN=2`） |
 | 取数 | 缺外部条件 | eBay 已接 L2 connector（`scripts/ebay_fetch.py` + 假服务自检），其余 6 个平台的 T1 尚未接入降级链。各平台 API 真端点均未验证。无出口代理，`shopee` / `tiktokshop` 选择器标注「未验」。 |
-| 卖 | 缺产品本体 | L1 只是能力注册器：`brand.json` 的 `icon.present=false`、名称配色全占位；仓库内无授权校验代码 |
+| 卖 | 待定稿与授权确认 | 品牌名称、配色、图标为占位，三件插件待入包，L3 Amazon skill 授权归属待确认。授权校验与安装包已就绪（默认不启用 licence）。 |
 
 三条容易误判的事实：
 
@@ -129,7 +129,7 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 
 ```bash
 # 装链
-bash distribution/verify.sh                                   # PASS=66 FAIL=0 WARN=0 / READY
+bash distribution/verify.sh                                   # PASS=68 FAIL=0 WARN=0 / READY
 
 # Camoufox 任务契约
 grep -n "camoufox:" farm/contract.js                          # tasks: TASK_TYPES.slice()

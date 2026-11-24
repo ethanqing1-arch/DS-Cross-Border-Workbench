@@ -6,12 +6,14 @@
 #   bash install.sh <目标目录>                     # 安装：校验并写标记文件
 #   bash install.sh <目标目录> --check             # 只校验，不写任何文件
 #   bash install.sh <目标目录> --farm <farm目录>   # 指定 farm 路径（默认 <仓库根>/farm）
+#   bash install.sh <目标目录> --require-licence [--licence <文件>]
+#                                                   # 校验离线授权（默认 <目标目录>/licence.json）
 #
 # 环境变量：
 #   GATEWAY_URL  默认 http://127.0.0.1:19671
 #   FARM_DIR     同 --farm，命令行优先
 #
-# 边界：只写 <目标目录>/.dsh/ecom-l1.json；不打包 DS Bot、不写 secret、不碰 farm 台账与服务。
+# 边界：只写目标目录下的 .dsh/ecom-l1.json 和随包插件；不操作 DS Bot、farm 台账与服务。
 # =============================================================================
 set -uo pipefail
 
@@ -19,7 +21,7 @@ SRC="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SRC/../.." && pwd)"
 command -v node >/dev/null 2>&1 || export PATH="/opt/homebrew/bin:$PATH"
 
-TARGET=""; CHECK=0; FARM_ARG=""
+TARGET=""; CHECK=0; FARM_ARG=""; LICENCE_ARG=""; REQUIRE_LICENCE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --check) CHECK=1 ;;
@@ -28,13 +30,23 @@ while [ $# -gt 0 ]; do
       [ $# -gt 0 ] || { echo "FAIL --farm 缺参数" >&2; exit 2; }
       FARM_ARG="$1"
       ;;
-    -h|--help) sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    -*) echo "未知参数：$1（可用 --check / --farm <目录>）" >&2; exit 2 ;;
+    --licence)
+      shift
+      [ $# -gt 0 ] && [ -n "$1" ] && [[ "$1" != -* ]] || { echo "FAIL --licence 缺文件路径" >&2; exit 2; }
+      LICENCE_ARG="$1"
+      ;;
+    --require-licence) REQUIRE_LICENCE=1 ;;
+    -h|--help) sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*) echo "未知参数：$1（可用 --check / --farm <目录> / --require-licence / --licence <文件>）" >&2; exit 2 ;;
     *) if [ -z "$TARGET" ]; then TARGET="$1"; else echo "多余参数：$1" >&2; exit 2; fi ;;
   esac
   shift
 done
-[ -n "$TARGET" ] || { echo "用法：bash install.sh <目标目录> [--check] [--farm <farm目录>]" >&2; exit 2; }
+[ -n "$TARGET" ] || { echo "用法：bash install.sh <目标目录> [--check] [--farm <farm目录>] [--require-licence] [--licence <文件>]" >&2; exit 2; }
+
+if [ "$REQUIRE_LICENCE" -eq 1 ]; then
+  python3 "$SRC/licence/verify.py" --licence "${LICENCE_ARG:-$TARGET/licence.json}" || exit "$?"
+fi
 
 GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:19671}"
 FARM="${FARM_ARG:-${FARM_DIR:-$ROOT/farm}}"
@@ -137,18 +149,24 @@ fi
 
 # ---------------------------------------------------------------- 5. 品牌占位
 echo "-- 5. 品牌占位"
-if [ -f "$SRC/branding/brand.json" ] && node -e '
+if BRAND="$(node -e '
 const b = require(process.argv[1]);
-if (!b.id || !b.name || !b.colors || !b.icon || !b.icon.path) process.exit(1);
-' "$SRC/branding/brand.json" 2>/dev/null; then
+if (!b.id || !b.name || !b.colors || !b.icon || b.icon.present !== true ||
+    typeof b.icon.placeholder !== "boolean" || typeof b.icon.path !== "string" ||
+    !b.icon.path.startsWith("assets/") || b.icon.path.split("/").includes("..")) process.exit(1);
+console.log(b.icon.path);
+console.log(b.icon.placeholder);
+' "$SRC/branding/brand.json" 2>/dev/null)"; then
   ok "brand.json 可解析（id/name/colors/icon.path）"
-  if [ -f "$SRC/branding/assets/.gitkeep" ]; then
-    ok "assets/ 是空占位（只有 .gitkeep）"
+  ICON="$SRC/branding/${BRAND%$'\n'*}"
+  if [ -f "$ICON" ] && [ "$(head -c 4 "$ICON")" = '<svg' ]; then
+    ok "图标存在且以 <svg 开头"
   else
-    bad "缺 branding/assets/.gitkeep"
+    bad "图标缺失或未以 <svg 开头：$ICON"
   fi
-  N="$(find "$SRC/branding/assets" -type f ! -name '.gitkeep' 2>/dev/null | wc -l | tr -d ' ')"
-  [ "$N" -eq 0 ] && ok "assets/ 未拷入任何现成资产" || bad "assets/ 有 $N 个非占位文件（应为 0）"
+  if [ "${BRAND##*$'\n'}" = true ]; then
+    warn '图标是占位，发布前替换'
+  fi
 else
   bad "brand.json 不可解析或缺字段"
 fi
@@ -167,8 +185,14 @@ if [ "$FAILED" -ne 0 ]; then
   finish
 fi
 
-# ---------------------------------------------------------------- 7. 标记文件
-echo "-- 7. 标记文件"
+echo "-- 7. 随包插件"
+if ! "$NODE_BIN" "$SRC/plugins/install.js" "$TARGET" "$CHECK"; then
+  FAILED=$((FAILED+1))
+  finish
+fi
+
+# ---------------------------------------------------------------- 8. 标记文件
+echo "-- 8. 标记文件"
 NEW_JSON="$(MANIFEST="$SRC/manifest.json" CAP="$CAP" FARM_PATH="$FARM" MCP_PATH="$MCP" NODE_PATH="$NODE_BIN" GW_URL="$GATEWAY_URL" node -e '
 const fs = require("fs");
 const mf = JSON.parse(fs.readFileSync(process.env.MANIFEST, "utf8"));
@@ -199,9 +223,9 @@ else
   fi
 fi
 
-# ---------------------------------------------------------------- 8. 注册步骤
+# ---------------------------------------------------------------- 9. 注册步骤
 if [ "$FAILED" -eq 0 ] && [ "$CHECK" -eq 0 ] && [ "$WROTE" -gt 0 ]; then
-  echo "-- 8. 注册与 Allow 步骤"
+  echo "-- 9. 注册与 Allow 步骤"
   cat <<'STEPS'
   1) 起网关（令牌只从环境变量，不进 argv）：
        GATEWAY_TOKEN="$DSH_SECRET_GATEWAY_TOKEN" bash farm/scripts/start-gateway.sh --daemon

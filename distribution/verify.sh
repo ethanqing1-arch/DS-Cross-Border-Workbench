@@ -349,7 +349,18 @@ else
   printf '%s\n' "$OUT" | sed 's/^/    /'
 fi
 
-# ---------------------------------------------------------------- 8. 边界
+# ---------------------------------------------------------------- 8. 授权与安装包自检
+echo "-- 8. 授权与安装包自检"
+for selftest in licence-selftest installer-selftest; do
+  if OUT="$(bash "$SRC/$selftest.sh" 2>&1)" && printf '%s\n' "$OUT" | grep -Fxq 'RESULT: READY'; then
+    ok "${selftest}.sh"
+  else
+    bad "${selftest}.sh"
+    printf '%s\n' "$OUT" | sed 's/^/    /'
+  fi
+done
+
+# ---------------------------------------------------------------- 9. 边界
 if [ -n "$REAL_MTIME" ]; then
   NOW="$(stat -f %m "$REAL_WS" 2>/dev/null || stat -c %Y "$REAL_WS" 2>/dev/null || true)"
   if [ "$NOW" = "$REAL_MTIME" ]; then

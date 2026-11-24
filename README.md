@@ -17,7 +17,8 @@
 
 ## 快速开始
 
-用发行包试装可从[试装指南](docs/trial-kit.md)开始。
+用发行包试装可从[首次启动指南](distribution/installer/FIRST-RUN.md)或[命令行试装指南](docs/trial-kit.md)开始。
+`bash distribution/make-bundle.sh` 生成 tar.gz 和 ZIP，追加 `--dmg` 可生成 macOS 安装镜像。
 需要 Amazon 官方目录或销售数据时，见 [SP-API 接入与无凭证自检](docs/sp-api-setup.md)。
 需要 eBay 站内搜索和商品摘要时，见 [eBay 接入与无凭证自检](docs/ebay-setup.md)。
 其余六个平台接什么、参考哪些开源件、还缺什么，见[平台接入清单](docs/platform-integrations.md)。
@@ -44,8 +45,8 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 | 自检 | 结果 |
 |---|---|
 | `farm/scripts/acceptance.sh --with-browser` | `PASS=72 FAIL=0 WARN=0` / `READY`（网关 19681，控制面 19581） |
-| `distribution/verify.sh` | `PASS=63 FAIL=0 WARN=0` / `READY` |
-| `distribution/flow-smoke.sh` | `PASS=8 FAIL=0 WARN=0` / `READY`（默认探 19671；`GATEWAY_URL` 指向未监听端口时 L1、L2 各出一条 WARN，即 `WARN=2`） |
+| `distribution/verify.sh` | `PASS=68 FAIL=0 WARN=0` / `READY` |
+| `distribution/flow-smoke.sh` | `PASS=8 FAIL=0 WARN=4` / `READY`（图标占位和三件插件缺源。网关不可达时 L1、L2 各多 1 条 WARN） |
 | `distribution/e2e-smoke.sh` | 单跑 `PASS=34 FAIL=0 WARN=1` / `READY`（默认网关 19671，含 `transferSize>0` 与离网 `E_GOTO` 断言。WARN 来自 8 位令牌低于 32 位门槛）。检测到并发浏览器自检时只记 `SKIP`（`exit 3` / `RESULT: SKIPPED`）。 |
 | `farm/scripts/test-proxy-bridge.sh` | `PASS=35 FAIL=0` / `READY`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |
 | `farm/scripts/proxy-selftest.sh --self-test` | `PASS=12 FAIL=0 WARN=1 INFO=1` / `READY`（假上游；WARN 同上，令牌长度） |
@@ -69,9 +70,9 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 | 网关令牌 | 本机仍 8 位，需换 ≥ 32 位后重启 |
 | 目标国出口代理 | 尚无；没有它电商搜索页一律被拦（实测 eBay `Error Page`、Walmart 机器人墙） |
 | 平台官方 API | 七个平台均未接授权，费率字段一律 `null` 待业务确认 |
-| skill 授权归属 | 内容已随包，但 `cbec-selection-master` 是自有还是外购未定，对外分发前需确认 |
+| skill 授权归属 | L3 Amazon 23 个 skill 需逐项书面确认，确认前 L3 Amazon 包不对外分发。见 [授权归属核查](docs/amazon-skill-licenses.md)。 |
 
-已解决：Amazon 23 个 skill 已随 L3 包分发，源 `skills/` 46 个文件逐文件比对
+L3 Amazon 包含 23 个 skill，源 `skills/` 46 个文件逐文件比对
 `OK=46 DIFF=0 MISSING=0`；`engine/`（打分引擎 + 自检 + 校验器）与 `SKILL_SPEC.md` 也已随包，
 `validate_skills.py` 报 `23 通过 / 0 有问题`。
 
@@ -80,6 +81,7 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 - **从零到能用**（一台干净机器 → 11 个数字员工能干活，含 DS Bot 安装与三件只能本人做的事）：[`docs/onboard-from-zero.md`](docs/onboard-from-zero.md)
 - **外部使用者从零安装**（换机器要改哪两处、八项外部依赖交接单）：[`docs/external-setup.md`](docs/external-setup.md)
 - 产品化计划与里程碑：[`docs/dsh-ecom-productization-plan.md`](docs/dsh-ecom-productization-plan.md)
+- L1 发布准备见[离线授权](docs/licence.md)、[品牌占位](docs/branding.md)和[插件来源](docs/plugins.md)。
 - **未来规划**（阶段 0–4、闸门 G0–G3、为什么这么排、不做什么）：[`docs/roadmap.md`](docs/roadmap.md)
 - 七站出口矩阵：[`docs/platform-egress-matrix.md`](docs/platform-egress-matrix.md)
 - 代理 runbook（起桥、自检、407 排查）：[`docs/proxy-runbook.md`](docs/proxy-runbook.md)
