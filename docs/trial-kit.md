@@ -58,6 +58,6 @@ verify 末尾（汇总和 RESULT）：
 | 实测原文 | 含义与处理 |
 | --- | --- |
 | `WARN 未设置 GATEWAY_TOKEN 或 DSH_SECRET_GATEWAY_TOKEN` | 两个变量都未设置时，环境体检仍可就绪。做需要鉴权的网关操作前，从环境注入令牌。 |
-| `FAIL PATH 里找不到 node。Apple Silicon 的 Homebrew 安装通常在 /opt/homebrew/bin。` | 把 Node.js 的安装目录加进当前终端的 `PATH`，再跑环境体检。 |
+| `WARN 原始 PATH 里找不到 node，已使用 /opt/homebrew/bin 兜底` / `FAIL PATH 里找不到 node。Apple Silicon 的 Homebrew 安装通常在 /opt/homebrew/bin。` | doctor 会尝试用 `/opt/homebrew/bin` 兜底，找到 node 后会发出 `WARN` 并检查版本。若仍提示找不到 node，再手动把 Node.js 安装目录加入 `PATH` 后重跑。 |
 | `WARN TCP 19671 已被占用，可能已有农场在运行` / `WARN TCP 19555 已被占用，可能已有农场在运行` | 已有进程在对应端口监听。确认是否是现有网关或控制端后，可以继续试装。 |
 | `WARN 网关令牌少于 32 个字符` | 环境体检可以通过。该项只检查长度，正式使用前应换成长令牌。 |

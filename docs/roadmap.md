@@ -13,9 +13,9 @@
 
 | 能力 | 状态 | 证据 |
 |---|---|---|
-| 装 | 通 | `bash distribution/verify.sh` → `PASS=63 FAIL=0 WARN=0` / `RESULT: READY`（2026-11-24 本机实测） |
+| 装 | 通 | `bash distribution/verify.sh` → `PASS=66 FAIL=0 WARN=0` / `RESULT: READY`（2026-11-24 本机实测） |
 | 跑 | 样例已跑通 | `bash distribution/flow-smoke.sh` → `PASS=8 FAIL=0 WARN=0` / `RESULT: READY`，四类产物通过内容校验（网关不可达时 L1、L2 各出一条 WARN，即 `WARN=2`） |
-| 取数 | 缺外部条件 | 7 平台 API 全未接（manifest 写「未接入」）；无出口代理；`shopee` / `tiktokshop` 选择器标注「未验」 |
+| 取数 | 缺外部条件 | eBay 已接 L2 connector（`scripts/ebay_fetch.py` + 假服务自检），其余 6 个平台的 T1 尚未接入降级链。各平台 API 真端点均未验证。无出口代理，`shopee` / `tiktokshop` 选择器标注「未验」。 |
 | 卖 | 缺产品本体 | L1 只是能力注册器：`brand.json` 的 `icon.present=false`、名称配色全占位；仓库内无授权校验代码 |
 
 三条容易误判的事实：
@@ -38,7 +38,7 @@
 | 0.2 | L3 版本闸 | `distribution/l3/install.sh` 增 `/v1/version` 比对，复用 L2 的 `ver_ge`；负例：把平台包 `requires["browser-farm"]` 抬到 `99.0.0` 必须 FAIL | 农场版本不够也照装，报错会晚到且难查 | S |
 | 0.3 | Camoufox 任务对齐 | `farm/camoufox_worker.py` 先补 `extract` + `wait`（Playwright 原生能力），再补 `click` + `type`；同步 `farm/contract.js:35` 的 tasks 4 项 → 8 项 | 同一份契约下两个引擎只能跑一半任务，上层不敢用 camoufox | M×2 |
 | 0.4 | 文档校准 | 产品化方案 §5 的 M1 状态（第 6 件未做）、§5.2 台账数字（写「10 行」，实际 5 行）；README 已指向本规划 | 规划与实际漂移，后来人会照着错的数看 | S |
-| 0.5 | 清残留 | 已删除 `farm/profiles/` 下 7 个孤儿目录。保留 `default:e2e-smoke` 供 e2e 自检。 | `default:chief-probe`、`default:diag-shape`、`default:diag-dead` 这 3 个 stopped 测试账号留待另行安排。`farm/scripts/ledger-clean.sh` 的两道拒删闸当前都触发。一是 19671 或 19555 有服务监听，当前两端口均在监听。二是台账有 `running` 行或存活 PID，当前 `default:mkt-probe-amazon` 仍在运行。待运行会话结束、相关 PID 退出且服务停止后再清理。 | S |
+| 0.5 | 清残留 | 已删除 `farm/profiles/` 下 7 个孤儿目录。按交接记录，台账共 5 行，包括 1 个 running（`default:mkt-probe-amazon`）、3 个 stopped 待清，以及保留供 e2e 自检的 `default:e2e-smoke`。 | `default:chief-probe`、`default:diag-shape`、`default:diag-dead` 这 3 个 stopped 测试账号留待另行安排。`farm/scripts/ledger-clean.sh` 的两道拒删闸当前都触发。一是 19671 或 19555 有服务监听，当前两端口均在监听。二是台账有 `running` 行或存活 PID，当前 `default:mkt-probe-amazon` 仍在运行。待运行会话结束、相关 PID 退出且服务停止后再清理。 | S |
 
 验收：
 
@@ -72,7 +72,7 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 | # | 事项 | 依赖 | 说明 |
 |---|---|---|---|
 | 2.1 | 代理接入 | 用户提供一条代理（`socks5h://` 优先，见 [proxy-runbook.md](proxy-runbook.md)） | 接上后跑 `farm/scripts/first-fetch.sh`，再逐平台验选择器；现有 amazon 记录是「出口日本、取到日元」，不算验过美国站 |
-| 2.2 | 一条 T1 | SP-API 最优先（自家订单/库存/结算要对账） | 写 connector + 补降级链运行时：现在 `tier` 只写在 manifest 里，代码里没有任何调度按 tier 走 |
+| 2.2 | 一条 T1 | SP-API 最优先（自家订单/库存/结算要对账） | 已补 `fetch_router.py`，按 manifest 执行 T1→T3 降级并记录 `attempts`。当前只调度 T1 和 T3，T2 未声明时不参与。阶段 2 仍须至少一条真实 T1 打通。 |
 | 2.3 | T2（可选） | 卖家精灵/Sorftime 账号 | 不接也能跑，只影响速度与稳定性 |
 
 验收：同一账号 `farm_task extract` 拿到 `{title, price}` 且 `status != blocked`；真实订单进 `orders.csv` 后能跑出运营日报。
@@ -97,7 +97,7 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 
 ## 6 阶段 4：长期（按需，不排期）
 
-- 其余 6 平台专项 skill：现在 `distribution/l3/platforms/ebay/` 只有 manifest + overrides + 空 `skills/`
+- 5 个平台专项 skill 未做。eBay 有 L2 `ecom-ebay`，L3 的 `distribution/l3/platforms/ebay/skills/` 仍空。
 - 常驻 worker：设计已有（`docs/camoufox-persistent-worker-design.md`，36 行），等任务量真的需要再做
 - DSH 上游跟进：现在每个 release 评估一次就够；改过品牌后变成必做项
 
@@ -129,7 +129,7 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 
 ```bash
 # 装链
-bash distribution/verify.sh                                   # PASS=63 FAIL=0 WARN=0 / READY
+bash distribution/verify.sh                                   # PASS=66 FAIL=0 WARN=0 / READY
 
 # Camoufox 任务契约
 grep -n "camoufox:" farm/contract.js                          # tasks: TASK_TYPES.slice()

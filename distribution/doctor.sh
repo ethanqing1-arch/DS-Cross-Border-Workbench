@@ -38,6 +38,13 @@ else
 fi
 
 if ! command -v node >/dev/null 2>&1; then
+  export PATH="/opt/homebrew/bin:$PATH"
+  if command -v node >/dev/null 2>&1; then
+    warn '原始 PATH 里找不到 node，已使用 /opt/homebrew/bin 兜底'
+  fi
+fi
+
+if ! command -v node >/dev/null 2>&1; then
   fail 'PATH 里找不到 node。Apple Silicon 的 Homebrew 安装通常在 /opt/homebrew/bin。'
 elif node_version="$(node -v 2>/dev/null)" && [[ "$node_version" =~ ^v([0-9]+)\. ]] &&
      [ "${BASH_REMATCH[1]}" -ge 18 ]; then
@@ -82,7 +89,7 @@ else
 fi
 for port in 19671 19555; do
   if [ "$listeners_known" -eq 0 ]; then
-    warn "无法检查 TCP $port（ss/netstat 不可用）"
+    warn "无法检查 TCP ${port}（ss/netstat 不可用）"
   elif printf '%s\n' "$listeners" | awk -v port="$port" '$0 ~ ("[.:]" port "$") {found=1} END {exit !found}'; then
     warn "TCP $port 已被占用，可能已有农场在运行"
   else
