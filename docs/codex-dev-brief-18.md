@@ -129,3 +129,413 @@ diff -qr distribution/l2/skills distribution/l2/bundle/skills
 - **不许编数字**：取不到就是 `null`，不许填估算值当实测。
 - 抓取要礼貌：两次请求间隔 ≥2 秒，一次不超过 3 页 / 60 条。
 - 完成后工作区要干净，改动只在本单范围内。
+
+## 收尾
+
+2026-11-24 验收。三次真实请求串行执行，相邻命令之间等待至少 2 秒。
+总装和冒烟使用临时本地网关 `GATEWAY_URL=http://127.0.0.1:55951`（模拟版本 `1.1.0`）。
+
+### 真实抓取
+
+退出码 `0`。
+
+```text
+$ python3 distribution/l2/skills/market-research/scripts/fetch_aliexpress.py search "pet slow feeder" --limit 10
+{
+ "keyword": "pet slow feeder",
+ "url": "https://www.aliexpress.com/w/wholesale-pet-slow-feeder.html",
+ "http": 200,
+ "lang": "en",
+ "currency_verified": true,
+ "count": 10,
+ "rows": [
+  {
+   "item_id": "3256812972203717",
+   "title": "Slow Feeder Bowl for Pets, Purple Rainbow",
+   "sale_price_usd": 4.08,
+   "original_price_usd": null,
+   "discount_pct": 86,
+   "sold_text": "11 sold",
+   "sold_count": 11,
+   "rating": null
+  },
+  {
+   "item_id": "3256812962130942",
+   "title": "Silicone Slow Feeder Bowl for Pets, Blue Rainbow",
+   "sale_price_usd": 4.17,
+   "original_price_usd": null,
+   "discount_pct": 85,
+   "sold_text": "36 sold",
+   "sold_count": 36,
+   "rating": null
+  },
+  {
+   "item_id": "3256812962262358",
+   "title": "Gobble Stopper Slow Feeder, Small,1 CT",
+   "sale_price_usd": 4.68,
+   "original_price_usd": null,
+   "discount_pct": 83,
+   "sold_text": "13 sold",
+   "sold_count": 13,
+   "rating": null
+  },
+  {
+   "item_id": "3256813025562701",
+   "title": "Pet Slow Feeder Dog Lick Bowl With Rolling Ball Slow Feeder Anti-Choking For Dogs Cats Yogurt Bone Broth Liquid Treats Interactive Pet Bowl",
+   "sale_price_usd": 1.09,
+   "original_price_usd": null,
+   "discount_pct": 91,
+   "sold_text": "31 sold",
+   "sold_count": 31,
+   "rating": null
+  },
+  {
+   "item_id": "3256812962250324",
+   "title": "Silicone Slow Feeder Compartment Pet Mat, Purple, 12\" x 8\"",
+   "sale_price_usd": 4.69,
+   "original_price_usd": null,
+   "discount_pct": 83,
+   "sold_text": "19 sold",
+   "sold_count": 19,
+   "rating": null
+  },
+  {
+   "item_id": "3256813459713423",
+   "title": "2 Packs Dog Lick Pad with Strong Suctions Silicone Slow Feeder for Liquid Thick Treats Interactive Pet Training Pad for Cats Dogs Bathing Grooming Black Grey Pet Supplies",
+   "sale_price_usd": 3.85,
+   "original_price_usd": null,
+   "discount_pct": 87,
+   "sold_text": null,
+   "sold_count": null,
+   "rating": null
+  },
+  {
+   "item_id": "3256811467456152",
+   "title": "1Pc Slow Feeder Dog Bowl Anti-choking Puppy Food Bowl Anti-slip Pet Slow Eating Dog Dishes Puzzle Feeders for Dogs Small Medium",
+   "sale_price_usd": 2.33,
+   "original_price_usd": null,
+   "discount_pct": 62,
+   "sold_text": "1K+ sold",
+   "sold_count": 1000,
+   "rating": null
+  },
+  {
+   "item_id": "3256806005096603",
+   "title": "Pet Slow Feeder Pet Dog Slow Feeder Bowl Non Slip Puzzle Bowl Anti-Gulping Pet Slower Food Feeding Dishes Dog Bowl for Medium Small Dogs Puppy",
+   "sale_price_usd": null,
+   "original_price_usd": null,
+   "discount_pct": null,
+   "sold_text": "293 sold",
+   "sold_count": 293,
+   "rating": null
+  },
+  {
+   "item_id": "3256811676942186",
+   "title": "Slow Feeder Dog Bowls for Liquid Treat, Anti-Slip【Entertained Ball-in】 Bone Broth Dog Lick Bowl,Pet Licking Bowls",
+   "sale_price_usd": 3.22,
+   "original_price_usd": null,
+   "discount_pct": 88,
+   "sold_text": "56 sold",
+   "sold_count": 56,
+   "rating": null
+  },
+  {
+   "item_id": "3256813365087279",
+   "title": "2 Pcs Slow Feeder Dog Cat Bowl Non Slip Maze Puzzle Pet Feeding Dish Grey Black Interactive Slow Eating Digestion for Small Medium Puppy Kitten",
+   "sale_price_usd": 4.15,
+   "original_price_usd": null,
+   "discount_pct": 87,
+   "sold_text": null,
+   "sold_count": null,
+   "rating": null
+  }
+ ],
+ "degraded": [
+  "sale_price_usd",
+  "original_price_usd",
+  "discount_pct",
+  "sold_text",
+  "sold_count",
+  "rating"
+ ]
+}
+```
+
+### 无区域 cookie 反例
+
+退出码 `1`。
+
+```text
+$ python3 distribution/l2/skills/market-research/scripts/fetch_aliexpress.py search "pet slow feeder" --limit 10 --no-cookie
+{
+ "keyword": "pet slow feeder",
+ "url": "https://www.aliexpress.com/w/wholesale-pet-slow-feeder.html",
+ "http": 200,
+ "lang": "ja",
+ "currency_verified": false,
+ "count": 0,
+ "rows": [],
+ "degraded": [
+  "lang_not_en",
+  "usd_price_marker_missing",
+  "region_cookie_disabled"
+ ]
+}
+```
+
+### 第 2 页复核（Python 3.9.6）
+
+退出码 `0`。
+
+```text
+$ /usr/bin/python3 distribution/l2/skills/market-research/scripts/fetch_aliexpress.py search "pet slow feeder" --limit 10 --page 2
+{
+ "keyword": "pet slow feeder",
+ "url": "https://www.aliexpress.com/w/wholesale-pet-slow-feeder.html?page=2",
+ "http": 200,
+ "lang": "en",
+ "currency_verified": true,
+ "count": 10,
+ "rows": [
+  {
+   "item_id": "3256813002666713",
+   "title": "Christmas Sweater Silicone Pet Lick Mat Suction Cup Anti Slip Slow Feeder Mat For Dog Cat Puppy Kitten Pet Feeding Supplies",
+   "sale_price_usd": 8.88,
+   "original_price_usd": null,
+   "discount_pct": 75,
+   "sold_text": "1 sold",
+   "sold_count": 1,
+   "rating": null
+  },
+  {
+   "item_id": "3256809234029914",
+   "title": "Pet Lick Silicone Mat Slow Feeder Dog Food Plate Bathing Distraction Sucker Training Feeder Supplies for Dogs",
+   "sale_price_usd": 1.09,
+   "original_price_usd": null,
+   "discount_pct": 79,
+   "sold_text": "334 sold",
+   "sold_count": 334,
+   "rating": null
+  },
+  {
+   "item_id": "3256809396079780",
+   "title": "Smart Pet Feeder Automatic Cat Feeder Dog Slow Food Machine With Timed Quantitative Automatic Cat Food Dispenser Cat Dog Bowl",
+   "sale_price_usd": 51.09,
+   "original_price_usd": null,
+   "discount_pct": 51,
+   "sold_text": "4K+ sold",
+   "sold_count": 4000,
+   "rating": null
+  },
+  {
+   "item_id": "3256813448219813",
+   "title": "Pet Feeder Dopamine Multicoloured Tall Pet Feeder with Two Stainless Steel Bowls and Neck Support Double Pet Bowl Pet Double Bowl Pet Food",
+   "sale_price_usd": 8.99,
+   "original_price_usd": null,
+   "discount_pct": 42,
+   "sold_text": null,
+   "sold_count": null,
+   "rating": null
+  },
+  {
+   "item_id": "3256807074986783",
+   "title": "Pet Product Bone Plastic Pet Food Bowl Doggy Puppy Bowl Slow Feeder Dog Bowl",
+   "sale_price_usd": 1.09,
+   "original_price_usd": null,
+   "discount_pct": 91,
+   "sold_text": "21 sold",
+   "sold_count": 21,
+   "rating": null
+  },
+  {
+   "item_id": "3256812076687114",
+   "title": "Stainless Steel Slow Feeder Dog Bowls Pet Anti Choking Spine Protection Double Sided Use Anti Overturning Cat Bowl Pet Supplies.",
+   "sale_price_usd": 1.09,
+   "original_price_usd": null,
+   "discount_pct": 95,
+   "sold_text": "24 sold",
+   "sold_count": 24,
+   "rating": null
+  },
+  {
+   "item_id": "3256810403951444",
+   "title": "Flower Shape Pet Bowl Ceramic Raised Slow Feeder Dog Bowl 15 Degree Tilted Cat Bowl Cute 150ml Pet Water Dispenser Pet Supplies",
+   "sale_price_usd": 16.94,
+   "original_price_usd": null,
+   "discount_pct": 69,
+   "sold_text": "3 sold",
+   "sold_count": 3,
+   "rating": null
+  },
+  {
+   "item_id": "3256812671642310",
+   "title": "Pet Feeder 2-in-1 Pet Feeder & Water Dispenser, Large Capacity Automatic Food Bowl for Cats Dogs, Dry Wet Separation, Transparent Plastic, Travel Use",
+   "sale_price_usd": 12.95,
+   "original_price_usd": null,
+   "discount_pct": 71,
+   "sold_text": "4 sold",
+   "sold_count": 4,
+   "rating": null
+  },
+  {
+   "item_id": "3256812404260320",
+   "title": "Japanese Kiln Changed Anti Choking Slow Feeder Dog Bowl Non Slip Bottom Anti Spill Pet Food Dish Feeding Bowl",
+   "sale_price_usd": 2.39,
+   "original_price_usd": null,
+   "discount_pct": 89,
+   "sold_text": "2 sold",
+   "sold_count": 2,
+   "rating": null
+  },
+  {
+   "item_id": "3256813046392673",
+   "title": "Elevated Ceramic Dog Bowls with Wooden Stand for Small To Medium Sized Dogs, Slow Feeder and Water Bowl Set, Dishwasher Safe, Non Slip Raised Pet Feeding Station, Cream White",
+   "sale_price_usd": 17.55,
+   "original_price_usd": null,
+   "discount_pct": 72,
+   "sold_text": "3 sold",
+   "sold_count": 3,
+   "rating": null
+  }
+ ],
+ "degraded": [
+  "original_price_usd",
+  "sold_text",
+  "sold_count",
+  "rating"
+ ]
+}
+```
+
+### 离线总装验收
+
+退出码 `0`。
+
+```text
+$ bash distribution/verify.sh
+== kualang 三层总装验收 ==
+仓库：/Users/xavier/Projects/DS-Cross-Border-Workbench
+临时根目录：/tmp/kualang-verify.6whqCX
+-- 0. 入口文件
+  PASS 存在 l1/install.sh
+  PASS 存在 l1/manifest.json
+  PASS 存在 l1/capability/browser-farm.json
+  PASS 存在 l2/install.sh
+  PASS 存在 l2/manifest.json
+  PASS 存在 l3/install.sh
+  PASS 存在 l3/manifest.json
+  PASS 存在 l3/schema/platform.schema.json
+  PASS 存在 l3/check-bundle-skills.js
+-- 1. L1 核心包 kualang-l1
+  PASS L1 install（write=1 skip=0 fail=0）
+  PASS L1 标记文件可解析（name=kualang-l1 capability=browser-farm）
+  PASS L1 --check 幂等（== CHECK: would-write=0 would-skip=1 FAIL=0 ==）
+  PASS L1 --check 未改标记文件（shasum 一致 a8fccb0cfe29…）
+  PASS L1 负例 --farm 空目录退出码 1（非 0）
+  PASS L1 负例失败原因正确（farm-mcp.js 不存在）
+  PASS L1 负例目标 0 写入
+-- 2. L2 版本包 kualang-cbec
+    == 汇总: write=79 skip=0 fail=0 ==
+    INSTALL OK
+  PASS L2 install 退出码 0
+  PASS L2 汇总 write=79 skip=0 fail=0
+  PASS L2 落点文件数 53
+  PASS L2 skills=8
+  PASS L2 skills 落点与源目录一致（含附属文件）
+  PASS L2 工作区随包脚本 7 个 + faq.json 齐全
+-- 3. L3 平台包（逐个装）
+  PASS 平台清单 7 个
+  PASS 平台 aliexpress 安装（write=4 skip=0 fail=0，落点 4）
+  PASS 平台 amazon skills=23
+  PASS 平台 amazon 安装（write=55 skip=0 fail=0，落点 55）
+  PASS 平台 amazon bundle skills 与分层 skills 一致（46 个文件）
+  PASS 平台 ebay 安装（write=4 skip=0 fail=0，落点 4）
+  PASS 平台 lazada 安装（write=4 skip=0 fail=0，落点 4）
+  PASS 平台 shopee 安装（write=4 skip=0 fail=0，落点 4）
+  PASS 平台 tiktokshop 安装（write=4 skip=0 fail=0，落点 4）
+  PASS 平台 walmart 安装（write=4 skip=0 fail=0，落点 4）
+  PASS 平台落点目录 7 个
+-- 4. 全量 --check（不写）
+  PASS L2 --check 幂等（== CHECK: would-write=0 would-skip=79 FAIL=0 ==）
+  PASS 平台 aliexpress --check 幂等（== CHECK: would-write=0 would-skip=4 FAIL=0 ==）
+  PASS 平台 amazon --check 幂等（== CHECK: would-write=0 would-skip=55 FAIL=0 ==）
+  PASS 平台 ebay --check 幂等（== CHECK: would-write=0 would-skip=4 FAIL=0 ==）
+  PASS 平台 lazada --check 幂等（== CHECK: would-write=0 would-skip=4 FAIL=0 ==）
+  PASS 平台 shopee --check 幂等（== CHECK: would-write=0 would-skip=4 FAIL=0 ==）
+  PASS 平台 tiktokshop --check 幂等（== CHECK: would-write=0 would-skip=4 FAIL=0 ==）
+  PASS 平台 walmart --check 幂等（== CHECK: would-write=0 would-skip=4 FAIL=0 ==）
+  PASS --check 未改任何文件（shasum 一致 617a11bb06be…）
+-- 5. 负例：空目录装平台必须 FAIL 且 0 写入
+  PASS 空目录装 ebay 退出码 1（非 0）
+  PASS 空目录失败原因正确（未装 L2）
+  PASS 空目录 0 写入
+-- 5a. 负例：农场版本不满足必须 FAIL 且 0 写入
+    FAIL browser-farm 1.1.0 < 要求 99.0.0
+  PASS L3 农场版本闸负例（rc=1，目标 0 写入）
+-- 5b. 负例：requires 键名错误必须 FAIL 且 0 写入
+  PASS L3 requires 错误键名负例（rc=1，目标 0 写入）
+-- 6. 取页器与平台预设（静态）
+  PASS node --check farm-probe.js
+  PASS 平台预设 7 个齐全
+  PASS 预设 aliexpress.json 合规（id/name/search_url_template/list_selector/fields/verified/notes）
+  PASS 预设 amazon.json 合规（id/name/search_url_template/list_selector/fields/verified/notes）
+  PASS 预设 ebay.json 合规（id/name/search_url_template/list_selector/fields/verified/notes）
+  PASS 预设 lazada.json 合规（id/name/search_url_template/list_selector/fields/verified/notes）
+  PASS 预设 shopee.json 合规（id/name/search_url_template/list_selector/fields/verified/notes）
+  PASS 预设 tiktokshop.json 合规（id/name/search_url_template/list_selector/fields/verified/notes）
+  PASS 预设 walmart.json 合规（id/name/search_url_template/list_selector/fields/verified/notes）
+  PASS L3 aliexpress 接上取数预设（browser-farm.probe_preset=aliexpress）
+  PASS L3 amazon 接上取数预设（browser-farm.probe_preset=amazon）
+  PASS L3 ebay 接上取数预设（browser-farm.probe_preset=ebay）
+  PASS L3 lazada 接上取数预设（browser-farm.probe_preset=lazada）
+  PASS L3 shopee 接上取数预设（browser-farm.probe_preset=shopee）
+  PASS L3 tiktokshop 接上取数预设（browser-farm.probe_preset=tiktokshop）
+  PASS L3 walmart 接上取数预设（browser-farm.probe_preset=walmart）
+-- 7. SP-API 本地假服务
+  PASS SP-API 本地假服务自检（catalog / report）
+-- 7a. eBay 本地假服务
+  PASS eBay 本地假服务自检（token / search / 429 重试）
+-- 7b. 降级链
+  PASS 降级链自检（T1 / T3 / E_NO_TIER）
+-- 7c. AliExpress 离线币种闸门
+  PASS AliExpress 美元样本（≥10 条、分转美元、sold 解析、未验证字段为 null）
+  PASS AliExpress 日元样本被拒（非 0 退出，无商品或价格）
+-- 8. 授权与安装包自检
+  PASS licence-selftest.sh
+  PASS installer-selftest.sh
+  PASS 真工作区未被写（mtime 未变）
+
+== 汇总: PASS=71 FAIL=0 WARN=0 ==
+RESULT: READY
+```
+
+### 业务流冒烟
+
+退出码 `0`。
+
+```text
+$ bash distribution/flow-smoke.sh
+== kualang 业务流冒烟 ==
+  WARN 插件缺源：prompt-enhancer
+  WARN 插件缺源：retrace
+  WARN 插件缺源：rollback-withdraw
+  PASS out/选品打分.csv
+  PASS out/选品打分.csv 内容校验
+  PASS out/上架包/
+  PASS out/上架包 内容校验
+  PASS out/运营日报.md
+  PASS out/运营日报.md 内容校验
+  PASS out/客服处理.csv
+  PASS out/客服处理.csv 内容校验
+  PASS 打分缺列样例两行均为 [D] 补数据，无正向决策
+== 汇总: PASS=9 FAIL=0 WARN=3 ==
+RESULT: READY
+```
+
+### 镜像一致性
+
+退出码 `0`，无输出。
+
+```text
+$ diff -qr distribution/l2/skills distribution/l2/bundle/skills
+```

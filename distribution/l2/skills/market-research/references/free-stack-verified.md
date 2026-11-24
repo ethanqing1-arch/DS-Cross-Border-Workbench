@@ -112,3 +112,32 @@ ASIN `B0C5HSCS8J`。2026-11-24 的交接样本返回 HTTP 200，HTML 为 2,238,0
 未登录商品页的缺口仍为星级分布、`Customers say` AI 摘要和评论原文。星级分布只有
 `reviewCountTextLinkedHistogram` 类名，评论页在交接实测中以 HTTP 302 跳转到 `/ap/signin`。
 脚本在 `degraded` 记录这三项缺口。
+
+## 九、AliExpress 美国区实测记录
+
+2026-11-24 21:25:52（Asia/Shanghai）保存了 `pet slow feeder` 的美国区搜索页。系统
+`curl` 直连 `https://www.aliexpress.com/w/wholesale-pet-slow-feeder.html`，带区域 cookie
+`aep_usuc_f=site=glo&c_tp=USD&region=US&b_locale=en_US`，返回 HTTP 200，HTML 共 901,302 字节。
+
+| 项目 | 原样本 |
+|---|---|
+| 页面语言 | `lang="en"` |
+| 商品列表中的 `US $` 命中 | 114 次 |
+| 唯一商品链接 `aliexpress.com/item/<id>.html` | 60 个 |
+| 成交文案样本 | `11 sold` / `36 sold` / `13 sold` / `31 sold` / `19 sold` / `293 sold` |
+
+`salePriceAmount` 的单位是分。样本前五条的 `382` / `391` / `342` / `109` / `343`
+对应 `US $3.82` / `US $3.91` / `US $3.42` / `US $1.09` / `US $3.43`。
+取价前同时核对页面语言、页面中的 `US $` 和该商品的 `formattedPrice`。
+同一关键词移除区域 cookie 会得到 `lang="ja"`，`US $` 命中为 0，脚本退出且不输出商品或价格。
+评分和原价始终为 `null`，美元售价直接保留 USD。
+
+```bash
+python3 fetch_aliexpress.py search "pet slow feeder" --limit 10
+python3 fetch_aliexpress.py search "pet slow feeder" --limit 10 --page 2 --csv --out ./out
+python3 fetch_aliexpress.py search "pet slow feeder" --html fixtures/aliexpress_us_trim.html
+```
+
+`--page` 指定本次抓取的页码。实测第 2 页返回 HTTP 200，取到 10 条商品。
+脚本始终向 stdout 输出 JSON。`--out` 将 JSON 另存为 `aliexpress-search.json`，
+`--csv` 另外生成 `aliexpress-search.csv`，未指定目录时写到当前目录。

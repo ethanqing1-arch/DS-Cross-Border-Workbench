@@ -392,6 +392,56 @@ else
   printf '%s\n' "$OUT" | sed 's/^/    /'
 fi
 
+# ---------------------------------------------------------------- 7c. AliExpress 离线币种闸门
+echo "-- 7c. AliExpress 离线币种闸门"
+ALI_SCRIPTS="$WS/.dsh/skills/market-research/scripts"
+ALI_FIXTURE="$ALI_SCRIPTS/fixtures/aliexpress_us_trim.html"
+if OUT="$(python3 "$ALI_SCRIPTS/fetch_aliexpress.py" search "pet slow feeder" --html "$ALI_FIXTURE")" &&
+   printf '%s\n' "$OUT" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+rows = d["rows"]
+prices = [r["sale_price_usd"] for r in rows]
+if not (
+    d["currency_verified"] is True and d["lang"] == "en" and d["count"] == len(rows) >= 10
+    and None not in prices and prices[:5] == [3.82, 3.91, 3.42, 1.09, 3.43]
+    and all(r["original_price_usd"] is None and r["rating"] is None for r in rows)
+    and {11, 1000, 10000}.issubset(r["sold_count"] for r in rows)
+):
+    sys.exit(1)
+'; then
+  ok "AliExpress 美元样本（≥10 条、分转美元、sold 解析、未验证字段为 null）"
+else
+  bad "AliExpress 美元样本解析不符"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
+ALI_NON_USD="$TMP/aliexpress-non-usd.html"
+if python3 -c '
+from pathlib import Path
+import sys
+html = Path(sys.argv[1]).read_text(encoding="utf-8")
+Path(sys.argv[2]).write_text(html.replace("US $", "JP¥"), encoding="utf-8")
+' "$ALI_FIXTURE" "$ALI_NON_USD"; then
+  OUT="$(python3 "$ALI_SCRIPTS/fetch_aliexpress.py" search "pet slow feeder" --html "$ALI_NON_USD")"; RC=$?
+  if [ "$RC" -ne 0 ] && printf '%s\n' "$OUT" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+if not (
+    d["lang"] == "en" and d["currency_verified"] is False
+    and d["count"] == 0 and d["rows"] == [] and "usd_price_marker_missing" in d["degraded"]
+):
+    sys.exit(1)
+'; then
+    ok "AliExpress 日元样本被拒（非 0 退出，无商品或价格）"
+  else
+    bad "AliExpress 日元样本未按预期拒绝（rc=$RC）"
+    printf '%s\n' "$OUT" | sed 's/^/    /'
+  fi
+else
+  bad "无法准备 AliExpress 日元负例"
+fi
+
 # ---------------------------------------------------------------- 8. 授权与安装包自检
 echo "-- 8. 授权与安装包自检"
 for selftest in licence-selftest installer-selftest; do
