@@ -18,7 +18,7 @@
 完整性实测（2026-11-24）：源 `skills/` 下 46 个文件与本包逐文件 `cmp` 比对，
 `OK=46 DIFF=0 MISSING=0`；`validate_skills.py` 报 `23 通过 / 0 有问题`。
 
-`INSTALL.md` 不进包：它讲的是源目录 `~/Desktop/cbec-selection-master` 的装法，
+`INSTALL.md` 不进包：它讲的是本机源目录（未入库）的装法，
 路径与本包落点不同，直接随包会误导；引擎用法已改写进包 README。
 
 ## Skill 清单
