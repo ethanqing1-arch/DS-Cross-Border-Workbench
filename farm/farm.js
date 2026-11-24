@@ -234,7 +234,7 @@ function runWorker(rec, task, timeout = 180000) {
 }
 
 async function camoufoxScan(rec) {
-  const j = await runWorker(rec, { type: 'scan' }, 180000);
+  const j = await runWorker(rec, { type: 'scan', params: { no_ip: has('no-ip') } }, 180000);
   const p = (j.result && j.result.probe) || {};
   return {
     webdriver: p.webdriver, ua: p.ua,
@@ -242,7 +242,7 @@ async function camoufoxScan(rec) {
     canvas: p.canvas, webgl: p.webgl, plugins: p.plugins,
     hc: p.hc, dm: p.dm, fonts: p.fonts,
     integrity: p.toDataURL,
-    ip: null, ipErr: 'worker 通道未做 IP 探测',
+    ip: p.ip, ipErr: p.ipErr,
     engine: 'camoufox',
   };
 }

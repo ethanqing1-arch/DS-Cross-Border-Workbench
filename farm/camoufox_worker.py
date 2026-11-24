@@ -50,6 +50,33 @@ SCAN = r"""
 })()
 """
 
+IP_PROBE = r"""
+async (url) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+  try {
+    const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
+    if (!response.ok) throw new Error('IP echo HTTP ' + response.status);
+    const { ip } = await response.json();
+    if (typeof ip !== 'string' || !ip.trim()) throw new Error('IP echo missing ip');
+    return { ip, ipErr: null };
+  } catch (error) {
+    return { ip: null, ipErr: error.name === 'AbortError' ? 'timeout(3s)' : error.message };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+"""
+
+
+def scan_ip(page, no_ip):
+    if no_ip:
+        return {'ip': 'skipped', 'ipErr': None}
+    try:
+        return page.evaluate(IP_PROBE, os.environ.get('FARM_IP_ECHO') or 'https://api.ipify.org?format=json')
+    except Exception as error:
+        return {'ip': None, 'ipErr': str(error)}
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -108,7 +135,9 @@ def main():
                 page.screenshot(path=shot_path, full_page=bool(params.get('full_page')))
                 result = {'path': shot_path, 'bytes': os.path.getsize(shot_path)}
             elif t == 'scan':
-                result = {'probe': page.evaluate(SCAN)}
+                probe = page.evaluate(SCAN)
+                probe.update(scan_ip(page, params.get('no_ip')))
+                result = {'probe': probe}
             else:
                 print(json.dumps({'ok': False, 'error': f'unsupported task {t}'}, ensure_ascii=False))
                 return 2

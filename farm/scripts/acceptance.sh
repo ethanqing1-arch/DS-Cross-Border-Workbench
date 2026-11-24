@@ -71,8 +71,13 @@ mkdir -p "$TMP/gateway" && cp gateway/server.js "$TMP/gateway/" 2>/dev/null
 WS_PARENT="$(node -e "console.log(require('path').dirname(require('path').dirname(require.resolve('ws'))))" 2>/dev/null || true)"
 [ -n "$WS_PARENT" ] && export NODE_PATH="$WS_PARENT"
 cd "$TMP" || exit 2
-node -e "const l=require('./ledger.js');const s=l.stats();console.log(JSON.stringify(s))" >/tmp/acc-db.json 2>/dev/null \
-  && ok "ledger 可打开 $(head -c 120 /tmp/acc-db.json)" || no "ledger 打不开"
+export FARM_DB="$TMP/farm.db"
+# 公开测试值，仅发往临时网关。通过 stdin 提供鉴权头，避免把令牌放进 argv。
+export GATEWAY_TOKEN=T
+unset FARM_TOKEN
+auth_curl() { curl -H @- "$@" <<<"Authorization: Bearer $GATEWAY_TOKEN"; }
+node -e "const l=require('./ledger.js');const s=l.stats();console.log(JSON.stringify(s))" >"$TMP/acc-db.json" 2>/dev/null \
+  && ok "ledger 可打开 $(head -c 120 "$TMP/acc-db.json")" || no "ledger 打不开"
 node -e "
 const l=require('./ledger.js');
 const cols=l.db.prepare('PRAGMA table_info(accounts)').all().map(c=>c.name);
@@ -110,45 +115,43 @@ else
 fi
 
 echo "== 5. 控制面 + 网关 =="
-node control.js --port "$ACCEPT_CONTROL_PORT" >/tmp/acc-c.log 2>&1 & CPID=$!
+node control.js --port "$ACCEPT_CONTROL_PORT" >"$TMP/acc-c.log" 2>&1 & CPID=$!
 sleep 1
-node gateway/server.js --port "$ACCEPT_PORT" --control "http://127.0.0.1:$ACCEPT_CONTROL_PORT" --token T   --farm "$TMP/farm.js" --driver "$TMP/driver.js" >/tmp/acc-g.log 2>&1 & GPID=$!
+node gateway/server.js --port "$ACCEPT_PORT" --control "http://127.0.0.1:$ACCEPT_CONTROL_PORT" --farm "$TMP/farm.js" --driver "$TMP/driver.js" >"$TMP/acc-g.log" 2>&1 & GPID=$!
 sleep 1.2
-curl -s -H 'Authorization: Bearer T' "localhost:$ACCEPT_PORT/v1/health" >/tmp/acc-h.json 2>/dev/null \
-  && grep -q '"gateway":"up"' /tmp/acc-h.json && ok "gateway /v1/health" || no "gateway /v1/health"
+auth_curl -s "localhost:$ACCEPT_PORT/v1/health" >"$TMP/acc-h.json" 2>/dev/null \
+  && grep -q '"gateway":"up"' "$TMP/acc-h.json" && ok "gateway /v1/health" || no "gateway /v1/health"
 curl -s -o /dev/null -w "%{http_code}" "localhost:$ACCEPT_PORT/v1/sessions" | grep -qx 401 \
   && ok "未授权返回 401" || no "鉴权未生效"
-curl -s -H 'Authorization: Bearer T' "localhost:$ACCEPT_PORT/v1/fingerprint/duplicates" >/tmp/acc-d.json 2>/dev/null \
-  && grep -q 'distinct_canvas' /tmp/acc-d.json && ok "duplicates 可调用" || no "duplicates 不可用"
-curl -s -H 'Authorization: Bearer T' "localhost:$ACCEPT_PORT/v1/version" >/tmp/acc-v.json 2>/dev/null \
-  && grep -q '"contract_version"' /tmp/acc-v.json && ok "版本契约 /v1/version" || no "/v1/version 不可用"
+auth_curl -s "localhost:$ACCEPT_PORT/v1/fingerprint/duplicates" >"$TMP/acc-d.json" 2>/dev/null \
+  && grep -q 'distinct_canvas' "$TMP/acc-d.json" && ok "duplicates 可调用" || no "duplicates 不可用"
+auth_curl -s "localhost:$ACCEPT_PORT/v1/version" >"$TMP/acc-v.json" 2>/dev/null \
+  && grep -q '"contract_version"' "$TMP/acc-v.json" && ok "版本契约 /v1/version" || no "/v1/version 不可用"
 curl -s -o /dev/null -w "%{http_code}" "localhost:$ACCEPT_PORT/v1/version" | grep -qx 401 \
   && ok "/v1/version 需鉴权" || no "/v1/version 未鉴权"
-curl -s -o /dev/null -w "%{http_code}" -H 'Authorization: Bearer T' "localhost:$ACCEPT_PORT/v1/version?require=99.0.0" | grep -qx 409 \
+auth_curl -s -o /dev/null -w "%{http_code}" "localhost:$ACCEPT_PORT/v1/version?require=99.0.0" | grep -qx 409 \
   && ok "版本不满足返回 409" || no "版本不满足未拦"
 # probe=1 会真起浏览器，必须带 token；不带 probe 的 health 仍免鉴权
 curl -s -o /dev/null -w "%{http_code}" "localhost:$ACCEPT_PORT/v1/health?probe=1" | grep -qx 401 \
   && ok "health?probe=1 需鉴权" || no "health?probe=1 未鉴权"
 
 # 代理校验：带凭据 / 不支持 scheme 都必须在建会话前 400，且报错不回显 proxy 值
-NEG1_CODE="$(curl -s -o /tmp/acc-p1.json -w '%{http_code}' -X POST "localhost:$ACCEPT_PORT/v1/sessions" \
-  -H 'Authorization: Bearer T' -H 'Idempotency-Key: acc-neg-proxy-cred' -H 'Content-Type: application/json' \
+NEG1_CODE="$(auth_curl -s -o "$TMP/acc-p1.json" -w '%{http_code}' -X POST "localhost:$ACCEPT_PORT/v1/sessions" -H 'Idempotency-Key: acc-neg-proxy-cred' -H 'Content-Type: application/json' \
   -d '{"account":"neg-proxy","engine":"chromium","proxy":"http://user:secret@127.0.0.1:1080"}')"
-if [ "$NEG1_CODE" = "400" ] && grep -q 'E_PROXY_CREDENTIALS' /tmp/acc-p1.json \
-   && ! grep -q 'user:secret' /tmp/acc-p1.json; then
+if [ "$NEG1_CODE" = "400" ] && grep -q 'E_PROXY_CREDENTIALS' "$TMP/acc-p1.json" \
+   && ! grep -q 'user:secret' "$TMP/acc-p1.json"; then
   ok "proxy 带凭据 → 400 E_PROXY_CREDENTIALS（不回显）"
 else
   no "proxy 带凭据未被拦（HTTP=${NEG1_CODE}）"
 fi
-NEG2_CODE="$(curl -s -o /tmp/acc-p2.json -w '%{http_code}' -X POST "localhost:$ACCEPT_PORT/v1/sessions" \
-  -H 'Authorization: Bearer T' -H 'Idempotency-Key: acc-neg-proxy-scheme' -H 'Content-Type: application/json' \
+NEG2_CODE="$(auth_curl -s -o "$TMP/acc-p2.json" -w '%{http_code}' -X POST "localhost:$ACCEPT_PORT/v1/sessions" -H 'Idempotency-Key: acc-neg-proxy-scheme' -H 'Content-Type: application/json' \
   -d '{"account":"neg-proxy","engine":"chromium","proxy":"ftp://127.0.0.1:1"}')"
-if [ "$NEG2_CODE" = "400" ] && grep -q 'E_PROXY_SCHEME' /tmp/acc-p2.json; then
+if [ "$NEG2_CODE" = "400" ] && grep -q 'E_PROXY_SCHEME' "$TMP/acc-p2.json"; then
   ok "proxy scheme 不支持 → 400 E_PROXY_SCHEME"
 else
   no "proxy scheme 未被拦（HTTP=${NEG2_CODE}）"
 fi
-NEG_SESSIONS="$(curl -s -H 'Authorization: Bearer T' "localhost:$ACCEPT_PORT/v1/sessions")"
+NEG_SESSIONS="$(auth_curl -s "localhost:$ACCEPT_PORT/v1/sessions")"
 if ! printf '%s' "$NEG_SESSIONS" | grep -q 'neg-proxy'; then
   ok "proxy 两条负例未落台账（无 neg-proxy）"
 else
@@ -159,7 +162,7 @@ fi
 FF_DB="$TMP/first-fetch-neg.db"
 FARM_DB="$FF_DB" node ledger.js stats >/dev/null 2>&1
 FF_BEFORE="$(sqlite3 "$FF_DB" 'SELECT count(*) FROM accounts')"
-FF_OUT="$(env -u PROXY_URL -u DSH_SECRET_PROXY_URL GATEWAY_TOKEN=T FARM_DB="$FF_DB" \
+FF_OUT="$(env -u PROXY_URL -u DSH_SECRET_PROXY_URL FARM_DB="$FF_DB" \
   bash "$SRC/scripts/first-fetch.sh" --platform amazon --query test --out "$TMP/ff-out" 2>&1)"; FF_RC=$?
 FF_AFTER="$(sqlite3 "$FF_DB" 'SELECT count(*) FROM accounts')"
 if [ "$FF_RC" -eq 2 ] && [ "$FF_BEFORE" = "$FF_AFTER" ] && printf '%s' "$FF_OUT" | grep -q 'data-fetch-runbook'; then
@@ -173,8 +176,8 @@ if [ "$WITH_BROWSER" = "1" ]; then
   curl -s -X POST "localhost:$ACCEPT_CONTROL_PORT/instances" -H 'Content-Type: application/json' \
     -d '{"account":"acc-smoke","port":19499,"fp_seed":42,"tz":"Asia/Tokyo","lang":"ja-JP","platform":"accplat","headless":true}' >/dev/null
   sleep 1
-  FARM_IP_ECHO="${FARM_IP_ECHO:-}" node farm.js check --account acc-smoke >/tmp/acc-chk.json 2>/dev/null
-  grep -q '"ok": true' /tmp/acc-chk.json && ok "check 通过" || no "check 未通过"
+  FARM_IP_ECHO="${FARM_IP_ECHO:-}" node farm.js check --account acc-smoke >"$TMP/acc-chk.json" 2>/dev/null
+  grep -q '"ok": true' "$TMP/acc-chk.json" && ok "check 通过" || no "check 未通过"
   curl -s -X POST "localhost:$ACCEPT_CONTROL_PORT/instances/acc-smoke/check" >/dev/null
   [ -d "profiles/accplat/acc-smoke" ] && ok "profile 按平台分区（profiles/accplat/acc-smoke）" || no "profile 未按平台分区"
   curl -s "localhost:$ACCEPT_CONTROL_PORT/instances?platform=accplat" | grep -q '"acc-smoke"' \
@@ -188,10 +191,10 @@ if [ "$WITH_BROWSER" = "1" ]; then
     '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
     '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
     '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"farm_health","arguments":{}}}' \
-    | GATEWAY_URL="http://127.0.0.1:$ACCEPT_PORT" GATEWAY_TOKEN=T node "$SRC/mcp/farm-mcp.js" >/tmp/acc-mcp.jsonl 2>/dev/null
+    | GATEWAY_URL="http://127.0.0.1:$ACCEPT_PORT" node "$SRC/mcp/farm-mcp.js" >"$TMP/acc-mcp.jsonl" 2>/dev/null
   node -e '
 const fs = require("fs");
-const ls = fs.readFileSync("/tmp/acc-mcp.jsonl", "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+const ls = fs.readFileSync("acc-mcp.jsonl", "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
 const init = ls.find((x) => x.id === 1), list = ls.find((x) => x.id === 2), call = ls.find((x) => x.id === 3);
 if (!init || !init.result || !init.result.serverInfo) process.exit(1);
 if (!list || !list.result || !Array.isArray(list.result.tools) || list.result.tools.length !== 7) process.exit(2);
@@ -199,7 +202,7 @@ if (!call || !call.result || call.result.isError !== false) process.exit(3);
 const body = JSON.parse(call.result.content[0].text);
 if (body.gateway !== "up") process.exit(4);
 ' && ok "MCP stdio 冒烟（7 工具 + farm_health）" || no "MCP stdio 冒烟失败"
-  curl -s -o /dev/null -w "%{http_code}" -H 'Authorization: Bearer T' "localhost:$ACCEPT_PORT/v1/health?probe=1" | grep -qx 200 \
+  auth_curl -s -o /dev/null -w "%{http_code}" "localhost:$ACCEPT_PORT/v1/health?probe=1" | grep -qx 200 \
     && ok "health?probe=1 带 token 可探" || no "health?probe=1 带 token 失败"
 else
   wn "跳过真机冒烟（加 --with-browser 启用）"
