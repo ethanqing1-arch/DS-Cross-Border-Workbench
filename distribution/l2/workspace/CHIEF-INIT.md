@@ -1,5 +1,9 @@
 # Chief 初始化指令（复制粘贴用）
 
+> **注（2026-11-24）**：本文件是原始规划稿，只规划 8 个 bot 与 4 个电商群。
+> 实际播种以 `l2/presets/bots.json`（11 个 bot，含 Dev）与 `l2/presets/groups.json`（5 个群，含「技术开发」）为准，
+> 由 Main Bot 按 `l2/SEED.md` 执行。本文件保留作为需求来源，不要照它逐条数。
+
 > 用法：DS-Bot 首次打开后，在 Chief 的对话框里整段粘贴下面的内容，回车。它会自己建 bot、建群、铺目录。中途它会问你模型和权限，按提示选即可。
 > 前提：工作区已指向 `~/ds-bot-workspace`（内含 README.md 与 90-templates/）。
 

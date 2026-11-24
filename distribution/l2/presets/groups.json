@@ -1,5 +1,9 @@
 {
-  "source": "CHIEF-INIT.md「建 4 个群聊」",
+  "source": "CHIEF-INIT.md「建 4 个群聊」+ DS Bot 现状的第 5 个技术群",
+  "notes": [
+    "前 4 个群按 CHIEF-INIT.md 原文。",
+    "「技术开发」群不在 CHIEF-INIT.md 里（那份只规划电商 4 群），按 DS Bot 现状补；它的 notice 在 list_bots 里被截断到「…增长」，这里是按可见部分与群职责补齐的，建之前请人工核对原文。"
+  ],
   "groups": [
     {
       "name": "选品决策",
@@ -28,6 +32,13 @@
       "mode": "admin",
       "members": ["Care", "Compliance", "Metrics"],
       "notice": "本群只管售后与风控。默认 Goal：「把 <SKU> 的退货率与差评率压到类目均值以下」。群结论只留本群，不要带到别的群。"
+    },
+    {
+      "name": "技术开发",
+      "admin": "Chief",
+      "mode": "admin",
+      "members": ["Dev"],
+      "notice": "本群只管技术开发：ziniao 指纹农场（farm/control/gateway/ledger）与 DS-Bot 工作台对接。不在这里谈选品、定价、广告、客服——那些在「选品决策」「上架交付」「增长投放」「售后风控」。"
     }
   ]
 }

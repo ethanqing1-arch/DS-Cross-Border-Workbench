@@ -29,7 +29,7 @@ bash distribution/l3/install.sh amazon   ~/ds-bot-workspace
 bash distribution/l3/install.sh ebay     ~/ds-bot-workspace
 bash distribution/l3/install.sh --list   # 看全部 7 个
 
-# 4) 播种：由 Main Bot 按 l2/SEED.md 建 10 个 bot、4 个群
+# 4) 播种：由 Main Bot 按 l2/SEED.md 建 11 个 bot、5 个群
 ```
 
 三个安装器都是**非破坏**语义：已存在的文件跳过，`--force` 才覆盖，`--check` 只校验不写。
@@ -50,7 +50,7 @@ bash distribution/verify.sh --keep     # 保留临时目录看现场
 **真的（已验过）**
 
 - L1：`l1/install.sh` 校验 node 绝对路径 / `farm/mcp/farm-mcp.js` 存在且语法过 / 载荷无明文 secret / 品牌占位 / 网关可达（只 WARN），写 `.dsh/ecom-l1.json` 标记，`--check` 幂等，`--farm` 空目录负例 FAIL 且 0 写入。
-- L2 安装工作区文件和 `manifest.json` 所列业务 skills，保留 skill 附属文件的目录结构。包内另有 10 个 bot、4 个群的预设和 SEED 剧本。
+- L2 安装工作区文件和 `manifest.json` 所列业务 skills，保留 skill 附属文件的目录结构。包内另有 11 个 bot、5 个群的预设和 SEED 剧本。
 - L3：schema + 可复制模板（`example` 可直接跑通）+ 安装器（前置双证、非破坏、`--check`、`--force`）。
 - 7 个平台包都能装进已装 L2 的目录。Amazon 的工作区落点有 50 个文件，其余平台各有 4 个。重复装和 `--check` 都是 0 写入。
 - L2 与 Amazon 各有独立的 DSH bundle。仓库脚本校验 skill 镜像，DS Bot 内的安装步骤见 [L3 平台包文档](l3/README.md#dsh-bundle)。

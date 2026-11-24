@@ -8,7 +8,7 @@
 - 群预设：`presets/groups.json` → `groups[]`，每项 `name / admin / mode / members / notice`
 - 已知例外：`Visual` 不在 `CHIEF-INIT.md` 里，instructions 是按现有职责句重建的；有正式版就先替换再建。
 
-## 1. 建 10 个 bot（顺序执行）
+## 1. 建 11 个 bot（顺序执行）
 
 对 `presets/bots.json` 的每一项调用一次 `create_bot`，参数对应：
 
@@ -19,12 +19,12 @@
 | `instructions` | `bots[i].instructions`（原文） |
 | `section` | `"跨境电商"` |
 | `model` / `effort` | 不传（用团队默认） |
-| `work_dir` | 不传（继承团队工作区） |
+| `work_dir` | 只有 `Dev` 传 `bots[i].work_dir`（技术线在独立目录，不在团队工作区）；其余不传（继承团队工作区） |
 
-必须建满 10 个：Chief、Scout、Source、Margin、Copy、Ads、Care、Compliance、Metrics、Visual。
-建完自检：`list_bots` 里这 10 个都在，且 role 与表一致。
+必须建满 11 个：Chief、Scout、Source、Margin、Copy、Ads、Care、Compliance、Metrics、Visual、Dev。
+建完自检：`list_bots` 里这 11 个都在，且 role 与表一致；`Dev` 的 work_dir 是它自己的技术目录，不是团队工作区。
 
-## 2. 建 4 个群（bot 建完再建）
+## 2. 建 5 个群（bot 建完再建）
 
 对 `presets/groups.json` 的每一项调用一次 `create_group`：
 
@@ -37,8 +37,10 @@
 | `notice` | `groups[i].notice`（原文） |
 | `section` | `"跨境电商"` |
 
-4 个群：选品决策（Scout/Source/Margin/Compliance）、上架交付（Copy/Compliance/Margin）、增长投放（Ads/Metrics/Copy）、售后风控（Care/Compliance/Metrics）。
+5 个群：选品决策（Scout/Source/Margin/Compliance）、上架交付（Copy/Compliance/Margin）、增长投放（Ads/Metrics/Copy）、售后风控（Care/Compliance/Metrics）、技术开发（Dev）。
 建完自检：`list_bots(group="<群名>")` 的成员与预设一致，admin 是 Chief。
+
+「技术开发」群的 notice 不是 CHIEF-INIT.md 原文（那份只规划电商 4 群），是照 DS Bot 现状补齐的，建之前请人工核对。
 
 ## 3. 交给用户本人做的三件事（Bot 代不了）
 
@@ -50,6 +52,6 @@
 
 ## 4. 播种完成后回报给用户
 
-- 团队清单：10 个 bot 的名字 / 职责 / 模型（默认即可）
-- 群清单：4 个群的成员与默认 Goal
+- 团队清单：11 个 bot 的名字 / 职责 / 模型（默认即可）
+- 群清单：5 个群的成员与默认 Goal
 - 下一步建议：第一个 SKU 该从哪来（按工作区 `README.md` 的目录职责给具体落点）

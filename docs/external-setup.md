@@ -168,7 +168,40 @@ python3 engine/score.py             # 写 out/<run_id>/ 四件套，退出码 0
 ```
 
 `out/` 是运行产物，不入库（`.gitignore` 已排除 `distribution/l3/platforms/*/out/`）；
-`engine/__pycache__` 同理，安装枚举也排除了它，所以「落点文件数 = 源文件数」不会因为谁跑过引擎而变化。
+`engine/__pycache__` 同理，安装枚举也排除了它，所以「落点文件数 = 源文件数」不会因为谁跑过引擎而而变化。
+
+### 4.1 把数字员工建出来（11 个 bot / 5 个群）
+
+装完 L2，工作区里就有了 `CHIEF-INIT.md`、`90-templates/` 与目录骨架，但**bot 和群不会自动出现** ——
+它们要靠 Main Bot（Chief）调 `create_bot` / `create_group` 建。
+
+数据源都在包里，照抄即可，不要自己缩写角色：
+
+| 文件 | 内容 |
+|---|---|
+| `distribution/l2/presets/bots.json` | 11 个 bot 的 `name / role / instructions`（含 Dev，它带独立 `work_dir`） |
+| `distribution/l2/presets/groups.json` | 5 个群的 `name / admin / mode / members / notice` |
+| `distribution/l2/SEED.md` | 给 Main Bot 执行的播种剧本（包含 create 参数映射与自检） |
+
+做法：把 `SEED.md` 交给目标机的 Chief，让它按顺序建。建完自查：
+
+```
+list_bots            # 11 个都在：Chief / Scout / Source / Margin / Copy / Ads / Care / Compliance / Metrics / Visual / Dev
+list_bots(group="技术开发")   # 成员是 Dev，admin 是 Chief
+```
+
+两条容易错的：
+
+- **Dev 要单独给 `work_dir`**（技术线在 `~/Projects/DS-Cross-Border-Workbench`，不在团队工作区）。
+  其余 10 个不传，继承团队工作区。
+- `CHIEF-INIT.md` 是原始规划稿（8 个 bot / 4 个群），**不要照它数**；它以 `presets/` 为准。
+  文件顶部已加注记。
+
+还有三件事 Bot 代不了，得用户本人做（见 `SEED.md` 第 3 节）：**设置 → 权限**核每档位、
+**设置 → IM** 接群、**设置 → MCP 访问**发令牌。
+
+**数字员工的 memory 不随包**：每个 bot 的长期记忆是它自己的，换机器从零开始。
+仓库给的是「定义 + 工作区 + skill + capability」，不是它们的对话历史。
 
 ---
 
