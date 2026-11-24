@@ -151,11 +151,11 @@ else
 fi
 # skill 承诺的脚本与话术库必须真的随包装进工作区（曾漏发过）
 L2_MISSING=""
-for f in scripts/cs_router.py scripts/gen_listing.py scripts/ops_report.py scripts/score_products.py scripts/spapi_fetch.py data/faq.json; do
+for f in scripts/cs_router.py scripts/gen_listing.py scripts/ops_report.py scripts/score_products.py scripts/spapi_fetch.py scripts/ebay_fetch.py data/faq.json; do
   [ -s "$WS/$f" ] || L2_MISSING="$L2_MISSING $f"
 done
 if [ -z "$L2_MISSING" ]; then
-  ok "L2 工作区随包脚本 5 个 + faq.json 齐全"
+  ok "L2 工作区随包脚本 6 个 + faq.json 齐全"
 else
   bad "L2 工作区缺随包文件：${L2_MISSING# }"
 fi
@@ -328,6 +328,15 @@ if OUT="$(bash "$CONN/spapi-selftest.sh" 2>&1)" && printf '%s\n' "$OUT" | grep -
   ok "SP-API 本地假服务自检（catalog / report）"
 else
   bad "SP-API 本地假服务自检"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
+# ---------------------------------------------------------------- 7a. eBay 本地假服务
+echo "-- 7a. eBay 本地假服务"
+if OUT="$(bash "$CONN/ebay-selftest.sh" 2>&1)" && printf '%s\n' "$OUT" | grep -Fxq 'RESULT: READY'; then
+  ok "eBay 本地假服务自检（token / search / 429 重试）"
+else
+  bad "eBay 本地假服务自检"
   printf '%s\n' "$OUT" | sed 's/^/    /'
 fi
 

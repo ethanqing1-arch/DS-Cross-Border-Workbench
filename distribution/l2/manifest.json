@@ -13,7 +13,8 @@
       "ecom-ops",
       "ecom-cs",
       "ecom-guardrails",
-      "ecom-sp-api"
+      "ecom-sp-api",
+      "ecom-ebay"
     ],
     "bots": [
       "Chief",
