@@ -73,6 +73,7 @@ cd farm && bash scripts/acceptance.sh --with-browser   # 跑前先 --stop 真网
 - **从零到能用**（一台干净机器 → 11 个数字员工能干活，含 DS Bot 安装与三件只能本人做的事）：[`docs/onboard-from-zero.md`](docs/onboard-from-zero.md)
 - **外部使用者从零安装**（换机器要改哪两处、八项外部依赖交接单）：[`docs/external-setup.md`](docs/external-setup.md)
 - 产品化计划与里程碑：[`docs/dsh-ecom-productization-plan.md`](docs/dsh-ecom-productization-plan.md)
+- **未来规划**（阶段 0–4、闸门 G0–G3、为什么这么排、不做什么）：[`docs/roadmap.md`](docs/roadmap.md)
 - 七站出口矩阵：[`docs/platform-egress-matrix.md`](docs/platform-egress-matrix.md)
 - 代理 runbook（起桥、自检、407 排查）：[`docs/proxy-runbook.md`](docs/proxy-runbook.md)
 - 取数 runbook（起网关 → 起桥 → 建会话带 proxy → 探针取页 → `verified` 回填）：[`docs/data-fetch-runbook.md`](docs/data-fetch-runbook.md)
