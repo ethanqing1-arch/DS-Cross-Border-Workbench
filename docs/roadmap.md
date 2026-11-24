@@ -14,7 +14,7 @@
 | 能力 | 状态 | 证据 |
 |---|---|---|
 | 装 | 通 | `bash distribution/verify.sh` → `PASS=63 FAIL=0 WARN=0` / `RESULT: READY`（2026-11-24 本机实测） |
-| 跑 | 样例已跑通 | `bash distribution/flow-smoke.sh` → `PASS=4 FAIL=0 WARN=0` / `RESULT: READY`，四类产物齐全 |
+| 跑 | 样例已跑通 | `bash distribution/flow-smoke.sh` → `PASS=8 FAIL=0 WARN=2` / `RESULT: READY`，四类产物通过内容校验（L1、L2 探测的隔离网关端口 19681 未监听） |
 | 取数 | 缺外部条件 | 7 平台 API 全未接（manifest 写「未接入」）；无出口代理；`shopee` / `tiktokshop` 选择器标注「未验」 |
 | 卖 | 缺产品本体 | L1 只是能力注册器：`brand.json` 的 `icon.present=false`、名称配色全占位；仓库内无授权校验代码 |
 
@@ -138,7 +138,7 @@ grep -n "camoufox:" farm/contract.js                          # tasks: TASK_TYPE
 grep -n "requires.browser-farm" distribution/l3/install.sh
 
 # 业务脚本输入
-bash distribution/flow-smoke.sh                               # PASS=4 FAIL=0 WARN=0 / READY
+GATEWAY_URL=http://127.0.0.1:19681 bash distribution/flow-smoke.sh  # PASS=8 FAIL=0 WARN=2 / READY（19681 未监听）
 grep -n "os.path.join(BASE, \"data\"" distribution/l2/workspace/scripts/*.py
 
 # 红线无拦截

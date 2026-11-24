@@ -280,8 +280,28 @@ async function checkExtractParity() {
   assert.deepEqual(b.result, a.result);
   assert.deepEqual(b.result, { ok: false, url, fields: { title: 'acceptance extract', missing: null }, missing: ['missing'] });
 }
+async function checkWaitParity() {
+  const [created, session] = await call('/v1/sessions', { account: 'acc-wait-worker', engine: 'camoufox', require_check: false });
+  assert.equal(created, 201, JSON.stringify(session));
+  const worker = '/v1/sessions/' + encodeURIComponent(session.session_id) + '/tasks';
+  // worker 每个任务启动一次浏览器，直接在初始空页上等缺失的元素。
+  const params = { selector: '#absent-on-blank-page', state: 'absent', timeout_ms: 1500 };
+  const a = await submit(cdp, { type: 'wait', params });
+  const b = await submit(worker, { type: 'wait', params });
+  const envelope = ['ok', 'result', 'status', 'task_id'];
+  assert.deepEqual(Object.keys(a).sort(), envelope);
+  assert.deepEqual(Object.keys(b).sort(), envelope);
+  const resultKeys = ['found', 'ok', 'selector', 'state', 'waited_ms'];
+  assert.deepEqual(Object.keys(a.result).sort(), resultKeys);
+  assert.deepEqual(Object.keys(b.result).sort(), resultKeys);
+  const expected = { ok: true, found: false, state: params.state, selector: params.selector };
+  for (const [key, value] of Object.entries(expected)) {
+    assert.equal(a.result[key], value, `chromium wait ${key}`);
+    assert.equal(b.result[key], a.result[key], `Camoufox wait ${key}`);
+  }
+}
 (async () => {
-  for (const [name, check] of [['errors', checkErrors], ['extract', checkExtractParity]]) {
+  for (const [name, check] of [['wait', checkWaitParity], ['errors', checkErrors], ['extract', checkExtractParity]]) {
     try {
       await check();
       console.log('acceptance pass ' + name);
@@ -297,6 +317,8 @@ NODE
     && ok "REST 与 MCP 任务失败返回结构化 error" || no "任务失败契约不符"
   grep -Fxq 'acceptance pass extract' "$TMP/acc-tasks.log" \
     && ok "Camoufox 与 chromium 的 extract 键集与任务信封一致" || no "extract 跨引擎契约不符"
+  grep -Fxq 'acceptance pass wait' "$TMP/acc-tasks.log" \
+    && ok "Camoufox 与 chromium 的 wait 结果同形" || no "wait 跨引擎契约不符"
   node farm.js stop --account acc-smoke >/dev/null 2>&1
   # MCP 适配层冒烟：stdio 喂 initialize → tools/list（断言 7 个工具）→ farm_health（断言 gateway up）
   printf '%s\n' \

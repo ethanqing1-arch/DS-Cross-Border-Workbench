@@ -242,8 +242,9 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 README 里 2026-11-24 的快照基线（数字会随覆盖变化，以脚本实际输出为准）：
 
 ```
-farm/scripts/acceptance.sh --with-browser  PASS=70 FAIL=0 WARN=0 / READY
+farm/scripts/acceptance.sh --with-browser  PASS=71 FAIL=0 WARN=0 / READY
 distribution/verify.sh                     PASS=63 FAIL=0 WARN=0 / READY
+distribution/flow-smoke.sh                 PASS=8 FAIL=0 WARN=2 / READY（L1、L2 探测的隔离网关端口 19681 未监听）
 distribution/e2e-smoke.sh                  PASS=34 FAIL=0 WARN=1 / READY（WARN 是令牌 8 位 <32；须单跑）
 ```
 

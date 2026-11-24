@@ -60,8 +60,62 @@ run_flow() {
   fi
 }
 
+check_content() {
+  local artifact="$1" out
+  if out="$(python3 - "$artifact" 2>&1 <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+
+def read_rows(path):
+    with path.open(encoding="utf-8-sig", newline="") as file:
+        return list(csv.DictReader(file))
+
+
+artifact = Path(sys.argv[1])
+if artifact.name == "选品打分.csv":
+    rows = read_rows(artifact)
+    decisions = [row.get("决策") for row in rows]
+    red_flags = [row.get("红线") for row in rows if row.get("决策") == "放弃"]
+    if not {"上架测试", "放弃"}.issubset(decisions) or any(
+        not (flag or "").strip() for flag in red_flags
+    ):
+        sys.exit(f"实际决策={decisions!r}，放弃行红线={red_flags!r}")
+elif artifact.name == "上架包":
+    count = sum(path.is_file() for path in artifact.rglob("*.md"))
+    import_table = artifact.with_name("平台导入表.csv")
+    size = import_table.stat().st_size if import_table.is_file() else 0
+    if count < 2 or size == 0:
+        sys.exit(f"实际 .md 文件数={count}，平台导入表.csv 字节数={size}")
+elif artifact.name == "运营日报.md":
+    report = artifact.read_text(encoding="utf-8")
+    terms = ["GMV", "退款率", "贡献利润"]
+    found = [term for term in terms if term in report]
+    if found != terms:
+        missing = [term for term in terms if term not in found]
+        sys.exit(f"正文实际包含={found!r}，缺少={missing!r}")
+elif artifact.name == "客服处理.csv":
+    routed = [row.get("是否转人工") for row in read_rows(artifact)]
+    if not {"是", "否"}.issubset(routed):
+        sys.exit(f"实际是否转人工={routed!r}")
+else:
+    sys.exit(f"没有为 {artifact} 配置内容校验")
+PY
+)"; then
+    ok "$artifact 内容校验"
+  else
+    bad "$artifact 内容校验失败"
+    printf '%s\n' "$out"
+  fi
+}
+
 run_flow score_products 'out/选品打分.csv'
+check_content 'out/选品打分.csv'
 run_flow gen_listing 'out/上架包'
+check_content 'out/上架包'
 run_flow ops_report 'out/运营日报.md'
+check_content 'out/运营日报.md'
 run_flow cs_router 'out/客服处理.csv'
+check_content 'out/客服处理.csv'
 finish
