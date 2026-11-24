@@ -13,7 +13,7 @@
 
 | 能力 | 状态 | 证据 |
 |---|---|---|
-| 装 | 通 | `bash distribution/verify.sh` → `PASS=68 FAIL=0 WARN=0` / `RESULT: READY`（2026-11-24 本机实测） |
+| 装 | 通 | `bash distribution/verify.sh` → `PASS=69 FAIL=0 WARN=0` / `RESULT: READY`（2026-11-24 本机实测） |
 | 跑 | 样例已跑通 | `bash distribution/flow-smoke.sh` → `PASS=8 FAIL=0 WARN=4` / `RESULT: READY`，四类产物通过内容校验（图标占位和三件插件缺源。网关不可达时 L1、L2 各多 1 条 WARN，共 6 条） |
 | 取数 | 缺外部条件 | eBay 已接 L2 connector（`scripts/ebay_fetch.py` + 假服务自检），其余 6 个平台的 T1 尚未接入降级链。各平台 API 真端点均未验证。无出口代理，`shopee` / `tiktokshop` 选择器标注「未验」。 |
 | 卖 | 待定稿与授权确认 | 品牌名称已定为跨浪（Kualang），配色与图标仍为占位，三件插件待入包，L3 Amazon skill 授权归属待确认。授权校验与安装包已就绪（默认不启用 licence）。 |
@@ -129,7 +129,7 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 
 ```bash
 # 装链
-bash distribution/verify.sh                                   # PASS=68 FAIL=0 WARN=0 / READY
+bash distribution/verify.sh                                   # PASS=69 FAIL=0 WARN=0 / READY
 bash distribution/installer-selftest.sh                       # macOS：PASS=6 FAIL=0 / READY（含 DMG 卷标校验）
 
 # Camoufox 任务契约

@@ -6,7 +6,7 @@
 #   bash verify.sh            # 跑完清掉临时目录
 #   bash verify.sh --keep     # 保留临时目录，便于事后看现场
 #
-# 流程：临时目录里依次 L2 → 7 个平台 → 全量 --check → 空目录与农场版本闸负例，
+# 流程：临时目录里依次 L2 → 7 个平台 → 全量 --check → 空目录、农场版本闸与 requires 负例，
 #       最后打 PASS/FAIL/WARN 汇总、RESULT 与退出码（0 / 1）。
 #
 # 边界：只写 mktemp 目录；不碰 ~/ds-bot-workspace、不碰 DS Bot 状态、不碰 farm。
@@ -178,6 +178,7 @@ for p in $PLATFORMS; do
     ok "平台 $p 安装（write=$EXPECTED skip=0 fail=0，落点 ${EXPECTED}）"
   else
     bad "平台 $p 安装（rc=$RC 汇总='${W:-无}' 落点=${LANDED}）"
+    printf '%s\n' "$OUT" | sed 's/^/    /'
   fi
   if BUNDLE_OUT="$(node "$SRC/l3/check-bundle-skills.js" "$SRC/l3/platforms/$p" 2>&1)"; then
     if [ -n "$BUNDLE_OUT" ]; then ok "平台 $p ${BUNDLE_OUT#PASS }"; fi
@@ -239,7 +240,7 @@ if mkdir -p "$NEG_L3/platforms" "$NEG_TARGET" &&
 const fs = require("fs");
 const file = process.argv[1];
 const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
-manifest.requires["browser-farm"] = "99.0.0";
+manifest.requires["browser-farm"] = ">=99.0.0";
 fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
 ' "$NEG_L3/platforms/ebay/manifest.json"; then
   OUT="$(bash "$NEG_L3/install.sh" ebay "$NEG_TARGET" 2>&1)"; RC=$?
@@ -257,6 +258,48 @@ fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
   fi
 else
   bad "无法准备 L3 农场版本闸负例的平台包副本"
+fi
+
+# ---------------------------------------------------------------- 5b. requires 错误键名负例
+echo "-- 5b. 负例：requires 键名错误必须 FAIL 且 0 写入"
+if OUT="$(
+  exec 2>&1
+  l3="$TMP/l3-requires-negative" target="$TMP/requires-negative-target"
+  manifest="$l3/platforms/shopee/manifest.json" backup="$TMP/requires-manifest.bak"
+  if ! cp -R "$SRC/l3" "$l3" || ! cp "$manifest" "$backup" || ! mkdir "$target"; then
+    echo "无法准备 L3 requires 负例的平台包副本"
+    exit 1
+  fi
+  trap 'cp "$backup" "$manifest" || exit 1' EXIT
+  trap 'exit 1' HUP INT TERM
+
+  node -e '
+const fs = require("fs");
+const file = process.argv[1];
+const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+const requires = manifest.requires;
+if (!Object.hasOwn(requires, "kualang-cbec") || Object.hasOwn(requires, "dsh-ecom-cbec")) process.exit(1);
+requires["dsh-ecom-cbec"] = requires["kualang-cbec"];
+delete requires["kualang-cbec"];
+fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+' "$manifest" || exit 1
+
+  out="$(bash "$l3/install.sh" shopee "$target" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] &&
+     printf '%s\n' "$out" | grep -Fxq '  FAIL requires 含未知键 dsh-ecom-cbec' &&
+     printf '%s\n' "$out" | grep -Fxq 'FAIL 平台 manifest 未通过 schema 校验' &&
+     printf '%s\n' "$out" | grep -Fxq '== 汇总: write=0 skip=0 fail=1 ==' &&
+     entries="$(find "$target" -mindepth 1 -print -quit)" && [ -z "$entries" ]; then
+    echo "L3 requires 错误键名负例（rc=${rc}，目标 0 写入）"
+  else
+    printf '%s\n' "$out"
+    exit 1
+  fi
+)"; then
+  ok "$OUT"
+else
+  bad "L3 requires 错误键名负例未按预期失败或还原"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
 fi
 
 # ---------------------------------------------------------------- 6. 取页器与平台预设（静态）

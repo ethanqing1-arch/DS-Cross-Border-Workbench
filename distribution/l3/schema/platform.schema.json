@@ -29,14 +29,16 @@
     "requires": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kualang-cbec"],
+      "required": ["kualang-cbec", "browser-farm"],
       "properties": {
         "kualang-cbec": {
           "type": "string",
+          "pattern": "^>=[0-9]+\\.[0-9]+\\.[0-9]+$",
           "description": "最低 L2 版本约束，如 >=0.1.0"
         },
         "browser-farm": {
           "type": "string",
+          "pattern": "^>=[0-9]+\\.[0-9]+\\.[0-9]+$",
           "description": "最低农场版本约束，如 >=1.1.0"
         }
       }

@@ -82,6 +82,25 @@ if (mf.id !== pid) errs.push("id=" + mf.id + " 与目录名 " + pid + " 不一�
 const tierEnum = ((schema.properties.tier || {}).enum) || [];
 if (tierEnum.indexOf(mf.tier) < 0) errs.push("tier=" + mf.tier + " 不在 " + tierEnum.join("/"));
 if (typeof mf.version === "string" && !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(mf.version)) errs.push("version 不是 x.y.z：" + mf.version);
+const requiresSchema = schema.properties.requires;
+const requires = mf.requires;
+if (typeof requires !== requiresSchema.type || requires === null || Array.isArray(requires)) {
+  errs.push("requires 必须是对象");
+} else {
+  for (const key of requiresSchema.required) {
+    if (!Object.hasOwn(requires, key)) errs.push("requires 缺键 " + key);
+  }
+  for (const [key, value] of Object.entries(requires)) {
+    if (!Object.hasOwn(requiresSchema.properties, key)) {
+      if (requiresSchema.additionalProperties === false) errs.push("requires 含未知键 " + key);
+      continue;
+    }
+    const rule = requiresSchema.properties[key];
+    if (typeof value !== rule.type || !new RegExp(rule.pattern).test(value)) {
+      errs.push("requires." + key + " 不符合 schema 的类型或格式约束");
+    }
+  }
+}
 if (mf.skills) {
   const modes = (((schema.properties.skills || {}).properties || {}).mode || {}).enum || [];
   if (modes.indexOf(mf.skills.mode) < 0) errs.push("skills.mode=" + mf.skills.mode + " 不在 " + modes.join("/"));

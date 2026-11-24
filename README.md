@@ -45,7 +45,7 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 | 自检 | 结果 |
 |---|---|
 | `farm/scripts/acceptance.sh --with-browser` | `PASS=72 FAIL=0 WARN=0` / `READY`（网关 19681，控制面 19581） |
-| `distribution/verify.sh` | `PASS=68 FAIL=0 WARN=0` / `READY` |
+| `distribution/verify.sh` | `PASS=69 FAIL=0 WARN=0` / `READY` |
 | `distribution/installer-selftest.sh` | macOS 实测 `PASS=6 FAIL=0` / `READY`（含 DMG 卷标校验） |
 | `distribution/flow-smoke.sh` | `PASS=8 FAIL=0 WARN=4` / `READY`（图标占位和三件插件缺源。网关不可达时 L1、L2 各多 1 条 WARN） |
 | `distribution/e2e-smoke.sh` | 单跑 `PASS=34 FAIL=0 WARN=1` / `READY`（默认网关 19671，含 `transferSize>0` 与离网 `E_GOTO` 断言。WARN 来自 8 位令牌低于 32 位门槛）。检测到并发浏览器自检时只记 `SKIP`（`exit 3` / `RESULT: SKIPPED`）。 |
