@@ -66,7 +66,7 @@ node -e "require.resolve('ws')" >/dev/null 2>&1 && ok "依赖 ws 可解析" || w
 
 echo "== 4. 台账结构 =="
 TMP="$(mktemp -d)"; trap 'kill ${GPID:-} ${CPID:-} 2>/dev/null; sleep 0.5; rm -rf "$TMP" 2>/dev/null || { sleep 1.5; rm -rf "$TMP" 2>/dev/null; }' EXIT
-cp farm.js control.js ledger.js driver.js contract.js package.json "$TMP"/ 2>/dev/null
+cp farm.js control.js ledger.js driver.js contract.js camoufox_worker.py package.json "$TMP"/ 2>/dev/null
 mkdir -p "$TMP/gateway" && cp gateway/server.js "$TMP/gateway/" 2>/dev/null
 WS_PARENT="$(node -e "console.log(require('path').dirname(require('path').dirname(require.resolve('ws'))))" 2>/dev/null || true)"
 [ -n "$WS_PARENT" ] && export NODE_PATH="$WS_PARENT"
@@ -119,8 +119,20 @@ mkdir -p "$TMP/probe-tmp"
 TMPDIR="$TMP/probe-tmp" node control.js --port "$ACCEPT_CONTROL_PORT" >"$TMP/acc-c.log" 2>&1 & CPID=$!
 sleep 1
 printf '%s\n' 'import sys; print("fixture: no worker response", file=sys.stderr)' >"$TMP/empty-worker.py"
+cat >"$TMP/acceptance-worker.py" <<'PY'
+import os
+import sys
+
+account = sys.argv[sys.argv.index('--account') + 1]
+name = 'empty-worker.py' if account == 'default:acc-empty-worker' else 'camoufox_worker.py'
+worker = os.path.join(os.path.dirname(__file__), name)
+os.execv(sys.executable, [sys.executable, worker, *sys.argv[1:]])
+PY
+if [ -z "${CAMOUFOX_PY:-}" ] && [ -x "$HOME/.dsh/venvs/camoufox/bin/python" ]; then
+  export CAMOUFOX_PY="$HOME/.dsh/venvs/camoufox/bin/python"
+fi
 node gateway/server.js --port "$ACCEPT_PORT" --control "http://127.0.0.1:$ACCEPT_CONTROL_PORT" --farm "$TMP/farm.js" --driver "$TMP/driver.js" \
-  --camoufox-worker "$TMP/empty-worker.py" >"$TMP/acc-g.log" 2>&1 & GPID=$!
+  --camoufox-worker "$TMP/acceptance-worker.py" >"$TMP/acc-g.log" 2>&1 & GPID=$!
 sleep 1.2
 auth_curl -s "localhost:$ACCEPT_PORT/v1/health" >"$TMP/acc-h.json" 2>/dev/null \
   && grep -q '"gateway":"up"' "$TMP/acc-h.json" && ok "gateway /v1/health" || no "gateway /v1/health"
@@ -175,7 +187,7 @@ else
 fi
 
 if [ "$WITH_BROWSER" = "1" ]; then
-  echo "== 6. 真机冒烟（起 chromium + 首检 + 任务）=="
+  echo "== 6. 真机冒烟（chromium 首检 + Camoufox 任务对齐）=="
   curl -s -X POST "localhost:$ACCEPT_CONTROL_PORT/instances" -H 'Content-Type: application/json' \
     -d '{"account":"acc-smoke","port":19499,"fp_seed":42,"tz":"Asia/Tokyo","lang":"ja-JP","platform":"accplat","headless":true}' >/dev/null
   sleep 1
@@ -187,7 +199,7 @@ if [ "$WITH_BROWSER" = "1" ]; then
     && ok "台账按 platform 可筛" || no "台账 platform 筛选失效"
   curl -s "localhost:$ACCEPT_CONTROL_PORT/instances?platform=nosuch" | grep -q '"instances": \[\]' \
     && ok "无关平台筛不到" || no "platform 筛选串了"
-  GATEWAY_URL="http://127.0.0.1:$ACCEPT_PORT" node - "$SRC/mcp/farm-mcp.js" <<'NODE'
+  GATEWAY_URL="http://127.0.0.1:$ACCEPT_PORT" node - "$SRC/mcp/farm-mcp.js" >"$TMP/acc-tasks.log" 2>&1 <<'NODE'
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const { createServer } = require('node:net');
@@ -197,7 +209,7 @@ async function call(path, body) {
   const r = await fetch(base + path, {
     method: body ? 'POST' : 'GET',
     headers: { authorization: 'Bearer ' + process.env.GATEWAY_TOKEN,
-      'content-type': 'application/json', 'idempotency-key': 'acceptance-structured-error' },
+      'content-type': 'application/json', 'idempotency-key': 'acceptance-' + (body?.account || 'task') },
     body: body && JSON.stringify(body), signal: AbortSignal.timeout(3000),
   });
   return [r.status, await r.json()];
@@ -210,21 +222,22 @@ function checkError(label, error, code) {
 async function submit(path, body, code) {
   const [status, task] = await call(path, body);
   assert.equal(status, 202, JSON.stringify(task));
-  for (let i = 0; i < 100; i++) {
+  const expected = code ? 'failed' : 'succeeded';
+  for (let i = 0; i < 150; i++) {
     const [status, result] = await call('/v1/tasks/' + task.task_id);
     assert.equal(status, 200);
-    if (result.status === 'failed') {
-      assert.equal(result.ok, false);
-      checkError('GET task ' + body.type, result.error, code);
-      return task.task_id;
+    if (result.status !== 'queued' && result.status !== 'running') {
+      assert.equal(result.status, expected, JSON.stringify(result));
+      assert.equal(result.ok, !code);
+      if (code) checkError('GET task ' + body.type, result.error, code);
+      return result;
     }
-    assert.notEqual(result.status, 'succeeded', JSON.stringify(result));
     await sleep(100);
   }
-  throw new Error('task did not fail before test deadline');
+  throw new Error('task did not finish before test deadline');
 }
-(async () => {
-  const cdp = '/v1/sessions/acc-smoke/tasks';
+const cdp = '/v1/sessions/acc-smoke/tasks';
+async function checkErrors() {
   const worker = '/v1/sessions/default:acc-empty-worker/tasks';
   const [unsupported, rejection] = await call(cdp, { type: 'unsupported' });
   assert.equal(unsupported, 422);
@@ -240,7 +253,7 @@ async function submit(path, body, code) {
   await submit(cdp, { type: 'eval', params: { expr: '1+1' }, timeout_ms: 1 }, 'E_TIMEOUT');
   const [created, session] = await call('/v1/sessions', { account: 'acc-empty-worker', engine: 'camoufox', require_check: false });
   assert.equal(created, 201, JSON.stringify(session));
-  const taskId = await submit(worker, { type: 'scan' }, 'E_WORKER_NO_OUTPUT');
+  const { task_id: taskId } = await submit(worker, { type: 'scan' }, 'E_WORKER_NO_OUTPUT');
   const input = [{ task_id: taskId }, { session_id: session.session_id, type: 'scan', wait_ms: 5000 }]
     .map((args, id) => JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'farm_task', arguments: args } }))
     .join('\n') + '\n';
@@ -252,9 +265,38 @@ async function submit(path, body, code) {
     assert.equal(result.isError, true);
     checkError(id === 0 ? 'MCP query' : 'MCP poll', JSON.parse(result.content[0].text).error, 'E_WORKER_NO_OUTPUT');
   }
-})().catch((e) => { console.error(e); process.exitCode = 1; });
+}
+async function checkExtractParity() {
+  const [created, session] = await call('/v1/sessions', { account: 'acc-extract-worker', engine: 'camoufox', require_check: false });
+  assert.equal(created, 201, JSON.stringify(session));
+  const worker = '/v1/sessions/' + encodeURIComponent(session.session_id) + '/tasks';
+  const url = 'data:text/html,' + encodeURIComponent('<h1>  acceptance extract  </h1>');
+  const params = { url, selector_map: { title: 'h1', missing: '#does-not-exist' }, timeout_ms: 2000 };
+  const a = await submit(cdp, { type: 'extract', params });
+  const b = await submit(worker, { type: 'extract', params });
+  const envelope = ['ok', 'result', 'status', 'task_id'];
+  assert.deepEqual(Object.keys(a).sort(), envelope);
+  assert.deepEqual(Object.keys(b).sort(), envelope);
+  assert.deepEqual(b.result, a.result);
+  assert.deepEqual(b.result, { ok: false, url, fields: { title: 'acceptance extract', missing: null }, missing: ['missing'] });
+}
+(async () => {
+  for (const [name, check] of [['errors', checkErrors], ['extract', checkExtractParity]]) {
+    try {
+      await check();
+      console.log('acceptance pass ' + name);
+    } catch (e) {
+      console.error(e);
+      process.exitCode = 1;
+    }
+  }
+})();
 NODE
-  [ "$?" -eq 0 ] && ok "REST 与 MCP 任务失败返回结构化 error" || no "任务失败契约不符"
+  sed '/^acceptance pass /d' "$TMP/acc-tasks.log"
+  grep -Fxq 'acceptance pass errors' "$TMP/acc-tasks.log" \
+    && ok "REST 与 MCP 任务失败返回结构化 error" || no "任务失败契约不符"
+  grep -Fxq 'acceptance pass extract' "$TMP/acc-tasks.log" \
+    && ok "Camoufox 与 chromium 的 extract 键集与任务信封一致" || no "extract 跨引擎契约不符"
   node farm.js stop --account acc-smoke >/dev/null 2>&1
   # MCP 适配层冒烟：stdio 喂 initialize → tools/list（断言 7 个工具）→ farm_health（断言 gateway up）
   printf '%s\n' \

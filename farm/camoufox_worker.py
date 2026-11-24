@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # =============================================================================
-# camoufox_worker.py — Firefox 系深人设后端（账号级常驻，不暴露 CDP）
+# camoufox_worker.py — Firefox 系深人设后端（账号级 profile，不暴露 CDP）
 #
 # 为什么不是 CDP：Camoufox 走 Playwright/Juggler 协议；且 launch_server 不支持
 # persistent_context（官方注释明确写了），所以"既能持久化 profile 又暴露 ws 端点"
-# 这条路不存在。正确的用法是每个账号一个常驻 worker，任务在 worker 内执行。
+# 这条路不存在。任务在 worker 内执行，同一账号的任务使用同一个 profile。
 #
 # 用法：
 #   /tmp/cfx/bin/python camoufox_worker.py --account cf1 \
@@ -20,6 +20,7 @@ import sys
 import time
 
 from camoufox.sync_api import Camoufox
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 SCAN = r"""
@@ -84,6 +85,58 @@ def task_error(code, message):
     return 2
 
 
+def timeout_ms(params, default, minimum):
+    try:
+        value = int(params.get('timeout_ms') or default)
+    except (TypeError, ValueError, OverflowError):
+        value = default
+    return max(minimum, value or default)
+
+
+def extract(page, params, selectors):
+    url = params.get('url')
+    timeout = timeout_ms(params, 15000, 1000)
+    deadline = time.monotonic() + timeout / 1000
+    if url:
+        try:
+            page.goto(url, wait_until='load', timeout=timeout)
+        except PlaywrightTimeoutError:
+            try:
+                ready = page.evaluate('document.readyState')
+            except PlaywrightError:
+                ready = None
+            return {'ok': False, 'url': page.url, 'readyState': ready, 'error': 'navigation timeout'}, 1
+
+    while True:
+        fields = page.evaluate('''selectors => Object.fromEntries(Object.entries(selectors).map(([key, sel]) => {
+            const el = document.querySelector(String(sel));
+            return [key, el ? (el.textContent || '').trim() : null];
+        }))''', selectors)
+        missing = [key for key, value in fields.items() if value is None]
+        if not missing or time.monotonic() >= deadline:
+            return {'ok': not missing, 'url': page.url, 'fields': fields, 'missing': missing}, 0
+        time.sleep(0.2)
+
+
+def wait_for_selector(page, params):
+    selector = params['selector']
+    state = params.get('state') or 'present'
+    want_present = state == 'present'
+    started = time.monotonic()
+    deadline = started + timeout_ms(params, 30000, 0) / 1000
+    while True:
+        try:
+            found = page.evaluate('selector => !!document.querySelector(selector)', selector)
+        except PlaywrightError:
+            found = None
+        met = found is want_present
+        now = time.monotonic()
+        if met or now >= deadline:
+            result = {'ok': met, 'selector': selector, 'state': state, 'found': found, 'waited_ms': int((now - started) * 1000)}
+            return result, 0 if met else 1
+        time.sleep(0.2)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--account', required=True)
@@ -94,7 +147,7 @@ def main():
     ap.add_argument('--proxy', default='')
     ap.add_argument('--url', default='about:blank')
     ap.add_argument('--headless', action='store_true')
-    ap.add_argument('--task', default='', help='任务 JSON 或 "-" 从 stdin 读：{"type":"goto|eval|shot|scan","params":{...}}')
+    ap.add_argument('--task', default='', help='任务 JSON 或 "-" 从 stdin 读：{"type":"goto|eval|click|type|shot|scan|extract|wait","params":{...}}')
     a = ap.parse_args()
 
     os.makedirs(a.profile, exist_ok=True)
@@ -126,6 +179,7 @@ def main():
         if task:
             t = task.get('type')
             params = task.get('params') or {}
+            exit_code = 0
             if t == 'goto':
                 try:
                     page.goto(params['url'], wait_until='domcontentloaded', timeout=params.get('timeout_ms', 30000))
@@ -152,6 +206,35 @@ def main():
                 probe = page.evaluate(SCAN)
                 probe.update(scan_ip(page, params.get('no_ip')))
                 result = {'probe': probe}
+            elif t == 'extract':
+                selectors = params.get('selector_map')
+                if selectors is None:
+                    selectors = {}
+                if not isinstance(selectors, dict):
+                    return task_error('E_INTERNAL', '--selector-map must be a JSON object')
+                result, exit_code = extract(page, params, selectors)
+            elif t == 'wait':
+                if not params.get('selector'):
+                    return task_error('E_INTERNAL', '--selector required')
+                if (params.get('state') or 'present') not in ('present', 'absent'):
+                    return task_error('E_INTERNAL', '--state must be present|absent')
+                result, exit_code = wait_for_selector(page, params)
+            elif t == 'click':
+                x, y = float(params.get('x', 10)), float(params.get('y', 10))
+                page.mouse.move(x, y)
+                page.mouse.click(x, y, delay=30)
+                result = {'ok': True, 'x': x, 'y': y}
+            elif t == 'type':
+                text = params.get('text', '')
+                # JS 的 String.length 按 UTF-16 码元计数。
+                chars = len(text.encode('utf-16-le', errors='surrogatepass')) // 2
+                if params.get('mode') == 'keys':
+                    page.keyboard.type(text, delay=20)
+                    result = {'ok': True, 'mode': 'keys', 'chars': chars}
+                else:
+                    page.keyboard.insert_text(text)
+                    result = {'ok': True, 'mode': 'insertText', 'chars': chars,
+                              'note': 'insertText 不产生 keydown/keyup；需要事件序列时加 --keys'}
             else:
                 return task_error('E_UNSUPPORTED_TASK', f'unsupported task {t}')
             response = {'ok': True, 'account': a.account, 'engine': 'camoufox', 'type': t, 'result': result}
@@ -162,6 +245,7 @@ def main():
                     raise
                 return task_error('E_EVAL', str(error))
             print(line)
+            return exit_code
         else:
             page.goto(a.url, wait_until='domcontentloaded', timeout=30000)
             data = page.evaluate(SCAN)

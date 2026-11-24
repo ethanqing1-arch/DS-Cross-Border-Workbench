@@ -76,7 +76,7 @@ function runWorkerTask(inst, type, params, timeoutMs) {
     p.stdout.on('data', (c) => (out += c));
     p.stderr.on('data', (c) => (errOut += c));
     p.on('error', (e) => { clearTimeout(timer); reject(Object.assign(e, { taskCode: 'E_ENGINE_UNAVAILABLE' })); });
-    p.on('close', () => {
+    p.on('close', (code) => {
       clearTimeout(timer);
       const line = out.trim().split('\n').filter(Boolean).pop();
       let j = null; try { j = JSON.parse(line); } catch (e) {}
@@ -88,6 +88,10 @@ function runWorkerTask(inst, type, params, timeoutMs) {
         const error = j.error || {};
         return reject(Object.assign(new Error(error.message || j.error || 'worker failed'),
           { taskCode: error.code, detail: error.detail }));
+      }
+      if (code !== 0) {
+        const taskCode = code === 1 && (type === 'wait' || type === 'extract') ? 'E_TIMEOUT' : 'E_INTERNAL';
+        return reject(Object.assign(new Error(JSON.stringify(j.result || {})), { taskCode }));
       }
       resolve(Object.assign({ ok: true }, j.result || {}));   // 与 CDP 通道同形：{ok, ...}
     });

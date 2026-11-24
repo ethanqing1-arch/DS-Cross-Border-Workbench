@@ -32,7 +32,7 @@ const ENGINE_CAPS = {
   chromium: { transport: 'cdp', tasks: TASK_TYPES.slice() },
   linux150: { transport: 'cdp', tasks: TASK_TYPES.slice() },
   chrome: { transport: 'cdp', tasks: TASK_TYPES.slice() },
-  camoufox: { transport: 'worker', tasks: ['goto', 'eval', 'shot', 'scan'] },
+  camoufox: { transport: 'worker', tasks: TASK_TYPES.slice() },
 };
 
 /* 只能由外部容器/进程提供、网关不负责 provision 的引擎 */
