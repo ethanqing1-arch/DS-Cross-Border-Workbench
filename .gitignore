@@ -24,6 +24,13 @@ tmp/
 # 取数产物（first-fetch.sh 默认输出目录）
 distribution/connectors/out/
 
+# 选品引擎运行产物（engine/score.py 写 out/<run_id>/）
+distribution/l3/platforms/*/out/
+
+# Python 缓存（engine/ 随包分发）
+**/__pycache__/
+*.pyc
+
 # 环境变量与密钥
 .env
 .env.*

@@ -13,12 +13,14 @@
 #   - 排除 bundle/：那是给 DSH install_bundle 用的平铺分发形态，
 #     文件系统安装落的是按层结构的那份，两者不能重复计入。
 #   - 排除 .DS_Store。
+#   - 排除 __pycache__/ 与 *.pyc：Amazon 包随带 engine/*.py，跑一次自检就会生成字节码，
+#     那不是包内容；不排除的话「落点文件数 = 源文件数」会随谁跑过引擎而变化。
 set -eu
 
 PLATFORM_DIR="${1:?用法: list-platform-files.sh <平台目录>}"
 [ -d "$PLATFORM_DIR" ] || { echo "不是目录：$PLATFORM_DIR" >&2; exit 2; }
 
 cd "$PLATFORM_DIR"
-find . -path './bundle' -prune -o -type f ! -name '.DS_Store' -print \
+find . -path './bundle' -prune -o -name '__pycache__' -prune -o -type f ! -name '.DS_Store' ! -name '*.pyc' -print \
   | sed 's|^\./||' \
   | sort

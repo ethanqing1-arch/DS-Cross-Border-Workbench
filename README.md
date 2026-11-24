@@ -61,11 +61,16 @@ cd farm && bash scripts/acceptance.sh --with-browser   # 跑前先 --stop 真网
 |---|---|
 | 网关令牌 | 本机仍 8 位，需换 ≥ 32 位后重启 |
 | 目标国出口代理 | 尚无；没有它电商搜索页一律被拦（实测 eBay `Error Page`、Walmart 机器人墙） |
-| Amazon 23 个 skill 源码 | `cbec-selection-master` 本机缺失，L3 的 Amazon 目前只有引用声明 |
 | 平台官方 API | 七个平台均未接授权，费率字段一律 `null` 待业务确认 |
+| skill 授权归属 | 内容已随包，但 `cbec-selection-master` 是自有还是外购未定，对外分发前需确认 |
+
+已解决：Amazon 23 个 skill 已随 L3 包分发，源 `skills/` 46 个文件逐文件比对
+`OK=46 DIFF=0 MISSING=0`；`engine/`（打分引擎 + 自检 + 校验器）与 `SKILL_SPEC.md` 也已随包，
+`validate_skills.py` 报 `23 通过 / 0 有问题`。
 
 ## 文档
 
+- **外部使用者从零安装**（换机器要改哪两处、八项外部依赖交接单）：[`docs/external-setup.md`](docs/external-setup.md)
 - 产品化计划与里程碑：[`docs/dsh-ecom-productization-plan.md`](docs/dsh-ecom-productization-plan.md)
 - 七站出口矩阵：[`docs/platform-egress-matrix.md`](docs/platform-egress-matrix.md)
 - 代理 runbook（起桥、自检、407 排查）：[`docs/proxy-runbook.md`](docs/proxy-runbook.md)
@@ -77,4 +82,4 @@ cd farm && bash scripts/acceptance.sh --with-browser   # 跑前先 --stop 真网
 
 不打包 DS Bot 应用与其商标资产；不写任何 secret 明文（凭据只走环境变量或 DSH secret）；不碰 launchd、系统设置与密码库；`farm/profiles/`、`farm/state/` 含登录态与运营数据，`.gitignore` 已排除。
 
-本仓目前没有 LICENSE 文件；对 DSH 的改动受上游 MIT 许可约束，分发时需保留其版权声明。
+本仓代码以 [`Apache-2.0`](LICENSE) 授权。有三处例外需要单独看：对 DSH 的改动受上游 MIT 许可约束，分发时需保留其版权声明；`distribution/l3/platforms/amazon/skills/` 下的 23 个 skill 源自 `cbec-selection-master`，授权归属待确认；`evidence/` 下的紫鸟文件版权归福建紫讯信息科技有限公司，仅为取证引用，不在本仓授权范围内。
