@@ -56,9 +56,12 @@ async function connect() {
     pending.set(i, { res: (v) => { clearTimeout(t); res(v); }, rej: (e) => { clearTimeout(t); rej(e); } });
     ws.send(JSON.stringify({ id: i, method, params }));
   });
-  const evalJS = async (expr) => {
+  const evalJS = async (expr, requireJSON = false) => {
     const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.text || 'eval error');
+    if (requireJSON && (r.result.type === 'function' || !Object.hasOwn(r.result, 'value'))) {
+      throw new Error('eval result is not JSON serializable');
+    }
     return r.result.value;
   };
   return { send, evalJS, close: () => ws.close() };
@@ -167,8 +170,13 @@ const SCAN = `(() => {
       process.exitCode = state === 'complete' ? 0 : 1;
     } else if (cmd === 'eval') {
       const expr = val('expr');
-      const v = await c.evalJS(expr);
-      console.log(typeof v === 'string' ? v : JSON.stringify(v, null, 2));
+      try {
+        const value = await c.evalJS(expr, true);
+        console.log(JSON.stringify({ ok: true, value }));
+      } catch (e) {
+        console.error(JSON.stringify({ code: 'E_EVAL', message: e.message }));
+        process.exitCode = 2;
+      }
     } else if (cmd === 'click') {
       const x = Number(val('x', '10')), y = Number(val('y', '10'));
       for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {

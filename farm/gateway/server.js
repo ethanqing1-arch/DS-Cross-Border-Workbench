@@ -210,6 +210,14 @@ function allow(tenant) {
 /* 任务表：task_id → {status, result, error, at}（10 分钟 TTL，与契约一致） */
 const tasks = new Map();
 const TASK_TTL = 10 * 60 * 1000;
+function parseTaskError(text) {
+  try {
+    const error = JSON.parse(text);
+    if (error && typeof error.code === 'string' && typeof error.message === 'string') return error;
+  } catch (e) {}
+  return null;
+}
+
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of tasks) if (now - v.at > TASK_TTL) tasks.delete(k);
@@ -402,7 +410,11 @@ const server = http.createServer(async (req, res) => {
           let out; try { out = JSON.parse(stdout); } catch (e) { out = { raw: stdout.slice(0, 2000) }; }
           tasks.set(taskId, { status: 'succeeded', result: out, at: Date.now() });
         })
-        .catch((e) => tasks.set(taskId, { status: 'failed', error: (String(e.stderr || '').trim() || String(e.stdout || '').trim() || String(e.message)).slice(0, 800), at: Date.now() }));
+        .catch((e) => {
+          const message = String(e.stderr || '').trim() || String(e.stdout || '').trim() || String(e.message);
+          const error = type === 'eval' ? parseTaskError(message) : null;
+          tasks.set(taskId, { status: 'failed', error: error || message.slice(0, 800), at: Date.now() });
+        });
       return send(res, 202, { task_id: taskId, status: 'queued' });
     }
     if (parts[0] === 'v1' && parts[1] === 'tasks' && req.method === 'GET') {
