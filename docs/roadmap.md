@@ -2,7 +2,7 @@
 
 日期：2026-11-24 (Asia/Shanghai)
 依据：[产品化方案 v1](dsh-ecom-productization-plan.md) + 2026-11-24 缺口核查（核查命令见文末附录）
-状态：阶段 0 待开工；阶段 1–4 各有前置条件，前置未满足不跳级
+状态为阶段 0 的 0.1–0.4 已完成，清残留仍待授权。阶段 1–4 各有前置条件。
 
 ## 0 一句话目标
 
@@ -13,15 +13,15 @@
 
 | 能力 | 状态 | 证据 |
 |---|---|---|
-| 装 | 通 | `bash distribution/verify.sh` → `PASS=62 FAIL=0 WARN=0` / `RESULT: READY`（2026-11-24 本机实测） |
-| 跑 | **没验过** | 工作区 `distribution/l2/workspace/data/` 只有 `faq.json`；4 个业务脚本分别要 `candidates.csv` / `orders.csv` / `products.csv` / `messages.csv`，缺文件直接 `sys.exit` |
+| 装 | 通 | `bash distribution/verify.sh` → `PASS=63 FAIL=0 WARN=0` / `RESULT: READY`（2026-11-24 本机实测） |
+| 跑 | 样例已跑通 | `bash distribution/flow-smoke.sh` → `PASS=4 FAIL=0 WARN=0` / `RESULT: READY`，四类产物齐全 |
 | 取数 | 缺外部条件 | 7 平台 API 全未接（manifest 写「未接入」）；无出口代理；`shopee` / `tiktokshop` 选择器标注「未验」 |
 | 卖 | 缺产品本体 | L1 只是能力注册器：`brand.json` 的 `icon.present=false`、名称配色全占位；仓库内无授权校验代码 |
 
 三条容易误判的事实：
 
-1. **农场两个引擎不等价**：`camoufox` 只有 `goto/eval/shot/scan` 四项，`click/type/extract/wait` 都没有（`farm/contract.js:35`）。
-2. **L3 不校验农场版本**：`distribution/l3/install.sh` 只校验 manifest schema，不比对 `/v1/version`；L2 有闸（`distribution/l2/install.sh` 的 `ver_ge`），L3 没有。
+1. `camoufox` 和 Chromium 均声明 8 项任务，真机验收已比对同一 `extract` 的结果与任务信封。
+2. `distribution/l3/install.sh` 按平台 manifest 的最低农场版本判断。低版本拦截安装，网关不可达时提示 WARN 并继续检查 L2 前置。
 3. **红线只有文档约束**：`farm/gateway/server.js` 与 `farm/contract.js` 里没有任何只读白名单/登录态拦截，「绝不用农场做登录态店铺操作」靠自觉。
 
 工作量标记：**S** ≈ 半小时级，**M** ≈ 半天级，**L** ≈ 1–2 天级。这是判断，不是承诺。
@@ -45,7 +45,7 @@
 ```bash
 bash distribution/verify.sh            # 期望 PASS 数不降、FAIL=0
 bash distribution/flow-smoke.sh        # 4 类产物齐全
-cd farm && bash scripts/acceptance.sh --with-browser   # 跑前先 --stop 真网关（同端口）
+ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --with-browser
 ```
 
 **闸门 G0**：以上三条全绿 → 才进入阶段 1。
@@ -129,16 +129,16 @@ cd farm && bash scripts/acceptance.sh --with-browser   # 跑前先 --stop 真网
 
 ```bash
 # 装链
-bash distribution/verify.sh                                   # PASS=62 FAIL=0 WARN=0 / READY
+bash distribution/verify.sh                                   # PASS=63 FAIL=0 WARN=0 / READY
 
-# 引擎任务子集
-grep -n "camoufox:" farm/contract.js                          # tasks: goto/eval/shot/scan
+# Camoufox 任务契约
+grep -n "camoufox:" farm/contract.js                          # tasks: TASK_TYPES.slice()
 
-# L3 无版本闸
-grep -n "requires" distribution/l3/install.sh                 # 无输出（schema 里声明，安装器不校验）
+# L3 农场版本闸（负例随 verify.sh 运行）
+grep -n "requires.browser-farm" distribution/l3/install.sh
 
 # 业务脚本输入
-ls distribution/l2/workspace/data/                            # 只有 faq.json
+bash distribution/flow-smoke.sh                               # PASS=4 FAIL=0 WARN=0 / READY
 grep -n "os.path.join(BASE, \"data\"" distribution/l2/workspace/scripts/*.py
 
 # 红线无拦截
