@@ -40,7 +40,7 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 |---|---|
 | `farm/scripts/acceptance.sh --with-browser` | `PASS=71 FAIL=0 WARN=0` / `READY`（网关 19681，控制面 19581） |
 | `distribution/verify.sh` | `PASS=63 FAIL=0 WARN=0` / `READY` |
-| `distribution/flow-smoke.sh` | `PASS=8 FAIL=0 WARN=2` / `READY`（L1、L2 探测的隔离网关端口 19681 未监听） |
+| `distribution/flow-smoke.sh` | `PASS=8 FAIL=0 WARN=0` / `READY`（默认探 19671；`GATEWAY_URL` 指向未监听端口时 L1、L2 各出一条 WARN，即 `WARN=2`） |
 | `distribution/e2e-smoke.sh` | `PASS=34 FAIL=0 WARN=1` / `READY`（临时网关，含 `transferSize>0` 与离网 `E_GOTO` 断言；WARN 是令牌 8 位 <32） |
 | `farm/scripts/test-proxy-bridge.sh` | `PASS=35 FAIL=0` / `READY`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |
 | `farm/scripts/proxy-selftest.sh --self-test` | `PASS=12 FAIL=0 WARN=1 INFO=1` / `READY`（假上游；WARN 同上，令牌长度） |
