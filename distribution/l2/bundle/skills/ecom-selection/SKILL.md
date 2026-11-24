@@ -16,6 +16,17 @@ metadata:
 用户要选品、评估某个品能不能做、或要看同类竞争格局。
 只问"某商品多少钱"不归这里，直接 web 搜索。
 
+### 与另一个选品 skill 的分工
+
+`market-research` 和本文都是选品流程，按下面这条硬线分，不要两套混用：
+
+| 特征 | 用哪个 |
+|---|---|
+| 只要一个当场结论、不落盘、不读工作区模板、不做竞品档案 | **本文 ecom-selection** |
+| 工作区里有 `90-templates/selection-score.md`、要出评分卡并落盘到 `10-market/candidates/`、要走 Scout 五步流水线并汇报给 Chief | `market-research` |
+
+判不出来时看一条：用户有没有要求「存档 / 写进工作区 / 给 Chief 汇报」——有就转 `market-research`。
+
 ## 硬前置：三层利润模型
 
 **不要用毛利率判断一个品能不能做。** 分三层：

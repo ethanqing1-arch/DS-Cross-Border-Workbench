@@ -10,9 +10,26 @@ description: 市场调研数字员工（Scout）主控流程：判品类驱动�
 用户要判断「这个品/这个类目要不要做」，或要一份类目机会清单、竞品拆解、关键词需求结论。
 只问"某商品现在多少钱"不归这里，直接查价。
 
+### 与另一个选品 skill 的分工
+
+`ecom-selection` 和本文都是选品流程，按下面这条硬线分，不要两套混用：
+
+| 特征 | 用哪个 |
+|---|---|
+| 工作区里有 `90-templates/selection-score.md`、要出评分卡并落盘到 `10-market/candidates/`、要走 Scout 五步流水线并汇报给 Chief | **本文 market-research** |
+| 只要一个当场结论、不落盘、不读工作区模板、不做竞品档案 | `ecom-selection` |
+
+判不出来时看一条：用户有没有要求「存档 / 写进工作区 / 给 Chief 汇报」——有就是本文。
+
+## 路径解析
+
+- 本文所有相对路径（`90-templates/…`、`10-market/…`）以**当前 Bot 的 work_dir（团队工作区根）**为基准，不是 shell 的 cwd。
+- Bot 没有独立 work_dir 时，用团队工作区根。
+- 拿不到工作区根时，先问 Chief，**不要猜路径**，也不要自己造目录。
+
 ## 硬前置：先读工作区，再动手
 
-1. 读 `~/ds-bot-workspace/README.md`（目录职责、数字口径、SKU 命名）
+1. 读 `<工作区根>/README.md`（目录职责、数字口径、SKU 命名）
 2. 读 `90-templates/selection-score.md`（评分卡五维权重与红线，**打分只认这张**）
 3. 读 `90-templates/pricing-model.csv`（利润口径，不要自己造公式）
 4. 读 `10-market/candidates/_rejects.md`（历史踩坑，评分前必读）
