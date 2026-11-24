@@ -442,6 +442,98 @@ else
   bad "无法准备 AliExpress 日元负例"
 fi
 
+# ---------------------------------------------------------------- 7d. 粗筛报告口径
+echo "-- 7d. 粗筛报告口径"
+SCREEN_SCRIPT="$WS/.dsh/skills/market-research/scripts/screen_keyword.py"
+SCREEN_FIXTURE="$(dirname "$SCREEN_SCRIPT")/fixtures/screen"
+SCREEN_OUT="$TMP/screen"
+SCREEN_NAME="pet slow feeder-粗筛"
+if OUT="$(python3 "$SCREEN_SCRIPT" "pet slow feeder" --from-json "$SCREEN_FIXTURE" --out "$SCREEN_OUT" 2>&1)"; then
+  ok "粗筛离线运行退出码 0"
+else
+  bad "粗筛离线运行失败"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
+SCREEN_MISSING_SECTIONS=""
+for section in 需求侧 进入难度 货源侧 缺口 数据可信度; do
+  grep -Fxq "## $section" "$SCREEN_OUT/$SCREEN_NAME.md" || SCREEN_MISSING_SECTIONS="$SCREEN_MISSING_SECTIONS $section"
+done
+if [ -z "$SCREEN_MISSING_SECTIONS" ]; then
+  ok "粗筛 Markdown 五节齐全"
+else
+  bad "粗筛 Markdown 缺节：${SCREEN_MISSING_SECTIONS# }"
+fi
+
+if OUT="$(python3 - "$SCREEN_OUT/$SCREEN_NAME" 2>&1 <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+base = sys.argv[1]
+csv_path = Path(base + ".csv")
+with csv_path.open(encoding="utf-8", newline="") as file:
+    reader = csv.DictReader(file)
+    expected = [
+        "搜索结果总数", "广告密度", "评论数中位数", "评论数最大", "评论数>1000占比", "评分中位数", "价格带",
+        "上架月龄中位数", "新品占比(<12个月)", "FBA占比", "卖家数",
+        "货源价中位数", "货源折扣中位数", "货源销量中位数", "零货倍数",
+    ]
+    if reader.fieldnames != ["指标", "值", "样本量", "来源", "证据等级", "备注"]:
+        sys.exit(f"粗筛 CSV 表头不符：{reader.fieldnames!r}")
+    actual = [row["指标"] for row in reader]
+    if actual != expected:
+        sys.exit(f"粗筛 CSV 指标清单不符：{actual!r}")
+
+for path in (csv_path, Path(base + ".md")):
+    content = path.read_text(encoding="utf-8")
+    if any(word in content for word in ("上架测试", "小批量观察", "放弃")):
+        sys.exit(f"{path.name} 含决策词")
+PY
+)"; then
+  ok "粗筛 CSV 15 项指标齐全，Markdown 和 CSV 无决策词"
+else
+  bad "粗筛 CSV 或决策词校验失败"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
+SCREEN_MISSING="$TMP/screen-missing-fixture"
+SCREEN_NEG_OUT="$TMP/screen-missing-out"
+OUT=""
+if cp -R "$SCREEN_FIXTURE" "$SCREEN_MISSING" &&
+   rm "$SCREEN_MISSING/amazon_products.json" &&
+   OUT="$(python3 "$SCREEN_SCRIPT" "pet slow feeder" --from-json "$SCREEN_MISSING" --out "$SCREEN_NEG_OUT" 2>&1)" &&
+   OUT="$(python3 - "$SCREEN_OUT/$SCREEN_NAME.csv" "$SCREEN_NEG_OUT/$SCREEN_NAME" 2>&1 <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+
+def age_row(path):
+    with Path(path).open(encoding="utf-8", newline="") as file:
+        return next(row for row in csv.DictReader(file) if row["指标"] == "上架月龄中位数")
+
+
+before = age_row(sys.argv[1])
+base = sys.argv[2]
+after = age_row(base + ".csv")
+md = Path(base + ".md").read_text(encoding="utf-8")
+if "缺少 amazon_products.json" in before["备注"]:
+    sys.exit(f"完整 fixture 意外触发文件缺失：{before!r}")
+if not (
+    after["值"] == "NA" and after["证据等级"] == "D"
+    and "缺少 amazon_products.json" in after["备注"]
+    and "| 上架月龄中位数 | NA（缺少 amazon_products.json" in md
+):
+    sys.exit(f"缺少商品页时月龄未标为 NA 并附缺失原因：{after!r}")
+PY
+)"; then
+  ok "删掉 amazon_products.json 后，上架月龄中位数为 NA（含缺失原因）"
+else
+  bad "删掉 amazon_products.json 后，上架月龄中位数校验失败"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
 # ---------------------------------------------------------------- 8. 授权与安装包自检
 echo "-- 8. 授权与安装包自检"
 for selftest in licence-selftest installer-selftest; do

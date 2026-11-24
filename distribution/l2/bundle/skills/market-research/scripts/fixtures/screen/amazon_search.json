@@ -1,0 +1,7 @@
+{
+ "error": "http_503",
+ "degraded": true,
+ "rows": [],
+ "_collected_at": "2026-11-24T22:10:48+08:00",
+ "_exit_code": 0
+}

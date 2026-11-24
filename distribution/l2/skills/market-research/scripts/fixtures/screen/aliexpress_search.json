@@ -1,0 +1,66 @@
+{
+ "keyword": "pet slow feeder",
+ "url": "https://www.aliexpress.com/w/wholesale-pet-slow-feeder.html",
+ "http": 200,
+ "lang": "en",
+ "currency_verified": true,
+ "count": 5,
+ "rows": [
+  {
+   "item_id": "3256812972203717",
+   "title": "Slow Feeder Bowl for Pets, Purple Rainbow",
+   "sale_price_usd": 4.08,
+   "original_price_usd": null,
+   "discount_pct": 86,
+   "sold_text": "11 sold",
+   "sold_count": 11,
+   "rating": null
+  },
+  {
+   "item_id": "3256812962130942",
+   "title": "Silicone Slow Feeder Bowl for Pets, Blue Rainbow",
+   "sale_price_usd": 4.17,
+   "original_price_usd": null,
+   "discount_pct": 85,
+   "sold_text": "36 sold",
+   "sold_count": 36,
+   "rating": null
+  },
+  {
+   "item_id": "3256812962250324",
+   "title": "Silicone Slow Feeder Compartment Pet Mat, Purple, 12\" x 8\"",
+   "sale_price_usd": 4.69,
+   "original_price_usd": null,
+   "discount_pct": 83,
+   "sold_text": "19 sold",
+   "sold_count": 19,
+   "rating": null
+  },
+  {
+   "item_id": "3256813025562701",
+   "title": "Pet Slow Feeder Dog Lick Bowl With Rolling Ball Slow Feeder Anti-Choking For Dogs Cats Yogurt Bone Broth Liquid Treats Interactive Pet Bowl",
+   "sale_price_usd": 1.09,
+   "original_price_usd": null,
+   "discount_pct": 91,
+   "sold_text": "31 sold",
+   "sold_count": 31,
+   "rating": null
+  },
+  {
+   "item_id": "3256813451267502",
+   "title": "Silicone Slow Feeder Dog Bowl with Spatula&Big Suction Cup, Soft Licking Bowl for All Dog Breeds, Slow Eating Pet Feeding Dish",
+   "sale_price_usd": 4.86,
+   "original_price_usd": null,
+   "discount_pct": 57,
+   "sold_text": "1 sold",
+   "sold_count": 1,
+   "rating": null
+  }
+ ],
+ "degraded": [
+  "original_price_usd",
+  "rating"
+ ],
+ "_collected_at": "2026-11-24T22:10:52+08:00",
+ "_exit_code": 0
+}
