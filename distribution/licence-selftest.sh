@@ -23,7 +23,7 @@ tree_status() {
 }
 
 umask 077
-if ! before="$(tree_status)" || ! TMP="$(mktemp -d /tmp/dsh-ecom-licence-selftest.XXXXXX)"; then
+if ! before="$(tree_status)" || ! TMP="$(mktemp -d /tmp/kualang-licence-selftest.XXXXXX)"; then
   bad '无法读取 Git 状态或创建临时目录'
   finish
 fi

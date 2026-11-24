@@ -29,9 +29,9 @@
     "requires": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["dsh-ecom-cbec"],
+      "required": ["kualang-cbec"],
       "properties": {
-        "dsh-ecom-cbec": {
+        "kualang-cbec": {
           "type": "string",
           "description": "最低 L2 版本约束，如 >=0.1.0"
         },

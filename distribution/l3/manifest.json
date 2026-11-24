@@ -1,9 +1,9 @@
 {
-  "name": "dsh-ecom-platform-framework",
+  "name": "kualang-platform-framework",
   "version": "0.1.0",
   "description": "跨境电商平台子模式框架（L3）：平台包 schema + 可复制模板 + 七个平台包（amazon 完整档 + ebay / tiktokshop / shopee / lazada / walmart / aliexpress 六个基线档）+ 安装器。装到已装 L2 的工作区 95-engine/platforms/<id>/。",
   "requires": {
-    "dsh-ecom-cbec": ">=0.1.0",
+    "kualang-cbec": ">=0.1.0",
     "browser-farm": ">=1.1.0"
   },
   "contents": {

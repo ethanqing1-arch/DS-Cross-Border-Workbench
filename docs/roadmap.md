@@ -1,7 +1,7 @@
 # 未来规划（Roadmap v1）
 
 日期：2026-11-24 (Asia/Shanghai)
-依据：[产品化方案 v1](dsh-ecom-productization-plan.md) + 2026-11-24 缺口核查（核查命令见文末附录）
+依据：[产品化方案 v1](kualang-productization-plan.md) + 2026-11-24 缺口核查（核查命令见文末附录）
 阶段 0 的 0.1–0.4 已完成，0.5 已删除 7 个孤儿 profile 目录，台账清理另行安排。阶段 1–4 各有前置条件。
 
 ## 0 一句话目标

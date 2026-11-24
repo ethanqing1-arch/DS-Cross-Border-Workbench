@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# install.sh — dsh-ecom-platform-framework（L3 平台子模式框架）安装器
+# install.sh — kualang-platform-framework（L3 平台子模式框架）安装器
 #
 # 用法：
 #   bash install.sh --list                            # 列出可用平台包
@@ -61,7 +61,7 @@ fi
 
 FAILED=0; WROTE=0; SKIPPED=0
 
-echo "== dsh-ecom-platform-framework $(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SRC/manifest.json" | head -1) / 平台包 $PLATFORM =="
+echo "== kualang-platform-framework $(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SRC/manifest.json" | head -1) / 平台包 $PLATFORM =="
 echo "目标：$TARGET"
 echo "模式：$([ "$CHECK" -eq 1 ] && echo '只校验（--check）' || { [ "$FORCE" -eq 1 ] && echo '安装（--force）' || echo '安装（非破坏）'; })"
 
@@ -180,13 +180,13 @@ const warn = message => { console.log("WARN " + message + "，跳过版本闸");
 fi
 
 # ---------------------------------------------------------------- 2. L2 前置双证
-echo "-- 2. L2 前置（dsh-ecom-cbec 双证）"
+echo "-- 2. L2 前置（kualang-cbec 双证）"
 L2_MISS=0
 for f in "CHIEF-INIT.md" ".dsh/skills/ecom-selection/SKILL.md"; do
   if [ -f "$TARGET/$f" ]; then echo "  PASS $f"; else echo "  missing $f"; L2_MISS=1; fi
 done
 if [ "$L2_MISS" -eq 1 ]; then
-  echo "FAIL 目标目录未装 L2（dsh-ecom-cbec），前置未满足"
+  echo "FAIL 目标目录未装 L2（kualang-cbec），前置未满足"
   echo "     先跑：bash ../l2/install.sh \"$TARGET\""
   echo
   echo "== 汇总: write=$WROTE skip=$SKIPPED fail=1 =="

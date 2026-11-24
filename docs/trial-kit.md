@@ -2,13 +2,13 @@
 
 ## 15 分钟试装
 
-拿到 `dsh-ecom-0.1.0.tar.gz` 后，在压缩包所在目录打开 Bash。下面的命令会解压到新的临时目录，并把 Amazon 试装到该目录下的 `workspace/`。
+拿到 `kualang-0.1.0.tar.gz` 后，在压缩包所在目录打开 Bash。下面的命令会解压到新的临时目录，并把 Amazon 试装到该目录下的 `workspace/`。
 
 ```bash
 trial_dir="$(mktemp -d /tmp/dsh-trial.XXXXXX)"
 time (
-  tar -xzf dsh-ecom-0.1.0.tar.gz -C "$trial_dir" &&
-  cd "$trial_dir/dsh-ecom-0.1.0" &&
+  tar -xzf kualang-0.1.0.tar.gz -C "$trial_dir" &&
+  cd "$trial_dir/kualang-0.1.0" &&
   bash distribution/doctor.sh &&
   bash distribution/install-all.sh "$trial_dir/workspace" &&
   bash distribution/verify.sh

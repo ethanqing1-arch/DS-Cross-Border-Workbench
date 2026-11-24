@@ -4,16 +4,16 @@
 
 | 层 | 包 | 入口 | 落点 | 状态 |
 |---|---|---|---|---|
-| L1 核心 | `dsh-ecom-l1`（`l1/`）+ 农场 `browser-farm` | `l1/install.sh <目标目录>` + DS Bot 共享能力注册 | `<目标>/.dsh/ecom-l1.json` 标记；7 个 `farm_*` 工具进 DS Bot 工具表 | 已交付（M1 能力 + L1 包），注册与 Allow 仍是人工两步 |
-| L2 版本包 | `dsh-ecom-cbec` | `l2/install.sh <目标目录>` | `<目标>/.dsh/skills/` + 工作区骨架 | 已交付（M2） |
-| L3 平台包 | `dsh-ecom-platform-framework` | `l3/install.sh <平台> <目标目录>` | `<目标>/95-engine/platforms/<id>/` | 框架 + 7 个平台已交付（M3 / M4） |
+| L1 核心 | `kualang-l1`（`l1/`）+ 农场 `browser-farm` | `l1/install.sh <目标目录>` + DS Bot 共享能力注册 | `<目标>/.dsh/kualang-l1.json` 标记；7 个 `farm_*` 工具进 DS Bot 工具表 | 已交付（M1 能力 + L1 包），注册与 Allow 仍是人工两步 |
+| L2 版本包 | `kualang-cbec` | `l2/install.sh <目标目录>` | `<目标>/.dsh/skills/` + 工作区骨架 | 已交付（M2） |
+| L3 平台包 | `kualang-platform-framework` | `l3/install.sh <平台> <目标目录>` | `<目标>/95-engine/platforms/<id>/` | 框架 + 7 个平台已交付（M3 / M4） |
 
 L1 的农场代码在仓库根的 `farm/`（`farm/mcp/farm-mcp.js` 是那 7 个工具的 stdio 适配层）；`l1/` 放它的安装包——capability 载荷、品牌占位、安装器与种子剧本。装包只校验并写标记文件，**真正的注册与 Allow 在 DS Bot 里人工做**，脚本不代做。
 
 ## 安装顺序
 
 ```bash
-# 1) L1：装包（校验 node / farm / 载荷 / 品牌，写 .dsh/ecom-l1.json 标记并打印注册步骤）
+# 1) L1：装包（校验 node / farm / 载荷 / 品牌，写 .dsh/kualang-l1.json 标记并打印注册步骤）
 bash distribution/l1/install.sh ~/ds-bot-workspace
 
 # 1b) L1 第二步（人工，脚本不代做）：起网关 → 注册 capability → 用户 Allow
@@ -49,7 +49,7 @@ bash distribution/verify.sh --keep     # 保留临时目录看现场
 
 **真的（已验过）**
 
-- L1：`l1/install.sh` 校验 node 绝对路径 / `farm/mcp/farm-mcp.js` 存在且语法过 / 载荷无明文 secret / 品牌占位 / 网关可达（只 WARN），写 `.dsh/ecom-l1.json` 标记，`--check` 幂等，`--farm` 空目录负例 FAIL 且 0 写入。
+- L1：`l1/install.sh` 校验 node 绝对路径 / `farm/mcp/farm-mcp.js` 存在且语法过 / 载荷无明文 secret / 品牌占位 / 网关可达（只 WARN），写 `.dsh/kualang-l1.json` 标记，`--check` 幂等，`--farm` 空目录负例 FAIL 且 0 写入。
 - L2 安装工作区文件和 `manifest.json` 所列业务 skills，保留 skill 附属文件的目录结构。包内另有 11 个 bot、5 个群的预设和 SEED 剧本。
 - L3：schema + 可复制模板（`example` 可直接跑通）+ 安装器（前置双证、非破坏、`--check`、`--force`）。
 - 7 个平台包都能装进已装 L2 的目录。Amazon 的工作区落点有 50 个文件，其余平台各有 4 个。重复装和 `--check` 都是 0 写入。
@@ -76,6 +76,6 @@ bash distribution/verify.sh --keep     # 保留临时目录看现场
 
 1. 费率全 `null`，定价前必须由业务补实值，框架不编数字。
 2. 7 个平台的官方 API 都未接入，`browser-farm` 也只声明「只读调研，绝不做登录态店铺操作」。
-3. L2 版本判不了：L2 的 `install.sh` 不把 `manifest.json` 落到目标目录，`requires.dsh-ecom-cbec>=0.1.0` 只能靠双证存在判。
+3. L2 版本判不了：L2 的 `install.sh` 不把 `manifest.json` 落到目标目录，`requires.kualang-cbec>=0.1.0` 只能靠双证存在判。
 4. schema 没有 ajv 级校验，`l3/install.sh` 里是内置子集校验器。
 5. `verify.sh` 只能验本仓库的安装与载荷文件；DS Bot 里已注册的 capability 载荷原文不对外暴露，验不了「线上注册的是不是这份」。

@@ -3,7 +3,7 @@
 set -eu
 
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
-  echo '用法：bash keygen.sh [仓库外的私钥路径]（默认 ~/dsh-ecom-licence/private.pem）'
+  echo '用法：bash keygen.sh [仓库外的私钥路径]（默认 ~/kualang-licence/private.pem）'
   exit 0
 fi
 if [ "$#" -gt 1 ]; then
@@ -11,7 +11,7 @@ if [ "$#" -gt 1 ]; then
   exit 2
 fi
 
-exec python3 - "${1:-$HOME/dsh-ecom-licence/private.pem}" <<'PY'
+exec python3 - "${1:-$HOME/kualang-licence/private.pem}" <<'PY'
 import os
 from pathlib import Path
 import subprocess

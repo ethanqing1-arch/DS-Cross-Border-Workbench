@@ -1,4 +1,4 @@
-# L2 · dsh-ecom-cbec（跨境电商业务版本包）
+# L2 · kualang-cbec（跨境电商业务版本包）
 
 装三样东西：
 

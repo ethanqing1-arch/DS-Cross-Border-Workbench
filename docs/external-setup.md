@@ -210,7 +210,7 @@ list_bots(group="技术开发")   # 成员是 Dev，admin 是 Chief
 
 ## 5. 在 DS Bot 里注册 capability
 
-装包只写 `<目标>/.dsh/ecom-l1.json` 标记文件，**真正的注册必须人工做**（五步原文见
+装包只写 `<目标>/.dsh/kualang-l1.json` 标记文件，**真正的注册必须人工做**（五步原文见
 [`distribution/l1/SEED-L1.md`](../distribution/l1/SEED-L1.md)）：
 
 ```

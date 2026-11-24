@@ -17,14 +17,14 @@ finish() {
   exit 1
 }
 
-if ! WS="$(mktemp -d /tmp/dsh-ecom-flow.XXXXXX)"; then
+if ! WS="$(mktemp -d /tmp/kualang-flow.XXXXXX)"; then
   bad "无法创建临时工作区"
   finish
 fi
 trap 'rm -rf "$WS"' EXIT
 trap 'exit 1' HUP INT TERM
 
-echo "== dsh-ecom 业务流冒烟 =="
+echo "== kualang 业务流冒烟 =="
 for layer in l1 l2; do
   if ! OUT="$(bash "$SRC/$layer/install.sh" "$WS" 2>&1)"; then
     bad "$layer 安装失败"

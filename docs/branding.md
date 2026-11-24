@@ -1,6 +1,6 @@
 # L1 品牌配置
 
-品牌名称已定为「跨浪」（Kualang），域名为 `getkualang.com`。换名时更新 `distribution/l1/branding/brand.json` 和 `distribution/installer/FIRST-RUN.md` 的标题，并同步品牌目录 `assets/` 中含旧名称的资产。`distribution/make-bundle.sh` 从 `brand.json` 读取 `name` 作为 DMG 卷标。
+品牌名称已定为「跨浪」（Kualang），技术 ID 为 `kualang`，域名为 `getkualang.com`。换名时更新 `distribution/l1/branding/brand.json` 和 `distribution/installer/FIRST-RUN.md` 的标题，并同步品牌目录 `assets/` 中含旧名称的资产。`distribution/make-bundle.sh` 从 `brand.json` 读取 `name` 作为 DMG 卷标。
 
 - 在 `brand.json` 更新 `name`、`name_en` 和 `domain`，确认定稿后将 `name_status` 改成 `final`。
 - 换色时更新 `colors.primary`、`accent`、`surface`、`ink` 的十六进制色值，确认文字与背景的对比度。

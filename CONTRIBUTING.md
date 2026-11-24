@@ -16,7 +16,7 @@ bash distribution/verify.sh          # 三层总装验收，必须 FAIL=0 且 RE
 
 - 改了 `farm/` 代码：先停真网关，再跑 `cd farm && bash scripts/acceptance.sh --with-browser`。
 - 改了分发包或 MCP/取页链路：起网关后跑 `bash distribution/e2e-smoke.sh`（需要 `GATEWAY_TOKEN`，只走环境变量）。
-- 新增或修改断言后，把 `README.md` 与 `docs/dsh-ecom-productization-plan.md` 里的自检计数在**同一个提交**里改掉。
+- 新增或修改断言后，把 `README.md` 与 `docs/kualang-productization-plan.md` 里的自检计数在**同一个提交**里改掉。
 
 ## skills 两份镜像必须同步
 

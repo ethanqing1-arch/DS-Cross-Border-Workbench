@@ -1,5 +1,5 @@
 {
-  "name": "dsh-ecom-cbec",
+  "name": "kualang-cbec",
   "version": "0.1.0",
   "description": "跨境电商版 DS Bot 的 L2 bundle，挂载包内业务 skills。工作区骨架与 bot/群预设由 install.sh + SEED.md 负责。",
   "keywords": [

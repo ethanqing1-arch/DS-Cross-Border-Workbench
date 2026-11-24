@@ -13,7 +13,7 @@ bash distribution/l1/install.sh /path/to/workspace --require-licence --licence /
 1. 在仓库外生成 RSA-2048 密钥对。私钥权限为 `600`，已存在的私钥会使生成命令报错。将命令输出的公钥保存为 `distribution/l1/licence/public.pem`，替换占位内容。
 
    ```bash
-   bash distribution/l1/licence/keygen.sh "$HOME/dsh-ecom-licence/private.pem" > /tmp/workbench-public.pem
+   bash distribution/l1/licence/keygen.sh "$HOME/kualang-licence/private.pem" > /tmp/workbench-public.pem
    ```
 
 2. 让使用者在目标机器运行 `python3 distribution/l1/licence/verify.py --print-machine-id`，并将结果发给发布者。macOS 使用 `IOPlatformUUID`，Linux 使用 `/etc/machine-id`。

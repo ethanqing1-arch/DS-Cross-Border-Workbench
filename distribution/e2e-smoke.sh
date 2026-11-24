@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# e2e-smoke.sh — dsh-ecom 端到端冒烟：装包 → MCP stdio 真跑一次 → 产物落工作区
+# e2e-smoke.sh — kualang 端到端冒烟：装包 → MCP stdio 真跑一次 → 产物落工作区
 #
 # 用法：
 #   bash e2e-smoke.sh            # 跑完清掉临时工作区（会话先删）
@@ -53,7 +53,7 @@ export GATEWAY_TOKEN="$TOKEN"
 TOKEN_LEN=${#TOKEN}
 
 print_intro() {
-  echo "== dsh-ecom e2e 冒烟 =="
+  echo "== kualang e2e 冒烟 =="
   echo "仓库：$ROOT"
   echo "网关：$GATEWAY_URL"
   [ -z "${WS:-}" ] || echo "临时工作区：$WS"
@@ -113,7 +113,7 @@ if [ "$LOCK_RC" -eq 3 ] || [ -n "$BROWSER_CHECK_PIDS" ]; then
   exit 3
 fi
 
-TMP="$(mktemp -d /tmp/dsh-ecom-e2e.XXXXXX)" || { echo "FAIL 无法创建临时目录"; exit 2; }
+TMP="$(mktemp -d /tmp/kualang-e2e.XXXXXX)" || { echo "FAIL 无法创建临时目录"; exit 2; }
 WS="$TMP/workspace"
 cleanup() {
   kill "${FXPID:-}" 2>/dev/null || true
@@ -155,7 +155,7 @@ install_pkg() {
     printf '%s\n' "$out" | tail -8 | sed 's/^/    /'
   fi
 }
-# L1 只写 .dsh/ecom-l1.json，首次安装恒为 1 次写入。
+# L1 只写 .dsh/kualang-l1.json，首次安装恒为 1 次写入。
 install_pkg "L1 安装" "1 0 0" bash "$SRC/l1/install.sh" "$WS"
 
 # workspace/ 文件已含 CHIEF-INIT.md 和 README.md；安装器也把骨架目录计入 write。
@@ -169,7 +169,7 @@ AMAZON_FILES="$(bash "$SRC/l3/list-platform-files.sh" "$SRC/l3/platforms/amazon"
 install_pkg "L3 amazon 安装" "$AMAZON_FILES 0 0" bash "$SRC/l3/install.sh" amazon "$WS"
 EBAY_FILES="$(bash "$SRC/l3/list-platform-files.sh" "$SRC/l3/platforms/ebay" | wc -l | tr -d ' ')"
 install_pkg "L3 ebay 安装" "$EBAY_FILES 0 0" bash "$SRC/l3/install.sh" ebay "$WS"
-[ -f "$WS/.dsh/ecom-l1.json" ] && ok "L1 标记文件存在" || bad "L1 标记文件缺失"
+[ -f "$WS/.dsh/kualang-l1.json" ] && ok "L1 标记文件存在" || bad "L1 标记文件缺失"
 [ -f "$WS/95-engine/platforms/amazon/manifest.json" ] && ok "L3 amazon 落点存在" || bad "L3 amazon 落点缺失"
 AMAZON_SKILLS="$(find "$WS/95-engine/platforms/amazon/skills" -type f -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
 [ "$AMAZON_SKILLS" -eq 23 ] && ok "L3 amazon skills=23" || bad "L3 amazon skills=${AMAZON_SKILLS}（期望 23）"

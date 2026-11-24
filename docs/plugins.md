@@ -1,6 +1,6 @@
 # L1 插件来源与随包安装
 
-当前插件包目录为 `distribution/l1/plugins/bundle/`。安装器只读取这个目录中的插件，将各子目录复制到目标工作区的 `.dsh/plugins/<id>`。本机 `~/.dsh/plugins/` 仅用于来源核查。阶段 3 的三项功能记录在 [产品化方案](dsh-ecom-productization-plan.md) 中。
+当前插件包目录为 `distribution/l1/plugins/bundle/`。安装器只读取这个目录中的插件，将各子目录复制到目标工作区的 `.dsh/plugins/<id>`。本机 `~/.dsh/plugins/` 仅用于来源核查。阶段 3 的三项功能记录在 [产品化方案](kualang-productization-plan.md) 中。
 
 | ID | 作用 | 已核查的来源 |
 |---|---|---|

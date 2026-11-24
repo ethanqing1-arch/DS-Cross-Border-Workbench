@@ -83,4 +83,4 @@ farm_fingerprint_verify(session_id=…) → ok:true
 - `farm_version` 带 `require=1.1.0`，返回 409 `E_VERSION_REQUIRED` 说明农场版本不够。
 - 验收时别新增台账行：复用已有账号（如 `mcp-selftest`），用完删会话。
 - 令牌长度低于 32 位要换（只报长度，不打印值）。
-- 回滚：Settings 里把 `browser-farm` 关掉/解绑，再删目标目录下的 `.dsh/ecom-l1.json` 标记即可；农场本身不受影响。
+- 回滚：Settings 里把 `browser-farm` 关掉/解绑，再删目标目录下的 `.dsh/kualang-l1.json` 标记即可；农场本身不受影响。

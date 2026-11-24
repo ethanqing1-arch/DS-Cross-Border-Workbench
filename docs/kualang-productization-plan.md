@@ -22,7 +22,7 @@
 | 3 | `dsh-psd-batch-studio` | **可装** | 0.2.5，2026-11-06，同上 |
 | 4 | `@xiaohe-store/dsh-canvas` | **可装** | 0.1.15，2026-09-17，同上 |
 | 5 | `dsh-knowledge-base` | **可装** | 0.1.5，2026-08-16，同上 |
-| 2 | `dsh-ecom-image` | **不存在** | npmjs 官方源 E404（同源对照 express 5.3.0 正常返回，排除网络问题） |
+| 2 | 清单中的电商生图包 | **不存在** | npmjs 官方源 E404（同源对照 express 5.3.0 正常返回，排除网络问题） |
 | 6 | `dsh-coupon-profit` | **不存在** | E404 |
 | 7 | `dsh-shipping-fee` | **不存在** | E404 |
 | 8 | `dsh-stock-level` | **不存在** | E404 |
@@ -113,7 +113,7 @@
 
 ## 3 判断二：三层打包
 
-### L1 核心包 `dsh-ecom-core`
+### L1 核心包 `kualang-l1`
 
 fork 后保留 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app` 两层，加：品牌化（图标/名称/文案）、授权校验、安装器。内嵌 `browser-farm`。
 
@@ -127,7 +127,7 @@ fork 后保留 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app` 两层，加
 
 `dsh-prompt-enhancer` 已于 2026-11-23 在本机把 `link:` 目录从 0.1.0 换为 npm 1.2.2（旧目录备份在 `~/.dsh/plugins/dsh-prompt-enhancer.bak-0.1.0-20261123`），**待重启 DS Bot 后验证**。
 
-### L2 版本包 `dsh-ecom-cbec`（跨境电商版）
+### L2 版本包 `kualang-cbec`（跨境电商版）
 
 - skills：`cbec-selection-master` 现有 8 层 23 个（00-router / 01-data / 02-market / 03-demand / 04-competitor / 05-product / 06-delivery / 07-system）
 - bot presets：Chief / Scout / Source / Margin / Copy / Ads / Care / Compliance / Metrics / Visual
@@ -137,7 +137,7 @@ fork 后保留 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app` 两层，加
 
 ### L3 平台子模式包
 
-`dsh-ecom-platform-amazon` / `-ebay` / `-tiktokshop` / `-shopee` / `-lazada` / `-walmart` / `-aliexpress`
+Amazon 的独立 bundle 为 `kualang-amazon`。eBay、TikTok Shop、Shopee、Lazada、Walmart 和 AliExpress 复用 L2 bundle。
 
 **平台全部开放**（2026-11-23 定）。每个平台按供给水平分两档，同一套包结构，不等专项包：
 
@@ -187,7 +187,7 @@ fork 后保留 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app` 两层，加
 | 阶段 | 内容 | 产出 | 状态（2026-11-24） |
 |---|---|---|---|
 | M1 | 农场 capability 化（第 2 节六件事，含 Camoufox 归一） | 可被任意 bot 调用的 `browser-farm` | ✅ capability 已 Allow，7 个工具端到端验过（commit `f953265`）。Camoufox worker 已归一到 8 项任务（commit `8986adf`）。 |
-| M2 | L2 版本包打包 | `dsh-ecom-cbec` 可安装 | ✅ v0.1.0：`distribution/l2/` 41 文件，install / `--check` / 版本闸自证过（commit `1bea873`） |
+| M2 | L2 版本包打包 | `kualang-cbec` 可安装 | ✅ v0.1.0：`distribution/l2/` 41 文件，install / `--check` / 版本闸自证过（commit `1bea873`） |
 | M3 | 平台子模式框架 + Amazon 完整档（复用存量 23 skill） | 子模式框架成立，Amazon 能跑 | ✅ 完成：`distribution/l3/` 7 平台包（commit `61cc43a`）；Amazon 23 skill 已随包，源 46 文件逐文件 0 diff，`engine/` 与 `SKILL_SPEC.md` 一并随包（2026-11-24） |
 | M4 | 其余平台铺基线档（eBay/TikTok Shop/Shopee/Lazada/Walmart/AliExpress） | 证明「装一个新平台」可复制 | ✅ 包层完成：5 个基线包逐平台装通（commit `ee69505`）；所有官方 API 与费率仍为 null/未接入 |
 

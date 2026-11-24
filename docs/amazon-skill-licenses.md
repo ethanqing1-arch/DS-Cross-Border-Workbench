@@ -1,6 +1,6 @@
 # Amazon 23 个 skill 授权归属核查
 
-核查范围是仓库内 L3 Amazon 的 `skills/<layer>/<name>/SKILL.md` 和 `bundle/skills/<name>/SKILL.md`。两处各有 23 个入口，逐个比对内容一致。版本和层级取自各文件的 front matter。仓库来源记录列出本机 `cbec-selection-master/skills/`，该来源目录未入库，抽取日期记为 2026-11-23。见 [包内来源记录](../distribution/l3/platforms/amazon/skills/REFERENCES.md) 和 [产品化方案](dsh-ecom-productization-plan.md)。
+核查范围是仓库内 L3 Amazon 的 `skills/<layer>/<name>/SKILL.md` 和 `bundle/skills/<name>/SKILL.md`。两处各有 23 个入口，逐个比对内容一致。版本和层级取自各文件的 front matter。仓库来源记录列出本机 `cbec-selection-master/skills/`，该来源目录未入库，抽取日期记为 2026-11-23。见 [包内来源记录](../distribution/l3/platforms/amazon/skills/REFERENCES.md) 和 [产品化方案](kualang-productization-plan.md)。
 
 Git 历史中，表中入口首次入库于 `97021cb`，DSH bundle 版入口加入于 `8bc8b43`。这些记录可用于追溯文件的仓库路径和版本。
 

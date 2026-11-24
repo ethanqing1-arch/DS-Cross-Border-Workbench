@@ -9,7 +9,7 @@
     "GATEWAY_URL": "http://127.0.0.1:19671",
     "GATEWAY_TOKEN": "$DSH_SECRET_GATEWAY_TOKEN"
   },
-  "_source": "docs/dsh-ecom-productization-plan.md:89 记录的注册参数（kind=mcp / transport=stdio / command=/opt/homebrew/bin/node / args=[farm/mcp/farm-mcp.js] / env={GATEWAY_URL, GATEWAY_TOKEN=$DSH_SECRET_GATEWAY_TOKEN}）+ 本机实际绝对路径。DS Bot 侧未暴露已注册载荷原文（list_capabilities 只给 name/kind/状态），故本文件是按该记录固化的等价载荷，不是粘贴的原文。",
+  "_source": "docs/kualang-productization-plan.md:89 记录的注册参数（kind=mcp / transport=stdio / command=/opt/homebrew/bin/node / args=[farm/mcp/farm-mcp.js] / env={GATEWAY_URL, GATEWAY_TOKEN=$DSH_SECRET_GATEWAY_TOKEN}）+ 本机实际绝对路径。DS Bot 侧未暴露已注册载荷原文（list_capabilities 只给 name/kind/状态），故本文件是按该记录固化的等价载荷，不是粘贴的原文。",
   "_notes": [
     "args 必须是绝对路径：stdio 启动时工作目录不确定，相对路径会找不到 farm-mcp.js。",
     "env.GATEWAY_TOKEN 只能是 $DSH_SECRET_GATEWAY_TOKEN 占位，由 DSH 注入；真值不许写进任何文件、不许进 argv。",

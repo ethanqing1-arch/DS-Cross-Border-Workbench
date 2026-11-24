@@ -1,4 +1,4 @@
-# dsh-ecom-cbec —— L2 跨境电商版本包的 DSH bundle patch
+# kualang-cbec —— L2 跨境电商版本包的 DSH bundle patch
 #
 # 只插一行：把本包 skills/ 挂成一个独立 skill provider（providerName: ecom-cbec）。
 # includeDefaultRoots: false —— 不重复扫项目/用户 skill 根；基础 profile 已有一个
@@ -17,5 +17,5 @@
         bundledSkillDir: !!js >-
           process.getBuiltinModule('node:path').join(
             process.getBuiltinModule('node:path').dirname(
-              process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('dsh-ecom-cbec/package.json')),
+              process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('kualang-cbec/package.json')),
             'skills')

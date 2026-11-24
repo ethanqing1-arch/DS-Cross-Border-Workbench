@@ -138,7 +138,7 @@ def build(root, output, with_dmg):
     version = (root / "VERSION").read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise ValueError("VERSION 应为 x.y.z")
-    top = "dsh-ecom-" + version
+    top = "kualang-" + version
     if not (root / WS / "package.json").is_file():
         raise ValueError("缺 farm/node_modules/ws，请先在 farm/ 运行 npm install")
 

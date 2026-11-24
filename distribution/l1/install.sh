@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# install.sh — dsh-ecom-l1（L1 核心包：browser-farm capability）
+# install.sh — kualang-l1（L1 核心包：browser-farm capability）
 #
 # 用法：
 #   bash install.sh <目标目录>                     # 安装：校验并写标记文件
@@ -13,7 +13,7 @@
 #   GATEWAY_URL  默认 http://127.0.0.1:19671
 #   FARM_DIR     同 --farm，命令行优先
 #
-# 边界：只写目标目录下的 .dsh/ecom-l1.json 和随包插件；不操作 DS Bot、farm 台账与服务。
+# 边界：只写目标目录下的 .dsh/kualang-l1.json 和随包插件；不操作 DS Bot、farm 台账与服务。
 # =============================================================================
 set -uo pipefail
 
@@ -50,7 +50,7 @@ fi
 
 GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:19671}"
 FARM="${FARM_ARG:-${FARM_DIR:-$ROOT/farm}}"
-MARKER_REL=".dsh/ecom-l1.json"
+MARKER_REL=".dsh/kualang-l1.json"
 MARKER="$TARGET/$MARKER_REL"
 
 FAILED=0; WROTE=0; SKIPPED=0
@@ -70,7 +70,7 @@ finish() {
   [ "$FAILED" -eq 0 ] && exit 0 || exit 1
 }
 
-echo "== dsh-ecom-l1 $(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SRC/manifest.json" 2>/dev/null | head -1) =="
+echo "== kualang-l1 $(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SRC/manifest.json" 2>/dev/null | head -1) =="
 echo "目标：$TARGET"
 echo "farm：$FARM"
 echo "模式：$([ "$CHECK" -eq 1 ] && echo '只校验（--check）' || echo '安装')"
@@ -198,7 +198,7 @@ const fs = require("fs");
 const mf = JSON.parse(fs.readFileSync(process.env.MANIFEST, "utf8"));
 const cap = JSON.parse(fs.readFileSync(process.env.CAP, "utf8"));
 const out = {
-  marker: "ecom-l1",
+  marker: "kualang-l1",
   name: mf.name,
   version: mf.version,
   capability: cap.name,
@@ -229,7 +229,7 @@ if [ "$FAILED" -eq 0 ] && [ "$CHECK" -eq 0 ] && [ "$WROTE" -gt 0 ]; then
   cat <<'STEPS'
   1) 起网关（令牌只从环境变量，不进 argv）：
        GATEWAY_TOKEN="$DSH_SECRET_GATEWAY_TOKEN" bash farm/scripts/start-gateway.sh --daemon
-  2) 注册共享能力 browser-farm（载荷见 capability/browser-farm.json；本机绝对路径见 .dsh/ecom-l1.json 的 node 和 mcp）：
+  2) 注册共享能力 browser-farm（载荷见 capability/browser-farm.json；本机绝对路径见 .dsh/kualang-l1.json 的 node 和 mcp）：
        kind=mcp   transport=stdio
        command=<node 绝对路径>
        args=[<仓库>/farm/mcp/farm-mcp.js]

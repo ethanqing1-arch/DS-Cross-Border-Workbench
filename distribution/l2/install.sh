@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# install.sh — dsh-ecom-cbec（L2 跨境电商版本包）工作区安装器
+# install.sh — kualang-cbec（L2 跨境电商版本包）工作区安装器
 #
 # 用法：
 #   bash install.sh <目标目录>             # 非破坏安装：已存在默认跳过
@@ -119,7 +119,7 @@ probe_file() { # rel
 [ -d "$SRC/workspace" ] || { echo "缺 workspace/，不是完整的 L2 包" >&2; exit 2; }
 [ -d "$SRC/skills" ] || { echo "缺 skills/，不是完整的 L2 包" >&2; exit 2; }
 
-echo "== dsh-ecom-cbec $(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SRC/manifest.json" | head -1) =="
+echo "== kualang-cbec $(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SRC/manifest.json" | head -1) =="
 echo "目标：$TARGET"
 echo "模式：$([ "$CHECK" -eq 1 ] && echo '只校验（--check）' || { [ "$FORCE" -eq 1 ] && echo '安装（--force）' || echo '安装（非破坏）'; })"
 

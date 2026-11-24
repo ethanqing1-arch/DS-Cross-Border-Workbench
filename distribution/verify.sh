@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# verify.sh — dsh-ecom 三层总装验收（一条命令）
+# verify.sh — kualang 三层总装验收（一条命令）
 #
 # 用法：
 #   bash verify.sh            # 跑完清掉临时目录
@@ -33,7 +33,7 @@ ok()   { PASS=$((PASS+1)); echo "  PASS $*"; }
 bad()  { FAIL=$((FAIL+1)); echo "  FAIL $*"; }
 warn() { WARN=$((WARN+1)); echo "  WARN $*"; }
 
-TMP="$(mktemp -d /tmp/dsh-ecom-verify.XXXXXX)" || { echo "FAIL 无法创建临时目录"; exit 2; }
+TMP="$(mktemp -d /tmp/kualang-verify.XXXXXX)" || { echo "FAIL 无法创建临时目录"; exit 2; }
 WS="$TMP/workspace"
 cleanup() {
   if [ "$KEEP" -eq 1 ]; then
@@ -45,7 +45,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "== dsh-ecom 三层总装验收 =="
+echo "== kualang 三层总装验收 =="
 echo "仓库：$ROOT"
 echo "临时根目录：$TMP"
 
@@ -71,11 +71,11 @@ else
 fi
 
 # ---------------------------------------------------------------- 1. L1
-echo "-- 1. L1 核心包 dsh-ecom-l1"
+echo "-- 1. L1 核心包 kualang-l1"
 L1T="$TMP/l1"
 OUT="$(bash "$SRC/l1/install.sh" "$L1T" 2>&1)"; RC=$?
 W="$(printf '%s\n' "$OUT" | sed -n 's/^== 汇总: write=\([0-9]*\) skip=\([0-9]*\) fail=\([0-9]*\) ==/\1 \2 \3/p' | tail -1)"
-# L1 只写 .dsh/ecom-l1.json，首次安装恒为 1 次写入。
+# L1 只写 .dsh/kualang-l1.json，首次安装恒为 1 次写入。
 if [ "$RC" -eq 0 ] && [ "$W" = "1 0 0" ]; then
   ok "L1 install（write=1 skip=0 fail=0）"
 else
@@ -84,12 +84,12 @@ fi
 if printf '%s' "$OUT" | grep -q 'WARN 网关不可达'; then
   warn "L1 网关不可达（安装器只 WARN，未挡安装）"
 fi
-MARKER="$L1T/.dsh/ecom-l1.json"
+MARKER="$L1T/.dsh/kualang-l1.json"
 if [ -f "$MARKER" ] && node -e '
 const m = require(process.argv[1]);
-if (m.name !== "dsh-ecom-l1" || m.capability !== "browser-farm") process.exit(1);
+if (m.name !== "kualang-l1" || m.capability !== "browser-farm") process.exit(1);
 ' "$MARKER" 2>/dev/null; then
-  ok "L1 标记文件可解析（name=dsh-ecom-l1 capability=browser-farm）"
+  ok "L1 标记文件可解析（name=kualang-l1 capability=browser-farm）"
 else
   bad "L1 标记文件缺失或不可解析"
 fi
@@ -120,7 +120,7 @@ L1NFILES="$(find "$L1NEG" -type f | wc -l | tr -d ' ')"
 [ "$L1NFILES" -eq 0 ] && ok "L1 负例目标 0 写入" || bad "L1 负例目标写了 $L1NFILES 个文件"
 
 # ---------------------------------------------------------------- 2. L2
-echo "-- 2. L2 版本包 dsh-ecom-cbec"
+echo "-- 2. L2 版本包 kualang-cbec"
 L2_WORKSPACE="$SRC/l2/workspace"
 L2_SKILLS="$SRC/l2/skills"
 L2_FILES="$(find "$L2_WORKSPACE" -type f ! -name '.DS_Store' | wc -l | tr -d ' ')"

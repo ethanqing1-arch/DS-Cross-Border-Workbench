@@ -81,7 +81,7 @@ L3 Amazon 包含 23 个 skill，源 `skills/` 46 个文件逐文件比对
 
 - **从零到能用**（一台干净机器 → 11 个数字员工能干活，含 DS Bot 安装与三件只能本人做的事）：[`docs/onboard-from-zero.md`](docs/onboard-from-zero.md)
 - **外部使用者从零安装**（换机器要改哪两处、八项外部依赖交接单）：[`docs/external-setup.md`](docs/external-setup.md)
-- 产品化计划与里程碑：[`docs/dsh-ecom-productization-plan.md`](docs/dsh-ecom-productization-plan.md)
+- 产品化计划与里程碑：[`docs/kualang-productization-plan.md`](docs/kualang-productization-plan.md)
 - L1 发布准备见[离线授权](docs/licence.md)、[品牌配置](docs/branding.md)和[插件来源](docs/plugins.md)。
 - **未来规划**（阶段 0–4、闸门 G0–G3、为什么这么排、不做什么）：[`docs/roadmap.md`](docs/roadmap.md)
 - 七站出口矩阵：[`docs/platform-egress-matrix.md`](docs/platform-egress-matrix.md)

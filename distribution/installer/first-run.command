@@ -3,7 +3,7 @@ set -euo pipefail
 export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"
 
 HERE="$(cd "$(dirname "$0")" && pwd -P)"
-target="$HOME/dsh-ecom-workspace"
+target="$HOME/kualang-workspace"
 usage() { echo '用法：bash first-run.command [--target <独立工作区目录>]'; }
 
 while [ "$#" -gt 0 ]; do
@@ -51,9 +51,9 @@ PY
 if [ -f "$HERE/../doctor.sh" ]; then
   dist="$(cd "$HERE/.." && pwd -P)"
 else
-  archives=("$HERE"/dsh-ecom-*.zip)
+  archives=("$HERE"/kualang-*.zip)
   if [ "${#archives[@]}" -ne 1 ] || [ ! -f "${archives[0]}" ]; then
-    echo 'FAIL 请在 DMG 中保留唯一的 dsh-ecom-*.zip，或从解压包的 distribution/installer 运行' >&2
+    echo 'FAIL 请在 DMG 中保留唯一的 kualang-*.zip，或从解压包的 distribution/installer 运行' >&2
     exit 2
   fi
   dist="$(python3 - "${archives[0]}" "$target" <<'PY'
@@ -80,7 +80,7 @@ def verify_bundle(directory, manifest):
 try:
     archive = Path(sys.argv[1])
     top = archive.stem
-    if not re.fullmatch(r"dsh-ecom-[0-9]+\.[0-9]+\.[0-9]+", top):
+    if not re.fullmatch(r"kualang-[0-9]+\.[0-9]+\.[0-9]+", top):
         raise ValueError("发行 ZIP 文件名不符合版本约定")
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     releases = Path(sys.argv[2]) / ".workbench-releases" / digest

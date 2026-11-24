@@ -16,13 +16,13 @@ finish() {
   exit 1
 }
 
-if ! TMP="$(mktemp -d /tmp/dsh-ecom-installer-selftest.XXXXXX)"; then
+if ! TMP="$(mktemp -d /tmp/kualang-installer-selftest.XXXXXX)"; then
   bad '无法创建临时目录'
   finish
 fi
 trap 'rm -rf "$TMP"' EXIT
 trap 'exit 1' HUP INT TERM
-top="dsh-ecom-$(cat "$ROOT/VERSION")"
+top="kualang-$(cat "$ROOT/VERSION")"
 
 if bash -n "$SRC/installer/first-run.command" && [ -x "$SRC/installer/first-run.command" ]; then
   ok '1. first-run.command 语法正确且可执行'
