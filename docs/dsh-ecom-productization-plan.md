@@ -184,9 +184,9 @@ fork 后保留 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app` 两层，加
 
 ## 5 顺序与里程碑
 
-| 阶段 | 内容 | 产出 | 状态（2026-11-23） |
+| 阶段 | 内容 | 产出 | 状态（2026-11-24） |
 |---|---|---|---|
-| M1 | 农场 capability 化（第 2 节六件事，含 Camoufox 归一） | 可被任意 bot 调用的 `browser-farm` | ✅ 完成：capability 已 Allow，7 个工具端到端验过（commit `f953265`） |
+| M1 | 农场 capability 化（第 2 节六件事，含 Camoufox 归一） | 可被任意 bot 调用的 `browser-farm` | ✅ capability 已 Allow，7 个工具端到端验过（commit `f953265`）。Camoufox worker 已归一到 8 项任务（commit `8986adf`）。 |
 | M2 | L2 版本包打包 | `dsh-ecom-cbec` 可安装 | ✅ v0.1.0：`distribution/l2/` 41 文件，install / `--check` / 版本闸自证过（commit `1bea873`） |
 | M3 | 平台子模式框架 + Amazon 完整档（复用存量 23 skill） | 子模式框架成立，Amazon 能跑 | ✅ 完成：`distribution/l3/` 7 平台包（commit `61cc43a`）；Amazon 23 skill 已随包，源 46 文件逐文件 0 diff，`engine/` 与 `SKILL_SPEC.md` 一并随包（2026-11-24） |
 | M4 | 其余平台铺基线档（eBay/TikTok Shop/Shopee/Lazada/Walmart/AliExpress） | 证明「装一个新平台」可复制 | ✅ 包层完成：5 个基线包逐平台装通（commit `ee69505`）；所有官方 API 与费率仍为 null/未接入 |
@@ -217,9 +217,9 @@ M1 和 M2 可以并行。M3 先做 Amazon 不是因为它优先，而是因为�
 |---|---|---|
 | 代理 | 尚无可用代理；桥与探针只经假上游验证 | 没有代理，电商搜索页一律被拦（eBay 实测 `Error Page`），真数据取不到 |
 | `GATEWAY_TOKEN` | 仍 8 位，启动与多处自检报 WARN | 低于 32 位门槛，不能对外 |
-| 台账测试账号 | 10 行（含 `default:e2e-smoke`），待批准后清理 | 只影响台账整洁，不影响功能 |
+| 台账测试账号 | `accounts` 表实测共 5 行，测试记录待批准后清理 | 只影响台账整洁，不影响功能 |
 | `cbec-selection-master` | 已在 `/Users/xavier/Desktop/cbec-selection-master`（59 文件，556K） | 已解：23 skill + engine + SKILL_SPEC 全部随 L3 Amazon 包，逐文件 0 diff |
-| camoufox 解释器 | 探针 import 失败（`/tmp/cfx` 随重启丢失） | health 里 camoufox 恒 `ok:false`，不挡主链路 |
+| Camoufox 解释器 | 本机持久 venv 使用 Python 3.13.16 和 Camoufox 0.5.9，独立端口真机验收已通过 | 部署时为 Camoufox worker 配置 Python 3.13 环境 |
 
 ## 6 未决
 
@@ -229,4 +229,3 @@ M1 和 M2 可以并行。M3 先做 Amazon 不是因为它优先，而是因为�
 4. **eBay 的供给来源**：清单里零供给，是自建还是找现成包
 5. **L1 核心包的 fork 边界**：DSH 上游更新怎么跟进（每个版本都要 rebase，这是长期成本）
 6. **`dsh-prompt-enhancer` 重启后要核一件**：新版 patch 插入行带 `id: dsh-prompt-enhancer`，而现有 materialized 配置里是自动生成的 `id: bb3b1c1e`，重启后可能变成两行。若重复，删掉旧的那行再启
-7. **Camoufox 归一的工作量未估**：走 worker 适配层还是重做成 CDP 通道，取决于 Camoufox 是否支持 `--remote-debugging-port`，这一点尚未验证

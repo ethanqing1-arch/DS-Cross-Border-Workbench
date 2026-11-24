@@ -29,22 +29,24 @@ bash distribution/l3/install.sh amazon ~/ds-bot-workspace   # 另有 6 个平台
 
 # 3) 自检
 bash distribution/verify.sh            # L1→L2→7 平台全链
+bash distribution/flow-smoke.sh        # 四个 L2 业务脚本和产物
 bash distribution/e2e-smoke.sh         # 装链 + 真 MCP 往返 + 产物落工作区
-cd farm && bash scripts/acceptance.sh --with-browser   # 跑前先 --stop 真网关（同端口）
+ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --with-browser
 ```
 
 ## 验收基线（2026-11-24 实测）
 
 | 自检 | 结果 |
 |---|---|
-| `farm/scripts/acceptance.sh --with-browser` | `PASS=69 FAIL=0 WARN=0` / `READY` |
-| `distribution/verify.sh` | `PASS=62 FAIL=0 WARN=0` / `READY` |
-| `distribution/e2e-smoke.sh` | `PASS=34 FAIL=0 WARN=1` / `READY`（WARN 是令牌 <32 位；farm/ 有未提交改动时改判为 33 PASS / 2 WARN，含 `transferSize>0` 反缓存假绿断言与离网 `E_GOTO` 断言） |
-| `farm/scripts/test-proxy-bridge.sh` | `PASS=35`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |
-| `farm/scripts/proxy-selftest.sh --self-test` | `PASS=12`（无真代理也能验脚本本身） |
-| `farm/scripts/proxy-selftest.sh --worker-proxy` | `PASS=11 FAIL=0 INFO=1` / `READY`（camoufox worker 的真流量确实进出代理；venv 缺失时 WARN 跳过） |
+| `farm/scripts/acceptance.sh --with-browser` | `PASS=70 FAIL=0 WARN=0` / `READY`（网关 19681，控制面 19581） |
+| `distribution/verify.sh` | `PASS=63 FAIL=0 WARN=0` / `READY` |
+| `distribution/flow-smoke.sh` | `PASS=4 FAIL=0 WARN=0` / `READY` |
+| `distribution/e2e-smoke.sh` | `PASS=34 FAIL=0 WARN=0` / `READY`（临时网关，含 `transferSize>0` 与离网 `E_GOTO` 断言） |
+| `farm/scripts/test-proxy-bridge.sh` | `PASS=35 FAIL=0` / `READY`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |
+| `farm/scripts/proxy-selftest.sh --self-test` | `PASS=12 FAIL=0 WARN=0 INFO=1` / `READY`（假上游） |
+| `farm/scripts/proxy-selftest.sh --worker-proxy` | `PASS=11 FAIL=0 WARN=0 INFO=1` / `READY`（Camoufox worker 经代理连到假上游，venv 缺失时 WARN 跳过） |
 
-计数会随覆盖收编而变，以脚本实际输出为准（本表是 2026-11-23 的一次快照）。
+计数以脚本实际输出为准。
 
 ## 关键口径
 

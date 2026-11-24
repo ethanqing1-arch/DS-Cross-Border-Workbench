@@ -91,7 +91,7 @@ cd DS-Cross-Border-Workbench
 ```bash
 # 0) 先确认包本身没坏（装进临时目录，不碰你的工作区）
 bash distribution/verify.sh
-#    期望最后两行：== 汇总: PASS=61 FAIL=0 WARN=0 ==  /  RESULT: READY
+#    期望最后两行：== 汇总: PASS=63 FAIL=0 WARN=0 ==  /  RESULT: READY
 
 # 1) L1 核心：校验 farm、写标记文件
 bash distribution/l1/install.sh ~/ds-bot-workspace
@@ -247,7 +247,7 @@ farm_health                        # control 面通
 |---|---|---|---|
 | 1 | DS Bot 起来了 | 主聊天发一句话 | Chief 回复 |
 | 2 | 模型配好了 | **Settings → Bots** → Chief → **Model** | 不是空 |
-| 3 | 包与三层装完 | `bash distribution/verify.sh` | 末两行 `PASS=61 FAIL=0 WARN=0` / `RESULT: READY` |
+| 3 | 包与三层装完 | `bash distribution/verify.sh` | 末两行 `PASS=63 FAIL=0 WARN=0` / `RESULT: READY` |
 | 4 | 网关鉴权真开着 | `curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:19671/v1/sessions` | `401` |
 | 5 | 11 个员工建齐 | `list_bots` | 11 个名字与 `presets/bots.json` 一致 |
 

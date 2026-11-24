@@ -236,18 +236,18 @@ env       = { GATEWAY_URL: "http://127.0.0.1:19671",
 cd "$REPO"
 bash distribution/verify.sh                    # 自包含，只写 mktemp 目录，不碰 farm
 GATEWAY_TOKEN="$DSH_SECRET_GATEWAY_TOKEN" bash distribution/e2e-smoke.sh   # 要网关在跑
-cd farm && bash scripts/acceptance.sh --with-browser                        # 跑前先 --stop 真网关（同端口）
+ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --with-browser
 ```
 
 README 里 2026-11-24 的快照基线（数字会随覆盖变化，以脚本实际输出为准）：
 
 ```
-farm/scripts/acceptance.sh --with-browser  PASS=69 FAIL=0 WARN=0 / READY
-distribution/verify.sh                     PASS=62 FAIL=0 WARN=0 / READY
-distribution/e2e-smoke.sh                  PASS=34 FAIL=0 WARN=1 / READY
+farm/scripts/acceptance.sh --with-browser  PASS=70 FAIL=0 WARN=0 / READY
+distribution/verify.sh                     PASS=63 FAIL=0 WARN=0 / READY
+distribution/e2e-smoke.sh                  PASS=34 FAIL=0 WARN=0 / READY
 ```
 
-`e2e-smoke.sh` 那条 WARN 是令牌 <32 位，不是故障。
+`e2e-smoke.sh` 的基线使用独立临时网关和由环境变量传入的测试令牌，令牌长度为 64 个十六进制字符。
 
 ---
 
