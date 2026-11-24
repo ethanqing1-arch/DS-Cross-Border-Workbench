@@ -19,6 +19,10 @@
 'use strict';
 const fs = require('fs');
 const http = require('http');
+const os = require('os');
+const path = require('path');
+const { spawn } = require('child_process');
+const { setTimeout: sleep } = require('timers/promises');
 const WebSocket = require('ws');
 
 const argv = process.argv.slice(2);
@@ -26,7 +30,7 @@ const val = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i
 const CDP = val('cdp', 'http://127.0.0.1:19401').replace(/\/$/, '');
 // 取第一个「不是选项值」的裸词作为子命令
 const OPTS = new Set(['--cdp', '--url', '--expr', '--x', '--y', '--text', '--path',
-  '--selector-map', '--timeout', '--selector', '--state', '--timeout-ms']);
+  '--selector-map', '--timeout', '--selector', '--state', '--timeout-ms', '--engine']);
 let cmd = 'scan';
 for (let i = 0; i < argv.length; i++) {
   if (OPTS.has(argv[i])) { i++; continue; }
@@ -39,8 +43,8 @@ const getJSON = (url, t = 3000) => new Promise((resolve, reject) => {
   req.on('error', reject);
 });
 
-async function connect() {
-  const list = await getJSON(CDP + '/json/list');
+async function connect(base = CDP) {
+  const list = await getJSON(base + '/json/list');
   const page = list.find((t) => t.type === 'page' && t.webSocketDebuggerUrl);
   if (!page) throw new Error('no page target');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -99,7 +103,103 @@ function printError(code, message) {
   process.exitCode = 2;
 }
 
+async function gotoPage(c, url) {
+  try {
+    await c.send('Page.enable');
+    const { errorText } = await c.send('Page.navigate', { url });
+    if (errorText) throw new Error(errorText);
+  } catch (e) {
+    e.taskCode ||= 'E_GOTO';
+    throw e;
+  }
+  let state = null;
+  for (let i = 0; i < 30; i++) {
+    await sleep(200);
+    state = await c.evalJS('document.readyState').catch(() => null);
+    if (state === 'complete') break;
+  }
+  if (state !== 'complete') {
+    throw Object.assign(new Error('navigation timeout (readyState=' + state + ')'), { taskCode: 'E_TIMEOUT' });
+  }
+  return { ok: true, url: await c.evalJS('location.href'), readyState: state };
+}
+
+async function probeBrowser(engine) {
+  const bins = {
+    chromium: process.env.FP_CHROME_BIN || '/Applications/fingerprint-chromium.app/Contents/MacOS/Chromium',
+    chrome: process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  };
+  if (!Object.hasOwn(bins, engine)) throw new Error('unsupported probe engine');
+  const profile = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'farm-health-'));
+  let child, cleanup;
+  const signalGroup = (signal) => {
+    if (!child?.pid) return false;
+    try { process.kill(-child.pid, signal); return true; } catch (e) {
+      if (e.code === 'ESRCH') return false;
+      throw e;
+    }
+  };
+  const stop = () => cleanup ||= (async () => {
+    try {
+      if (signalGroup('SIGTERM')) {
+        const deadline = Date.now() + 1000;
+        while (Date.now() < deadline && signalGroup(0)) await sleep(50);
+        signalGroup('SIGKILL');
+      }
+    } finally {
+      await fs.promises.rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  })();
+  const abort = (message, code) => {
+    console.error(message);
+    stop().catch((e) => console.error(e.message)).finally(() => process.exit(code));
+  };
+  const onTerm = () => abort('browser probe terminated', 143);
+  const onInt = () => abort('browser probe interrupted', 130);
+  process.once('SIGTERM', onTerm);
+  process.once('SIGINT', onInt);
+  const watchdog = setTimeout(() => abort('browser probe timeout', 2), 20000);
+  try {
+    child = spawn(bins[engine], [
+      '--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
+      '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0',
+      '--user-data-dir=' + profile, '--lang=en-US', '--accept-lang=en-US', 'about:blank',
+    ], { detached: true, stdio: 'ignore', env: { ...process.env, TZ: 'UTC' } });
+    let launchError;
+    child.once('error', (e) => { launchError = e; });
+    child.once('exit', (code, signal) => { launchError = new Error(`browser exited (${signal || code})`); });
+    const marker = path.join(profile, 'DevToolsActivePort');
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      if (launchError) throw launchError;
+      const contents = await fs.promises.readFile(marker, 'utf8').catch((e) => {
+        if (e.code === 'ENOENT') return '';
+        throw e;
+      });
+      const [port, endpoint] = contents.split('\n');
+      if (/^[0-9]+$/.test(port) && endpoint?.startsWith('/devtools/browser/')) {
+        const cdp = 'http://127.0.0.1:' + port;
+        const c = await connect(cdp);
+        try { await gotoPage(c, 'about:blank'); } finally { c.close(); }
+        return { ok: true, cdp };
+      }
+      await sleep(100);
+    }
+    throw new Error('temporary browser CDP not ready');
+  } finally {
+    try { await stop(); } finally {
+      clearTimeout(watchdog);
+      process.removeListener('SIGTERM', onTerm);
+      process.removeListener('SIGINT', onInt);
+    }
+  }
+}
+
 (async () => {
+  if (cmd === 'probe') {
+    console.log(JSON.stringify(await probeBrowser(val('engine'))));
+    return;
+  }
   const c = await connect().catch((e) => {
     e.taskCode = 'E_CDP_UNREACHABLE';
     throw e;
@@ -165,26 +265,7 @@ function printError(code, message) {
       console.log(JSON.stringify({ ok: met, selector, state, found, waited_ms: Date.now() - t0 }));
       process.exitCode = met ? 0 : 1;
     } else if (cmd === 'goto') {
-      const url = val('url');
-      try {
-        await c.send('Page.enable');
-        const { errorText } = await c.send('Page.navigate', { url });
-        if (errorText) throw new Error(errorText);
-      } catch (e) {
-        printError(e.taskCode || 'E_GOTO', e.message);
-        return;
-      }
-      let state = null;
-      for (let i = 0; i < 30; i++) {
-        await new Promise((r) => setTimeout(r, 200));
-        state = await c.evalJS('document.readyState').catch(() => null);
-        if (state === 'complete') break;
-      }
-      if (state !== 'complete') {
-        printError('E_TIMEOUT', 'navigation timeout (readyState=' + state + ')');
-        return;
-      }
-      console.log(JSON.stringify({ ok: true, url: await c.evalJS('location.href'), readyState: state }));
+      console.log(JSON.stringify(await gotoPage(c, val('url'))));
     } else if (cmd === 'eval') {
       const expr = val('expr');
       try {

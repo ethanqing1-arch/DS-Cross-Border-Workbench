@@ -115,7 +115,8 @@ else
 fi
 
 echo "== 5. 控制面 + 网关 =="
-node control.js --port "$ACCEPT_CONTROL_PORT" >"$TMP/acc-c.log" 2>&1 & CPID=$!
+mkdir -p "$TMP/probe-tmp"
+TMPDIR="$TMP/probe-tmp" node control.js --port "$ACCEPT_CONTROL_PORT" >"$TMP/acc-c.log" 2>&1 & CPID=$!
 sleep 1
 printf '%s\n' 'import sys; print("fixture: no worker response", file=sys.stderr)' >"$TMP/empty-worker.py"
 node gateway/server.js --port "$ACCEPT_PORT" --control "http://127.0.0.1:$ACCEPT_CONTROL_PORT" --farm "$TMP/farm.js" --driver "$TMP/driver.js" \
@@ -272,8 +273,17 @@ if (!call || !call.result || call.result.isError !== false) process.exit(3);
 const body = JSON.parse(call.result.content[0].text);
 if (body.gateway !== "up") process.exit(4);
 ' && ok "MCP stdio 冒烟（7 工具 + farm_health）" || no "MCP stdio 冒烟失败"
+  PROBE_BEFORE="$(sqlite3 "$FARM_DB" 'SELECT count(*) FROM accounts')"
   auth_curl -s -o /dev/null -w "%{http_code}" "localhost:$ACCEPT_PORT/v1/health?probe=1" | grep -qx 200 \
     && ok "health?probe=1 带 token 可探" || no "health?probe=1 带 token 失败"
+  PROBE_AFTER="$(sqlite3 "$FARM_DB" 'SELECT count(*) FROM accounts')"
+  if [ -n "$PROBE_BEFORE" ] && [ "$PROBE_BEFORE" = "$PROBE_AFTER" ] \
+    && [ -z "$(find profiles -name 'probe:health:*' -print)" ] \
+    && [ -z "$(find "$TMP/probe-tmp" -name 'farm-health-*' -print)" ]; then
+    ok "health 探针不留台账或 profile（账号 ${PROBE_BEFORE}→${PROBE_AFTER}）"
+  else
+    no "health 探针遗留台账或 profile（账号 ${PROBE_BEFORE}→${PROBE_AFTER}）"
+  fi
 else
   wn "跳过真机冒烟（加 --with-browser 启用）"
 fi

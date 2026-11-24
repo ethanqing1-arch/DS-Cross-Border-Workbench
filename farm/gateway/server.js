@@ -119,24 +119,15 @@ async function probeWorkerCap() {
 }
 
 async function probeEngine(engine) {
-  const account = `probe:health:${engine}`;
   const t0 = Date.now();
-  let created = false;
   try {
-    await control('DELETE', `/instances/${encodeURIComponent(account)}`).catch(() => {});   // 清掉上次探针残留
-    const r = await control('POST', '/instances', { account, engine, tz: 'UTC', lang: 'en-US', headless: true });
-    if (r.status >= 400) return { ok: false, error: (r.data && r.data.error) || `create failed ${r.status}`, ms: Date.now() - t0 };
-    created = true;
-    const cdp = r.data && r.data.instance && r.data.instance.cdp;
-    if (!cdp) return { ok: false, error: 'no cdp endpoint', ms: Date.now() - t0 };
-    const { stdout } = await exec(process.execPath, [DRIVER, '--cdp', cdp, 'goto', '--url', 'about:blank'], { timeout: 15000, maxBuffer: 1024 * 1024 });
-    let out = null; try { out = JSON.parse(stdout); } catch (e) { out = { raw: String(stdout).slice(0, 200) }; }
-    if (!out || out.ok !== true) return { ok: false, error: (out && (out.error || ('readyState=' + out.readyState))) || 'goto failed', ms: Date.now() - t0 };
-    return { ok: true, ms: Date.now() - t0, cdp };
+    const r = await control('POST', '/health/probe', { engine });
+    if (r.status !== 200 || r.data?.ok !== true) {
+      return { ok: false, error: r.data?.error || `probe failed ${r.status}`, ms: Date.now() - t0 };
+    }
+    return { ok: true, ms: Date.now() - t0, cdp: r.data.cdp };
   } catch (e) {
-    return { ok: false, error: String(e.stderr || e.message).slice(0, 300), ms: Date.now() - t0 };
-  } finally {
-    if (created) await control('DELETE', `/instances/${encodeURIComponent(account)}`).catch(() => {});
+    return { ok: false, error: String(e.message).slice(0, 300), ms: Date.now() - t0 };
   }
 }
 

@@ -7,6 +7,7 @@
  *
  * 路由：
  *   GET    /health                        → 台账统计 + 进程存活数
+ *   POST   /health/probe                  → 临时 Chromium CDP 自检
  *   GET    /instances                     → 账号列表（含 alive / 最近体检）
  *   POST   /instances                     → 启动实例（端口可省略，自动分配）
  *          body: {account, tz, lang, proxy?, headless?, extra?, port?, store_id?, platform?}
@@ -28,6 +29,7 @@ const ledger = require('./ledger');
 
 const exec = promisify(execFile);
 const FARM = path.join(__dirname, 'farm.js');
+const DRIVER = path.join(__dirname, 'driver.js');
 
 const argv = process.argv.slice(2);
 const val = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d; };
@@ -93,6 +95,20 @@ const server = http.createServer(async (req, res) => {
       const s = ledger.stats();
       const alive = ledger.list().filter((r) => r.alive).length;
       return send(res, 200, { ok: true, service: 'farm-control', ...s, alive });
+    }
+
+    if (method === 'POST' && url.pathname === '/health/probe') {
+      const { engine } = await readBody(req);
+      if (engine !== 'chromium' && engine !== 'chrome') {
+        return send(res, 400, { ok: false, error: 'unsupported probe engine' });
+      }
+      try {
+        const { stdout } = await exec(process.execPath, [DRIVER, 'probe', '--engine', engine],
+          { timeout: 25000, maxBuffer: 65536 });
+        return send(res, 200, JSON.parse(stdout));
+      } catch (e) {
+        return send(res, 502, { ok: false, error: String(e.stderr || e.message).trim().slice(0, 300) });
+      }
     }
 
     if (method === 'GET' && url.pathname === '/instances') {
