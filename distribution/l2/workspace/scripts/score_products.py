@@ -24,12 +24,20 @@ PLATFORM_FEE = 0.05   # 佣金 + 支付手续费，按售价比例
 GROSS_FLOOR = 0.25    # 毛利率红线：低于此值不进付费测款
 CONTRIB_FLOOR = 0.08  # 贡献利润率红线：低于此值不做付费主推
 
+REQUIRED = ("1688进价", "运费", "平均退货率", "月搜索量", "在售竞品数", "头部评论数")
+DEFAULTS = {"推广费率": 0.15, "供应稳定性分": 5}
+OUTPUT_FIELDS = [
+    "商品名", "品类", "预估售价", "表面毛利", "贡献利润", "贡献利润率", "分层",
+    "月搜索量", "在售竞品数", "供需比", "退货率", "总分", "决策", "诊断", "红线", "差异化点",
+]
 
-def num(row, key, default=0.0):
+
+def num(row, key):
     try:
-        return float(str(row.get(key, default)).strip() or default)
-    except ValueError:
-        return default
+        value = float(row.get(key))
+    except (TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) else None
 
 
 def load(path):
@@ -76,21 +84,44 @@ def tier_of(contrib_rate, contrib):
 
 
 def build(rows):
-    search = [num(r, "月搜索量") for r in rows]
-    comp = [num(r, "在售竞品数") for r in rows]
-    head = [num(r, "头部评论数") for r in rows]
-
+    incomplete = []
+    eligible = []
     models = []
     for r in rows:
         price = num(r, "预估售价")
-        cost = num(r, "1688进价")
-        ship = num(r, "运费")
-        ad = num(r, "推广费率", 0.15)
-        ret = num(r, "平均退货率")
-        if price <= 0:
+        if price is None or price <= 0:
             sys.exit("「%s」的预估售价必须大于 0" % r["商品名"])
-        models.append(profit_model(price, cost, ship, ad, ret))
+        result = {
+            "商品名": r["商品名"],
+            "品类": r.get("品类", ""),
+            "预估售价": "%.2f" % price,
+            "差异化点": r.get("差异化点", ""),
+        }
+        values = {key: num(r, key) for key in REQUIRED}
+        missing = [key for key in REQUIRED if values[key] is None]
+        if missing:
+            result.update({"决策": "补数据", "诊断": "[D] 缺失：" + "、".join(missing)})
+            incomplete.append(result)
+            continue
 
+        defaults_used = []
+        for key, default in DEFAULTS.items():
+            value = num(r, key)
+            if value is None:
+                value = default
+                defaults_used.append("%s=%s" % (key, default))
+            values[key] = value
+        eligible.append((result, values, defaults_used))
+        models.append(profit_model(
+            price, values["1688进价"], values["运费"], values["推广费率"], values["平均退货率"]
+        ))
+
+    if not eligible:
+        return incomplete
+
+    search = [values["月搜索量"] for _, values, _ in eligible]
+    comp = [values["在售竞品数"] for _, values, _ in eligible]
+    head = [values["头部评论数"] for _, values, _ in eligible]
     d_search = minmax([math.log1p(v) for v in search])
     d_comp = minmax([math.log1p(v) for v in comp])
     d_head = minmax([math.log1p(v) for v in head])
@@ -98,11 +129,10 @@ def build(rows):
     d_contrib_rate = minmax([m["contrib_rate"] for m in models])
 
     out = []
-    for i, r in enumerate(rows):
+    for i, (result, values, defaults_used) in enumerate(eligible):
         m = models[i]
-        price = num(r, "预估售价")
-        ret = num(r, "平均退货率")
-        supply = num(r, "供应稳定性分", 5) / 10.0
+        ret = values["平均退货率"]
+        supply = values["供应稳定性分"] / 10.0
         ret_pen = max(0.1, 1.0 - ret * 3.0)
         ratio = search[i] / max(comp[i], 1.0)
 
@@ -143,10 +173,9 @@ def build(rows):
         if supply < 0.6:
             reasons.append("供应不稳")
 
-        out.append({
-            "商品名": r["商品名"],
-            "品类": r.get("品类", ""),
-            "预估售价": "%.2f" % price,
+        if defaults_used:
+            reasons.append("使用默认值：" + "、".join(defaults_used))
+        result.update({
             "表面毛利": "%.2f" % m["gross"],
             "贡献利润": "%.2f" % m["contribution"],
             "贡献利润率": "%.1f%%" % (m["contrib_rate"] * 100),
@@ -159,10 +188,10 @@ def build(rows):
             "决策": action,
             "诊断": "/".join(reasons) if reasons else "中规中矩",
             "红线": "/".join(flags) if flags else "",
-            "差异化点": r.get("差异化点", ""),
         })
+        out.append(result)
     out.sort(key=lambda x: -float(x["总分"]))
-    return out
+    return out + incomplete
 
 
 def main():
@@ -184,20 +213,20 @@ def main():
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     path = OUT if not a.category else OUT.replace(".csv", "_%s.csv" % a.category)
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
-        w = csv.DictWriter(f, fieldnames=list(res[0].keys()))
+        w = csv.DictWriter(f, fieldnames=OUTPUT_FIELDS)
         w.writeheader()
         w.writerows(res)
 
     print("贡献利润口径：售价 - 成本 - 平台5% - 运费 - 推广费 - 退货损耗\n")
-    head = ["排名", "商品名", "贡献利润", "贡献率", "分层", "总分", "决策"]
+    head = ["排名", "商品名", "贡献利润", "贡献率", "分层", "总分", "决策", "诊断"]
     print(" | ".join(head))
     print("-" * 88)
     for i, r in enumerate(res, 1):
-        print(" | ".join([str(i), r["商品名"][:14], r["贡献利润"], r["贡献利润率"],
-                          r["分层"], r["总分"], r["决策"]]))
+        print(" | ".join([str(i), r["商品名"][:14], r.get("贡献利润", ""), r.get("贡献利润率", ""),
+                          r.get("分层", ""), r.get("总分", ""), r["决策"], r["诊断"]]))
     print("\n明细写入: %s" % path)
 
-    blocked = [r for r in res if r["红线"]]
+    blocked = [r for r in res if r.get("红线")]
     if blocked:
         print("\n触发红线 %d 个：" % len(blocked))
         for r in blocked:

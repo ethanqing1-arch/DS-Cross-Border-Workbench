@@ -7,16 +7,20 @@
   内置网页抓取器 / read_url        → 503（指纹被拦）
   Playwright + 本机 Chrome         → 200，能渲染，但评论原文仍需登录
 
-所以：HTTP 为主（快、可并发），Playwright 只在需要交互时另走 supplement.mjs。
+所以：HTTP 为主，Playwright 只在需要交互时另走 supplement.mjs。
 拿不到就返回 null + degraded，绝不编数字。
 
 用法：
   python3 fetch_amazon.py search "pet slow feeder" --limit 20
   python3 fetch_amazon.py product B0C5HSCS8J
+  python3 fetch_amazon.py product --asin-file asins.txt --output amazon-candidates.csv
   python3 fetch_amazon.py search "dog bowl" --limit 30 --csv
 """
 from __future__ import annotations
 import argparse, json, re, subprocess, sys, time, random, csv, io
+from datetime import datetime
+from html import unescape
+from pathlib import Path
 
 UA_POOL = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
@@ -24,6 +28,14 @@ UA_POOL = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
 ]
 COOKIE = "i18n-prefs=USD; lc-main=en_US"
+UNAVAILABLE_REVIEW_FIELDS = ("rating_histogram", "customers_say", "review_text")
+MAX_BATCH_SIZE = 20
+NEED_INPUT = "NEED_INPUT"
+BATCH_FIELDS = (
+    "asin", "品类", "商品名", "预估售价", "头部评论数", "月搜索量", "在售竞品数",
+    "1688进价", "运费", "平均退货率", "推广费率", "供应稳定性分",
+    "上架时间", "卖家", "发货方式", "bsr", "评分", "抓取时间",
+)
 
 
 def fetch(url: str, retries: int = 2) -> tuple[str, int]:
@@ -50,7 +62,7 @@ def fetch(url: str, retries: int = 2) -> tuple[str, int]:
             return body, code
         last = body
         if i < retries:
-            time.sleep(1.5 * (i + 1) + random.random())
+            time.sleep(max(2.0, 1.5 * (i + 1) + random.random()))
     return last, code
 
 
@@ -95,6 +107,38 @@ def parse_product(html: str, asin: str) -> dict:
         m = re.search(pat, html, flags)
         return m.group(grp).strip() if m else None
 
+    def display_text(raw):
+        text = unescape(re.sub(r"<[^>]+>", "", raw or ""))
+        return " ".join(text.replace("\u200e", "").replace("\u200f", "").split()) or None
+
+    def offer_text(label):
+        # 只取对应标签后紧邻的 offer-display-feature-text，避免串到其他报价或弹层。
+        value = one(
+            rf'<span\b[^>]*>\s*{re.escape(label)}\s*</span>\s*(?:</div>\s*)*'
+            r'<div\b[^>]*\bclass=["\'][^"\']*\boffer-display-feature-text(?=\s|["\'])[^"\']*["\'][^>]*>\s*'
+            r'(?:<div\b[^>]*>\s*)?<(?:a|span)\b[^>]*\bclass=["\'][^"\']*'
+            r'\boffer-display-feature-text-message(?=\s|["\'])[^"\']*["\'][^>]*>([^<]*)'
+        )
+        return display_text(value)
+
+    date_item = display_text(one(
+        r'<li\b[^>]*>\s*(?:<span\b[^>]*>\s*){0,2}(Date First Available\b.*?)</li>', re.S
+    ))
+    date_first_available = (date_item or "").partition(":")[2].strip() or None
+    sold_by = offer_text("Sold by")
+    ships_from = offer_text("Ships from")
+    fulfillment = "unknown"
+    if ships_from:
+        fulfillment = "fba" if "amazon" in ships_from.casefold() else "fbm"
+    new_fields = {
+        "date_first_available": date_first_available,
+        "sold_by": sold_by,
+        "ships_from": ships_from,
+        "fulfillment": fulfillment,
+    }
+    degraded = [field for field, value in new_fields.items() if value is None]
+    degraded.extend(UNAVAILABLE_REVIEW_FIELDS)
+
     price = one(r'class="a-offscreen">\s*([^<]{1,14})\s*<')
     rating = one(r'id="acrPopover"[^>]*title="([\d.]+) out of 5') or one(
         r'([\d.]+) out of 5 stars'
@@ -129,17 +173,120 @@ def parse_product(html: str, asin: str) -> dict:
         "reviews": reviews,
         "bsr": [f"#{r} in {c.strip()}" for r, c in bsr_all[:3]],
         "bullets": [b.strip()[:200] for b in bullets],
-        "degraded": None,
+        **new_fields,
+        "degraded": degraded,
     }
+
+
+def fetch_product(asin: str) -> dict:
+    html, code = fetch(f"https://www.amazon.com/dp/{asin}")
+    bad = _blocked(html, code)
+    if bad:
+        return {"error": bad, **parse_product("", asin)}
+    return parse_product(html, asin)
+
+
+def load_asins(path: Path) -> list[str]:
+    with path.open(newline="", encoding="utf-8-sig") as f:
+        rows = [row for row in csv.reader(f) if any(cell.strip() for cell in row)]
+    if not rows:
+        raise ValueError("ASIN 文件没有数据")
+
+    header = [cell.strip().lower() for cell in rows[0]]
+    if "asin" in header:
+        column = header.index("asin")
+        ids = [row[column].strip() if column < len(row) else "" for row in rows[1:]]
+    elif all(len(row) == 1 for row in rows):
+        ids = [row[0].strip() for row in rows]
+    else:
+        raise ValueError("CSV 表头必须包含 asin 列")
+
+    if not 1 <= len(ids) <= MAX_BATCH_SIZE:
+        raise ValueError(f"ASIN 文件必须有 1 到 {MAX_BATCH_SIZE} 条数据")
+    asins = [asin.upper() for asin in ids]
+    for i, asin in enumerate(asins, 1):
+        if not re.fullmatch(r"[A-Z0-9]{10}", asin):
+            raise ValueError(f"第 {i} 条数据的 ASIN 无效：{asin or '空值'}")
+    return asins
+
+
+def candidate_row(product: dict) -> dict:
+    price = re.fullmatch(r"\$\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)", product["price"] or "")
+    row = dict.fromkeys(BATCH_FIELDS, NEED_INPUT)
+    values = {
+        "asin": product["asin"],
+        "商品名": product["title"],
+        "预估售价": price.group(1).replace(",", "") if price else None,
+        "头部评论数": product["reviews"].replace(",", "") if product["reviews"] else None,
+        "上架时间": product["date_first_available"],
+        "卖家": product["sold_by"],
+        "发货方式": product["fulfillment"] if product["fulfillment"] != "unknown" else None,
+        "bsr": "; ".join(product["bsr"]) if product["bsr"] else None,
+        "评分": product["rating"],
+        "抓取时间": datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
+    row.update({key: value for key, value in values.items() if value is not None})
+    return row
+
+
+def write_batch(asins: list[str], output: Path, readme: Path) -> None:
+    notes = [
+        "# Amazon 商品页抓取说明",
+        "",
+        "`NEED_INPUT` 表示需要补录。预估售价为商品页显示的美元价，打分前请将售价和成本统一币种。",
+        "头部评论数取该 ASIN 的商品页评论总数。评估头部门槛时请选用头部商品的 ASIN。",
+        "品类按工作台口径补录。月搜索量、在售竞品数和成本类信息需另行补录。"
+        "打分时，缺失的推广费率和供应稳定性分会使用有记录的默认值。",
+        "",
+        "## 各 ASIN 待补列",
+        "",
+    ]
+    rows = []
+    for i, asin in enumerate(asins):
+        if i:
+            time.sleep(random.uniform(2.0, 4.0))
+        product = fetch_product(asin)
+        row = candidate_row(product)
+        rows.append(row)
+        missing = "、".join(key for key, value in row.items() if value == NEED_INPUT)
+        error = f"（{product['error']}）" if "error" in product else ""
+        notes.append(f"- `{asin}`{error}：{missing}")
+
+    with output.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=BATCH_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+    readme.write_text("\n".join(notes) + "\n", encoding="utf-8")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("mode", choices=["search", "product"])
-    ap.add_argument("target")
+    ap.add_argument("target", nargs="?")
     ap.add_argument("--limit", type=int, default=60)
     ap.add_argument("--csv", action="store_true")
+    ap.add_argument("--asin-file", type=Path, help="商品批量模式，读取每行一个 ASIN 或含 asin 表头的 CSV")
+    ap.add_argument("--output", type=Path, help="批量 CSV 输出路径，默认为 amazon-candidates.csv")
     a = ap.parse_args()
+
+    if a.asin_file is not None:
+        if a.mode != "product" or a.target is not None:
+            ap.error("--asin-file 只用于 product 模式，且不能同时指定单个 ASIN")
+        output = a.output or Path("amazon-candidates.csv")
+        readme = output.with_name(output.name + ".README.md")
+        try:
+            if a.asin_file.resolve() in (output.resolve(), readme.resolve()):
+                raise ValueError("批量输出不能覆盖 ASIN 输入文件")
+            write_batch(load_asins(a.asin_file), output, readme)
+        except (OSError, ValueError, csv.Error) as exc:
+            ap.error(str(exc))
+        print(f"CSV 写入: {output}")
+        print(f"缺失列说明写入: {readme}")
+        return
+    if a.output is not None:
+        ap.error("--output 需要与 --asin-file 一起使用")
+    if a.target is None:
+        ap.error("需要指定搜索词或单个 ASIN")
 
     if a.mode == "search":
         url = f"https://www.amazon.com/s?k={a.target.replace(' ', '+')}"
@@ -161,12 +308,7 @@ def main():
             "degraded": None,
         }
     else:
-        html, code = fetch(f"https://www.amazon.com/dp/{a.target}")
-        bad = _blocked(html, code)
-        if bad:
-            print(json.dumps({"error": bad, "degraded": True, "asin": a.target}, ensure_ascii=False))
-            sys.exit(0)
-        payload = parse_product(html, a.target)
+        payload = fetch_product(a.target)
 
     if a.csv and a.mode == "search":
         buf = io.StringIO()

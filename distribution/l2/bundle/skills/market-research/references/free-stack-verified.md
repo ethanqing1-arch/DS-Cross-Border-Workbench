@@ -43,7 +43,7 @@
 评论页 `/product-reviews/<ASIN>` 一律跳 `/ap/signin`。三条路：
 
 1. **DS-Bot 原生 cookie 导入**（推荐）——DS-Bot 自带 `cookie-import`，你在本机 Chrome 登录一次 Amazon，把 cookie 导进 Playwright context，之后评论页可正常读。用的是你自己的账号，不涉及第三方。
-2. 放弃原文，用「评分分布 + 评论总数 + 五点」做替代判断 —— 丢掉的正是「用户为什么退货」这类最有价值的信息。
+2. 在未登录的商品页分析中，将评论原文、星级分布和 AI 摘要记为缺口。评论总数和五点描述作为各自的证据记录。
 3. 只看商品页顶部偶尔露出的 2–3 条评论 —— 量太少，不可作为分类依据。
 
 没有第 4 条。任何声称"免费无登录拿全站评论"的库，实测都是过期或要付费 key。
@@ -56,11 +56,14 @@ cd ~/.ds-bot/skills/market-research/scripts
 # 搜索页 → CSV（ASIN/标题/价格/评分/评论数/是否广告）
 python3 fetch_amazon.py search "pet slow feeder" --limit 20 --csv
 
-# 商品页 → JSON（含 BSR、五点）
+# 商品页 → JSON（含 BSR、五点、上架时间、卖家和发货方）
 python3 fetch_amazon.py product B0C5HSCS8J
+
+# 商品页批量 → 打分输入 CSV 和缺失列说明
+python3 fetch_amazon.py product --asin-file asins.txt --output amazon-candidates.csv
 ```
 
-失败时的返回形状（不会编数）：
+搜索失败时的返回示例
 
 ```json
 {"error": "blocked_by_amazon", "degraded": true, "rows": []}
@@ -69,12 +72,15 @@ python3 fetch_amazon.py product B0C5HSCS8J
 
 看到 `degraded` 就写「缺口」，不许拿别的字段凑。
 
+批量输入支持每行一个 ASIN，也支持带 `asin` 表头的 CSV。批量输出默认写入
+`amazon-candidates.csv`，同目录的 `<output>.README.md` 列出各 ASIN 的待补字段。
+打分脚本读取其工作区的 `data/candidates.csv`。导入前请确认目标文件，并将售价和补录成本统一币种。
+
 ## 六、速率与礼貌
 
-- 实测单次 2–5s，串行 60 个候选约 3–5 分钟
-- 间隔 < 1s 连续打，约 20–30 次后开始出现 503
-- `fetch_amazon.py` 内置 2 次重试 + 1.5s 退避
-- 建议：每抓 10 个停 3–5 秒；需要 60 个以上就分两批，中间隔 10 分钟
+- 历史实测单次 2–5 秒。间隔低于 1 秒时，连续约 20–30 次后开始出现 503。
+- 商品页批量每次最多 20 个 ASIN，串行抓取，两个商品之间随机等待 2–4 秒。
+- 每页最多重试两次，保留递增退避和抖动，每次重试至少等待 2 秒。
 
 ## 七、Playwright 的定位（别滥用）
 
@@ -87,3 +93,22 @@ python3 fetch_amazon.py product B0C5HSCS8J
 单纯抓搜索页/商品页用 curl 就够。Playwright 只在上述三种情况下启用。
 
 本机 Playwright 1.65.1 装在 `/tmp/mr-probe`（临时目录，重启会丢）；要长期用就装到 skills 目录下，并复用本机 Chrome（`channel: 'chrome'`，不必下载 chromium）。
+
+## 八、商品页三个新字段的实测记录
+
+ASIN `B0C5HSCS8J`。2026-11-24 的交接样本返回 HTTP 200，HTML 为 2,238,048 字节。
+本次复测于 `2026-11-24T21:26:38+08:00` 完成，返回 HTTP 200，保存的 HTML 为 2,241,998 个 UTF-8 字节。
+两次抓取的三个页面原文一致。
+
+| 字段 | 页面原文 | 取值位置 |
+|---|---|---|
+| `date_first_available` | `Date First Available : July 13, 2023` | 商品详情中的 `li` |
+| `sold_by` | `Sold by MateeyLife` | `Sold by` 对应的 `offer-display-feature-text` |
+| `ships_from` | `Ships from Amazon` | `Ships from` 对应的 `offer-display-feature-text` |
+
+这次的 `fulfillment` 由发货方 `Amazon` 得到 `fba`。上述三个字段缺失时返回 `null`，并在
+`degraded` 列出字段名。发货方缺失时，`fulfillment` 为 `unknown`。
+
+未登录商品页的缺口仍为星级分布、`Customers say` AI 摘要和评论原文。星级分布只有
+`reviewCountTextLinkedHistogram` 类名，评论页在交接实测中以 HTTP 302 跳转到 `/ap/signin`。
+脚本在 `degraded` 记录这三项缺口。

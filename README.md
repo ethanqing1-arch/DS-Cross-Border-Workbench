@@ -47,7 +47,7 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 | `farm/scripts/acceptance.sh --with-browser` | `PASS=72 FAIL=0 WARN=0` / `READY`（网关 19681，控制面 19581） |
 | `distribution/verify.sh` | `PASS=69 FAIL=0 WARN=0` / `READY` |
 | `distribution/installer-selftest.sh` | macOS 实测 `PASS=6 FAIL=0` / `READY`（含 DMG 卷标校验） |
-| `distribution/flow-smoke.sh` | `PASS=8 FAIL=0 WARN=3` / `READY`（三件插件缺源。网关不可达时 L1、L2 各多 1 条 WARN，共 5 条） |
+| `distribution/flow-smoke.sh` | 四个业务流及打分缺列断言共 9 项，通过时为 `FAIL=0` / `READY`。告警随插件和网关状态变化。 |
 | `distribution/e2e-smoke.sh` | 单跑 `PASS=34 FAIL=0 WARN=1` / `READY`（默认网关 19671，含 `transferSize>0` 与离网 `E_GOTO` 断言。WARN 来自 8 位令牌低于 32 位门槛）。检测到并发浏览器自检时只记 `SKIP`（`exit 3` / `RESULT: SKIPPED`）。 |
 | `farm/scripts/test-proxy-bridge.sh` | `PASS=35 FAIL=0` / `READY`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |
 | `farm/scripts/proxy-selftest.sh --self-test` | `PASS=12 FAIL=0 WARN=1 INFO=1` / `READY`（假上游；WARN 同上，令牌长度） |

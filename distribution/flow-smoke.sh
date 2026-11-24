@@ -110,6 +110,30 @@ PY
   fi
 }
 
+check_incomplete_scores() {
+  local out
+  if ! cat > data/candidates.csv <<'CSV'
+品类,商品名,预估售价,头部评论数
+家居,MateeyLife 慢食碗,7.64,10819
+家居,Outward Hound 慢食碗,6.39,135893
+CSV
+  then
+    bad "无法准备打分缺列样例"
+    return
+  fi
+  if ! out="$(python3 scripts/score_products.py 2>&1)"; then
+    bad "打分缺列样例执行失败"
+  elif printf '%s\n' "$out" | grep -Eq '上架测试|小批量观察'; then
+    bad "打分缺列样例出现正向决策"
+  elif [ "$(printf '%s\n' "$out" | grep -Fc ' |  |  |  |  | 补数据 | [D] 缺失：1688进价、运费、平均退货率、月搜索量、在售竞品数')" -ne 2 ]; then
+    bad "打分缺列样例的决策、空白指标或缺失诊断不符"
+  else
+    ok "打分缺列样例两行均为 [D] 补数据，无正向决策"
+    return
+  fi
+  printf '%s\n' "$out"
+}
+
 run_flow score_products 'out/选品打分.csv'
 check_content 'out/选品打分.csv'
 run_flow gen_listing 'out/上架包'
@@ -118,4 +142,5 @@ run_flow ops_report 'out/运营日报.md'
 check_content 'out/运营日报.md'
 run_flow cs_router 'out/客服处理.csv'
 check_content 'out/客服处理.csv'
+check_incomplete_scores
 finish

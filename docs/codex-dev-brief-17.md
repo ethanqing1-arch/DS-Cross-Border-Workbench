@@ -119,3 +119,22 @@ python3 distribution/l2/skills/market-research/scripts/fetch_amazon.py product B
 - **不许编数字**：取不到就是 `null` / `NEED_INPUT`，不许填估算值当成实测。
 - 抓取要礼貌：单次间隔不低于 2 秒，一次不超过 20 个 ASIN。
 - 完成后工作区要干净，改动只在本单范围内。
+
+## T1 收尾：缺列负例的实跑原文
+
+用 Python 3.9.6 在临时工作区运行打分脚本，候选表使用本单复现的 CSV。
+
+```bash
+/usr/bin/python3 /tmp/kualang-brief17.U0hums/t1/scripts/score_products.py
+```
+
+```text
+贡献利润口径：售价 - 成本 - 平台5% - 运费 - 推广费 - 退货损耗
+
+排名 | 商品名 | 贡献利润 | 贡献率 | 分层 | 总分 | 决策 | 诊断
+----------------------------------------------------------------------------------------
+1 | MateeyLife 慢食碗 |  |  |  |  | 补数据 | [D] 缺失：1688进价、运费、平均退货率、月搜索量、在售竞品数
+2 | Outward Hound  |  |  |  |  | 补数据 | [D] 缺失：1688进价、运费、平均退货率、月搜索量、在售竞品数
+
+明细写入: /tmp/kualang-brief17.U0hums/t1/out/选品打分.csv
+```
