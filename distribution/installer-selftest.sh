@@ -64,10 +64,31 @@ else
   bad '3. ZIP 解压后安装或验收入口缺失'
 fi
 
+dmg_volume_ok() {
+  local image="$1" mountpoint="$TMP/mounted-dmg" expected actual
+  expected="$(python3 -c 'import json, sys; print(json.load(sys.stdin)["name"])' \
+    < "$SRC/l1/branding/brand.json")" || return 1
+  mkdir "$mountpoint" || return 1
+  hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" "$image" || return 1
+  actual="$(/usr/sbin/diskutil info -plist "$mountpoint" | python3 -c \
+    'import plistlib, sys; print(plistlib.loads(sys.stdin.buffer.read())["VolumeName"])')" || actual=
+  hdiutil detach "$mountpoint" || return 1
+  if [ -z "$actual" ] || [ "$actual" != "$expected" ]; then
+    printf '期望卷标：%s\n实际卷标：%s\n' "$expected" "$actual"
+    return 1
+  fi
+}
+
 if command -v hdiutil >/dev/null 2>&1; then
   if bash "$SRC/make-bundle.sh" --out "$TMP/dmg" --dmg >"$TMP/dmg.log" 2>&1 &&
      hdiutil imageinfo "$TMP/dmg/$top.dmg" >>"$TMP/dmg.log" 2>&1; then
     ok '4. --dmg 产物可由 hdiutil imageinfo 读取'
+    if dmg_volume_ok "$TMP/dmg/$top.dmg" >"$TMP/dmg-volume.log" 2>&1; then
+      ok '5. DMG 卷标与 brand.json 的 name 一致'
+    else
+      bad '5. DMG 卷标校验失败'
+      cat "$TMP/dmg-volume.log"
+    fi
   else
     bad '4. DMG 打包或 hdiutil imageinfo 失败'
     cat "$TMP/dmg.log"
@@ -91,9 +112,9 @@ plugin_ok() {
   done
 }
 if plugin_ok >"$TMP/plugin.log" 2>&1; then
-  ok '5. 插件复制到 .dsh/plugins/selftest-fixture，manifest 缺源项 retrace / rollback-withdraw 均打印 WARN'
+  ok '6. 插件复制到 .dsh/plugins/selftest-fixture，manifest 缺源项 retrace / rollback-withdraw 均打印 WARN'
 else
-  bad '5. 插件复制、只读校验或缺源 WARN 断言失败'
+  bad '6. 插件复制、只读校验或缺源 WARN 断言失败'
   cat "$TMP/plugin.log"
 fi
 

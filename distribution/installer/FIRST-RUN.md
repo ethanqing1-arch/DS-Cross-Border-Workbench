@@ -1,4 +1,4 @@
-# Cross-Border Workbench 首次启动
+# 跨浪 首次启动
 
 1. **打开安装包。** macOS 双击 `.dmg`，应看到 `install.command`、`FIRST-RUN.md` 和版本 ZIP。使用 ZIP 时解压后找到 `distribution/installer/first-run.command`。
 2. **选择工作区并启动。** 双击对应的 `.command`，默认目标是 `~/dsh-ecom-workspace`。需要自选目录时，用 `bash <脚本路径> --target <独立工作区路径>`。终端应显示 `目标工作区`。DMG 里的 ZIP 会在目标目录的 `.workbench-releases/` 内校验并解压，保留该目录以供后续使用。

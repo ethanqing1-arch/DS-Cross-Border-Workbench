@@ -15,6 +15,7 @@
 # 边界：只写 <目标目录>；不碰 ~/ds-bot-workspace、不碰 DS Bot 状态、不安装 bundle。
 # =============================================================================
 set -uo pipefail
+command -v node >/dev/null 2>&1 || export PATH="/opt/homebrew/bin:$PATH"
 
 SRC="$(cd "$(dirname "$0")" && pwd)"
 TARGET=""; CHECK=0; FORCE=0

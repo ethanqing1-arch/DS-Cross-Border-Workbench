@@ -46,6 +46,7 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 |---|---|
 | `farm/scripts/acceptance.sh --with-browser` | `PASS=72 FAIL=0 WARN=0` / `READY`（网关 19681，控制面 19581） |
 | `distribution/verify.sh` | `PASS=68 FAIL=0 WARN=0` / `READY` |
+| `distribution/installer-selftest.sh` | macOS 实测 `PASS=6 FAIL=0` / `READY`（含 DMG 卷标校验） |
 | `distribution/flow-smoke.sh` | `PASS=8 FAIL=0 WARN=4` / `READY`（图标占位和三件插件缺源。网关不可达时 L1、L2 各多 1 条 WARN） |
 | `distribution/e2e-smoke.sh` | 单跑 `PASS=34 FAIL=0 WARN=1` / `READY`（默认网关 19671，含 `transferSize>0` 与离网 `E_GOTO` 断言。WARN 来自 8 位令牌低于 32 位门槛）。检测到并发浏览器自检时只记 `SKIP`（`exit 3` / `RESULT: SKIPPED`）。 |
 | `farm/scripts/test-proxy-bridge.sh` | `PASS=35 FAIL=0` / `READY`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |
@@ -81,7 +82,7 @@ L3 Amazon 包含 23 个 skill，源 `skills/` 46 个文件逐文件比对
 - **从零到能用**（一台干净机器 → 11 个数字员工能干活，含 DS Bot 安装与三件只能本人做的事）：[`docs/onboard-from-zero.md`](docs/onboard-from-zero.md)
 - **外部使用者从零安装**（换机器要改哪两处、八项外部依赖交接单）：[`docs/external-setup.md`](docs/external-setup.md)
 - 产品化计划与里程碑：[`docs/dsh-ecom-productization-plan.md`](docs/dsh-ecom-productization-plan.md)
-- L1 发布准备见[离线授权](docs/licence.md)、[品牌占位](docs/branding.md)和[插件来源](docs/plugins.md)。
+- L1 发布准备见[离线授权](docs/licence.md)、[品牌配置](docs/branding.md)和[插件来源](docs/plugins.md)。
 - **未来规划**（阶段 0–4、闸门 G0–G3、为什么这么排、不做什么）：[`docs/roadmap.md`](docs/roadmap.md)
 - 七站出口矩阵：[`docs/platform-egress-matrix.md`](docs/platform-egress-matrix.md)
 - 代理 runbook（起桥、自检、407 排查）：[`docs/proxy-runbook.md`](docs/proxy-runbook.md)

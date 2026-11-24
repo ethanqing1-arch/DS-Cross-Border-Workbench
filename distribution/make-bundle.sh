@@ -119,14 +119,16 @@ def archive_contents(root, top, files, tar_path, zip_path):
     return len(manifest) + 1
 
 
-def make_dmg(tool, installer, zip_path, dmg_path):
+def make_dmg(tool, root, zip_path, dmg_path):
+    installer = root / "distribution/installer"
+    brand = json.loads((root / "distribution/l1/branding/brand.json").read_text(encoding="utf-8"))
     source = dmg_path.parent / "image"
     source.mkdir()
     shutil.copy2(zip_path, source)
     shutil.copy2(installer / "FIRST-RUN.md", source)
     shutil.copy2(installer / "first-run.command", source / "install.command")
     subprocess.run(
-        [tool, "create", "-quiet", "-srcfolder", str(source), "-volname", "Cross-Border Workbench",
+        [tool, "create", "-quiet", "-srcfolder", str(source), "-volname", brand["name"],
          "-format", "UDZO", str(dmg_path)],
         check=True,
     )
@@ -155,7 +157,7 @@ def build(root, output, with_dmg):
             tool = shutil.which("hdiutil")
             if tool:
                 dmg_path = staging / (top + ".dmg")
-                make_dmg(tool, root / "distribution/installer", zip_path, dmg_path)
+                make_dmg(tool, root, zip_path, dmg_path)
                 artifacts.append(dmg_path)
             else:
                 print("WARN 找不到 hdiutil，跳过 DMG")

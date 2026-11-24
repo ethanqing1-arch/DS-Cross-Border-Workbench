@@ -1,8 +1,8 @@
-# L1 品牌占位
+# L1 品牌配置
 
-`Cross-Border Workbench` 是当前占位名称。品牌定稿时只改 `distribution/l1/branding/brand.json` 和同目录的 `assets/`。
+品牌名称已定为「跨浪」（Kualang），域名为 `getkualang.com`。换名时更新 `distribution/l1/branding/brand.json` 和 `distribution/installer/FIRST-RUN.md` 的标题，并同步品牌目录 `assets/` 中含旧名称的资产。`distribution/make-bundle.sh` 从 `brand.json` 读取 `name` 作为 DMG 卷标。
 
-- 换名时更新 `name`、`subtitle`，确认定稿后将 `name_status` 改成 `final`。
+- 在 `brand.json` 更新 `name`、`name_en` 和 `domain`，确认定稿后将 `name_status` 改成 `final`。
 - 换色时更新 `colors.primary`、`accent`、`surface`、`ink` 的十六进制色值，确认文字与背景的对比度。
 - 换图标时把 SVG 放入 `assets/` 并更新 `icon.path`。保持 `icon.present=true`，图标获批后将 `icon.placeholder` 改为 `false`。SVG 首字节必须以 `<svg` 开始，设置 `width="256"`、`height="256"` 和 `viewBox="0 0 256 256"`。
 

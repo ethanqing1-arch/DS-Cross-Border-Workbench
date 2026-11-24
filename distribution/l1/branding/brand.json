@@ -1,7 +1,9 @@
 {
   "id": "dsh-ecom",
-  "name": "Cross-Border Workbench",
-  "name_status": "placeholder",
+  "name": "跨浪",
+  "name_en": "Kualang",
+  "domain": "getkualang.com",
+  "name_status": "final",
   "subtitle": "Amazon-first cross-border e-commerce workspace",
   "colors": {
     "primary": "#0B5FFF",
@@ -15,7 +17,7 @@
     "placeholder": true
   },
   "_notes": [
-    "全部为占位：名称、副标题、配色、图标都还没定稿，替换只改本文件（和 assets/ 里的文件）。",
+    "名称已定稿，配色与图标仍为占位。",
     "assets/ 中的 SVG 是几何占位图。",
     "上线前须过商标检查。品牌资产须使用已获授权的名称、图形、字体和配色。"
   ]
