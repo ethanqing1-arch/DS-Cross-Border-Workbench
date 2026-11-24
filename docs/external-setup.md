@@ -243,7 +243,7 @@ README 里 2026-11-24 的快照基线（数字会随覆盖变化，以脚本实�
 
 ```
 farm/scripts/acceptance.sh --with-browser  PASS=69 FAIL=0 WARN=0 / READY
-distribution/verify.sh                     PASS=61 FAIL=0 WARN=0 / READY
+distribution/verify.sh                     PASS=62 FAIL=0 WARN=0 / READY
 distribution/e2e-smoke.sh                  PASS=34 FAIL=0 WARN=1 / READY
 ```
 

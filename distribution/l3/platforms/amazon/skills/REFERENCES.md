@@ -1,6 +1,6 @@
 # Amazon 专项 skill 来源与授权
 
-- 来源绝对路径为 `/Users/xavier/Desktop/cbec-selection-master/skills/`。
+- 来源为本机目录 `cbec-selection-master/skills/`（未入库）。
 - 抽取日期为 2026-11-23。
 - 本包保留来源的 8 层目录，共 23 个 skill。每个 skill 的入口为 `<层>/<skill-name>/SKILL.md`，附属文件保留在原相对路径。
 - 授权归属待定，对外分发前需确认。

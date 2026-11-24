@@ -34,6 +34,7 @@ diff -qr distribution/l2/skills distribution/l2/bundle/skills   # 应无输出
 - `farm/profiles/`、`farm/state/`、`*.db`（含 `*.db.bak-*`、WAL/SHM）。
 - `node_modules/`、`distribution/connectors/out/` 等产物。
 - 本机绝对路径（`/Users/...`）。安装器会读的配置用占位符或相对路径，由安装者填。
+  例外：`distribution/l1/capability/browser-farm.json` 的 `args` 本身就是本机路径，本地改、不要把本机路径提交上游。
 
 提交前可自查一次（只看文件名与命中行，不打印真值）：
 

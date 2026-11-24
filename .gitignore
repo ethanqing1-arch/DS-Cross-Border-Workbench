@@ -24,6 +24,10 @@ tmp/
 # 取数产物（first-fetch.sh 默认输出目录）
 distribution/connectors/out/
 
+# L2 工作区脚本产物（out/ 只保留 .gitkeep）
+distribution/l2/workspace/out/*
+!distribution/l2/workspace/out/.gitkeep
+
 # 选品引擎运行产物（engine/score.py 写 out/<run_id>/）
 distribution/l3/platforms/*/out/
 

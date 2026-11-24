@@ -33,12 +33,12 @@ bash distribution/e2e-smoke.sh         # 装链 + 真 MCP 往返 + 产物落工�
 cd farm && bash scripts/acceptance.sh --with-browser   # 跑前先 --stop 真网关（同端口）
 ```
 
-## 验收基线（2026-11-23 实测）
+## 验收基线（2026-11-24 实测）
 
 | 自检 | 结果 |
 |---|---|
 | `farm/scripts/acceptance.sh --with-browser` | `PASS=69 FAIL=0 WARN=0` / `READY` |
-| `distribution/verify.sh` | `PASS=61 FAIL=0 WARN=0` / `READY` |
+| `distribution/verify.sh` | `PASS=62 FAIL=0 WARN=0` / `READY` |
 | `distribution/e2e-smoke.sh` | `PASS=34 FAIL=0 WARN=1` / `READY`（WARN 是令牌 <32 位；farm/ 有未提交改动时改判为 33 PASS / 2 WARN，含 `transferSize>0` 反缓存假绿断言与离网 `E_GOTO` 断言） |
 | `farm/scripts/test-proxy-bridge.sh` | `PASS=35`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |
 | `farm/scripts/proxy-selftest.sh --self-test` | `PASS=12`（无真代理也能验脚本本身） |

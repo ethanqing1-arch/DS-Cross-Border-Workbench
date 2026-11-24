@@ -11,7 +11,7 @@
     "mode": "bundled",
     "count": 23,
     "layers": ["00-router", "01-data", "02-market", "03-demand", "04-competitor", "05-product", "06-delivery", "07-system"],
-    "source": "/Users/xavier/Desktop/cbec-selection-master/skills/",
+    "source": "cbec-selection-master（本机源目录，未入库）",
     "note": "随包安装 8 层 23 个 skill 及其附属文件，来源与授权说明见 skills/REFERENCES.md"
   },
   "connectors": [

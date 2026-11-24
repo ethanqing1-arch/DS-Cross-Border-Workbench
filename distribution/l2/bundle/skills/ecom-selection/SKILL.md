@@ -54,6 +54,7 @@ metadata:
 所有相对路径（`data/…`、`scripts/…`、`out/…`）以**当前 Bot 的 work_dir（团队工作区根）**为基准，不是 shell 的 cwd；
 Bot 没有独立 work_dir 时，用团队工作区根。
 
+- 随包：`scripts/` 下 4 个脚本与 `data/faq.json` 由 L2 装进工作区（本 skill 用 `score_products.py`）；`data/candidates.csv` 需自行导出
 - 输入 `data/candidates.csv`（列：品类/商品名/1688进价/预估售价/运费/推广费率/平均退货率/月搜索量/在售竞品数/头部评论数/供应稳定性分/差异化点）
 - 跑 `python3 scripts/score_products.py`（`--top N` / `--category 宠物`）
 - 读 `out/选品打分.csv`

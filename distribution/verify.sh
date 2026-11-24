@@ -149,6 +149,16 @@ if DIFF="$(diff -qr "$L2_SKILLS" "$WS/.dsh/skills" 2>&1)"; then
 else
   bad "L2 skills 落点与源目录不一致：$DIFF"
 fi
+# skill 承诺的脚本与话术库必须真的随包装进工作区（曾漏发过）
+L2_MISSING=""
+for f in scripts/cs_router.py scripts/gen_listing.py scripts/ops_report.py scripts/score_products.py data/faq.json; do
+  [ -s "$WS/$f" ] || L2_MISSING="$L2_MISSING $f"
+done
+if [ -z "$L2_MISSING" ]; then
+  ok "L2 工作区随包脚本 4 个 + faq.json 齐全"
+else
+  bad "L2 工作区缺随包文件：${L2_MISSING# }"
+fi
 
 # ---------------------------------------------------------------- 3. 平台逐个装
 echo "-- 3. L3 平台包（逐个装）"
