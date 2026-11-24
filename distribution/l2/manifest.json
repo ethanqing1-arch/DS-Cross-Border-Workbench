@@ -24,13 +24,15 @@
       "Care",
       "Compliance",
       "Metrics",
-      "Visual"
+      "Visual",
+      "Dev"
     ],
     "groups": [
       "选品决策",
       "上架交付",
       "增长投放",
-      "售后风控"
+      "售后风控",
+      "技术开发"
     ]
   },
   "paths": {
