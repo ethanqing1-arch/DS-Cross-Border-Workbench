@@ -52,7 +52,7 @@ async function connect() {
   });
   const send = (method, params = {}) => new Promise((res, rej) => {
     const i = ++id;
-    const t = setTimeout(() => rej(new Error(method + ' timeout')), 15000);
+    const t = setTimeout(() => rej(Object.assign(new Error(method + ' timeout'), { taskCode: 'E_TIMEOUT' })), 15000);
     pending.set(i, { res: (v) => { clearTimeout(t); res(v); }, rej: (e) => { clearTimeout(t); rej(e); } });
     ws.send(JSON.stringify({ id: i, method, params }));
   });
@@ -94,8 +94,16 @@ const SCAN = `(() => {
   };
 })()`;
 
+function printError(code, message) {
+  console.error(JSON.stringify({ code, message }));
+  process.exitCode = 2;
+}
+
 (async () => {
-  const c = await connect();
+  const c = await connect().catch((e) => {
+    e.taskCode = 'E_CDP_UNREACHABLE';
+    throw e;
+  });
   try {
     if (cmd === 'scan') {
       const r = await c.evalJS(SCAN);
@@ -158,24 +166,32 @@ const SCAN = `(() => {
       process.exitCode = met ? 0 : 1;
     } else if (cmd === 'goto') {
       const url = val('url');
-      await c.send('Page.enable');
-      await c.send('Page.navigate', { url });
+      try {
+        await c.send('Page.enable');
+        const { errorText } = await c.send('Page.navigate', { url });
+        if (errorText) throw new Error(errorText);
+      } catch (e) {
+        printError(e.taskCode || 'E_GOTO', e.message);
+        return;
+      }
       let state = null;
       for (let i = 0; i < 30; i++) {
         await new Promise((r) => setTimeout(r, 200));
         state = await c.evalJS('document.readyState').catch(() => null);
         if (state === 'complete') break;
       }
-      console.log(JSON.stringify({ ok: state === 'complete', url: await c.evalJS('location.href'), readyState: state }));
-      process.exitCode = state === 'complete' ? 0 : 1;
+      if (state !== 'complete') {
+        printError('E_TIMEOUT', 'navigation timeout (readyState=' + state + ')');
+        return;
+      }
+      console.log(JSON.stringify({ ok: true, url: await c.evalJS('location.href'), readyState: state }));
     } else if (cmd === 'eval') {
       const expr = val('expr');
       try {
         const value = await c.evalJS(expr, true);
         console.log(JSON.stringify({ ok: true, value }));
       } catch (e) {
-        console.error(JSON.stringify({ code: 'E_EVAL', message: e.message }));
-        process.exitCode = 2;
+        printError(e.taskCode || 'E_EVAL', e.message);
       }
     } else if (cmd === 'click') {
       const x = Number(val('x', '10')), y = Number(val('y', '10'));
@@ -211,4 +227,7 @@ const SCAN = `(() => {
       process.exitCode = 2;
     }
   } finally { c.close(); }
-})().catch((e) => { console.error('ERR', e.message); process.exit(2); });
+})().catch((e) => {
+  if (e.taskCode) printError(e.taskCode, e.message);
+  else { console.error('ERR', e.message); process.exitCode = 2; }
+});

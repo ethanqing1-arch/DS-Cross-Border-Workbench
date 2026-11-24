@@ -105,7 +105,7 @@ const TOOLS = [
   },
   {
     name: 'farm_task',
-    description: '执行任务：POST /v1/sessions/:session_id/tasks（需鉴权）；只给 task_id 时改查 GET /v1/tasks/:task_id。任务类型与 params 透传给网关。可选 wait_ms 在进程内轮询到 succeeded/failed（不新增工具）。',
+    description: '执行任务：POST /v1/sessions/:session_id/tasks（需鉴权）；只给 task_id 时改查 GET /v1/tasks/:task_id。可选 wait_ms 轮询结果。失败结果包含 error.code、error.message 和可选的 error.detail。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -162,10 +162,18 @@ async function callRest(method, pathPart, opts) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+async function getTaskStatus(taskId) {
+  const reply = await callRest('GET', '/v1/tasks/' + encodeURIComponent(String(taskId)));
+  let task;
+  try { task = JSON.parse(reply.content[0].text); } catch (e) {}
+  if (task?.status === 'failed') reply.isError = true;
+  return { reply, task };
+}
+
 /* ---- 任务：POST 前缀路由 + 可选轮询 ---- */
 async function farmTask(args) {
   if (!args.session_id) {
-    if (args.task_id) return callRest('GET', '/v1/tasks/' + encodeURIComponent(String(args.task_id)));
+    if (args.task_id) return (await getTaskStatus(args.task_id)).reply;
     return textResult('E_BAD_PARAMS session_id required（只查结果时给 task_id）', true);
   }
   if (!args.type) return textResult('E_BAD_PARAMS type required', true);
@@ -183,11 +191,9 @@ async function farmTask(args) {
   let last = first;
   while (Date.now() < deadline) {
     await sleep(300);
-    last = await callRest('GET', '/v1/tasks/' + encodeURIComponent(taskId));
-    if (last.isError) return last;
-    let st = null;
-    try { st = JSON.parse(last.content[0].text); } catch (e) { st = null; }
-    if (st && (st.status === 'succeeded' || st.status === 'failed')) return last;
+    const { reply, task } = await getTaskStatus(taskId);
+    last = reply;
+    if (last.isError || task?.status === 'succeeded') return last;
   }
   return last;
 }

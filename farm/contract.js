@@ -18,7 +18,7 @@ const path = require('path');
 const PKG = require('./package.json');
 
 /* 契约版本：任务形状/错误码的兼容性边界，改动不兼容时 +1 */
-const CONTRACT_VERSION = 2;
+const CONTRACT_VERSION = 3;
 
 /* 任务类型：网关 TASK_REGISTRY 必须全覆盖这些，多出来的算扩展 */
 const TASK_TYPES = ['goto', 'eval', 'click', 'type', 'shot', 'scan', 'extract', 'wait'];

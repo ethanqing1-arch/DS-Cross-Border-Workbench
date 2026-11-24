@@ -20,6 +20,7 @@ import sys
 import time
 
 from camoufox.sync_api import Camoufox
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 SCAN = r"""
 (async () => {
@@ -78,6 +79,11 @@ def scan_ip(page, no_ip):
         return {'ip': None, 'ipErr': str(error)}
 
 
+def task_error(code, message):
+    print(json.dumps({'ok': False, 'error': {'code': code, 'message': message}}, ensure_ascii=False))
+    return 2
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--account', required=True)
@@ -121,7 +127,12 @@ def main():
             t = task.get('type')
             params = task.get('params') or {}
             if t == 'goto':
-                page.goto(params['url'], wait_until='domcontentloaded', timeout=params.get('timeout_ms', 30000))
+                try:
+                    page.goto(params['url'], wait_until='domcontentloaded', timeout=params.get('timeout_ms', 30000))
+                except PlaywrightTimeoutError as error:
+                    return task_error('E_TIMEOUT', str(error))
+                except Exception as error:
+                    return task_error('E_GOTO', str(error))
                 # readyState 与 CDP 通道对齐：上层按同一个字段判成功，不用分引擎写法
                 try:
                     ready = page.evaluate('document.readyState')
@@ -129,7 +140,10 @@ def main():
                     ready = None
                 result = {'url': page.url, 'readyState': ready}
             elif t == 'eval':
-                result = {'value': page.evaluate(params['expr'])}
+                try:
+                    result = {'value': page.evaluate(params['expr'])}
+                except Exception as error:
+                    return task_error('E_EVAL', str(error))
             elif t == 'shot':
                 shot_path = params.get('path') or os.path.join(a.profile, 'shot.png')
                 page.screenshot(path=shot_path, full_page=bool(params.get('full_page')))
@@ -139,9 +153,15 @@ def main():
                 probe.update(scan_ip(page, params.get('no_ip')))
                 result = {'probe': probe}
             else:
-                print(json.dumps({'ok': False, 'error': f'unsupported task {t}'}, ensure_ascii=False))
-                return 2
-            print(json.dumps({'ok': True, 'account': a.account, 'engine': 'camoufox', 'type': t, 'result': result}, ensure_ascii=False))
+                return task_error('E_UNSUPPORTED_TASK', f'unsupported task {t}')
+            response = {'ok': True, 'account': a.account, 'engine': 'camoufox', 'type': t, 'result': result}
+            try:
+                line = json.dumps(response, ensure_ascii=False, allow_nan=t != 'eval')
+            except (TypeError, ValueError) as error:
+                if t != 'eval':
+                    raise
+                return task_error('E_EVAL', str(error))
+            print(line)
         else:
             page.goto(a.url, wait_until='domcontentloaded', timeout=30000)
             data = page.evaluate(SCAN)

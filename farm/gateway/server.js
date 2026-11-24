@@ -71,19 +71,28 @@ function runWorkerTask(inst, type, params, timeoutMs) {
     let out = '', errOut = '';
     const timer = setTimeout(() => {
       try { p.kill('SIGKILL'); } catch (e) {}
-      reject(new Error(`worker task timeout ${timeoutMs || 120000}ms`));
+      reject(Object.assign(new Error(`worker task timeout ${timeoutMs || 120000}ms`), { taskCode: 'E_TIMEOUT' }));
     }, timeoutMs || 120000);
     p.stdout.on('data', (c) => (out += c));
     p.stderr.on('data', (c) => (errOut += c));
-    p.on('error', (e) => { clearTimeout(timer); reject(e); });
+    p.on('error', (e) => { clearTimeout(timer); reject(Object.assign(e, { taskCode: 'E_ENGINE_UNAVAILABLE' })); });
     p.on('close', () => {
       clearTimeout(timer);
       const line = out.trim().split('\n').filter(Boolean).pop();
       let j = null; try { j = JSON.parse(line); } catch (e) {}
-      if (!j) return reject(new Error('worker 无结构化输出: ' + (errOut || out).trim().slice(0, 300)));
-      if (j.ok === false) return reject(new Error(j.error || 'worker failed'));
+      if (!j || typeof j.ok !== 'boolean') {
+        return reject(Object.assign(new Error('worker 无结构化输出: ' + (errOut || out).trim().slice(0, 300)),
+          { taskCode: 'E_WORKER_NO_OUTPUT' }));
+      }
+      if (!j.ok) {
+        const error = j.error || {};
+        return reject(Object.assign(new Error(error.message || j.error || 'worker failed'),
+          { taskCode: error.code, detail: error.detail }));
+      }
       resolve(Object.assign({ ok: true }, j.result || {}));   // 与 CDP 通道同形：{ok, ...}
     });
+    // 提前退出的 worker 可能在写入时关掉 stdin。由 close 读取退出结果并分类。
+    p.stdin.on('error', (e) => { if (e.code !== 'EPIPE') reject(e); });
     p.stdin.end(JSON.stringify({ type, params }));
   });
 }
@@ -142,6 +151,8 @@ const send = (res, code, obj, extraHeaders = {}) => {
 };
 const err = (res, code, codeName, msg, extra = {}) =>
   send(res, code, Object.assign({ ok: false, code: codeName, message: msg }, extra));
+const taskRejection = (res, status, code, message, extra) =>
+  err(res, status, code, message, { ...extra, error: { code, message } });
 
 /* 代理校验：Chromium 不认 URL 里的 user:pass，带凭据会悄悄直连（比报错危险）；
  * 只允许 http/https/socks5/socks5h。报错不回显 proxy 值，避免凭据进日志/响应。 */
@@ -216,6 +227,21 @@ function parseTaskError(text) {
     if (error && typeof error.code === 'string' && typeof error.message === 'string') return error;
   } catch (e) {}
   return null;
+}
+
+function failTask(taskId, e, fallbackCode = 'E_INTERNAL') {
+  const message = String(e.stderr || '').trim() || String(e.stdout || '').trim() || String(e.message || e);
+  const error = parseTaskError(message);
+  const detail = error?.detail ?? e.detail;
+  tasks.set(taskId, {
+    status: 'failed',
+    error: {
+      code: e.taskCode || error?.code || fallbackCode,
+      message: (error?.message || message).slice(0, 800),
+      ...(detail === undefined ? {} : { detail }),
+    },
+    at: Date.now(),
+  });
 }
 
 setInterval(() => {
@@ -376,44 +402,49 @@ const server = http.createServer(async (req, res) => {
       const sid = decodeURIComponent(parts[2]);
       const b = await readBody(req);
       const type = b.type;
-      if (!TASK_REGISTRY[type]) return err(res, 422, 'E_UNSUPPORTED_TASK', 'unknown task type', { type });
+      if (typeof type !== 'string' || !Object.hasOwn(TASK_REGISTRY, type)) {
+        return taskRejection(res, 422, 'E_UNSUPPORTED_TASK', 'unknown task type', { type });
+      }
       const s = await control('GET', `/instances/${encodeURIComponent(sid)}`);
       if (s.status === 404) return err(res, 404, 'E_SESSION_NOT_FOUND', 'session not found');
       const eng = s.data.instance.engine || 'chromium';
       const caps = ENGINE_CAPS[eng];
-      if (!caps) return err(res, 422, 'E_UNSUPPORTED_TASK', `unknown engine ${eng}`, { engine: eng });
+      if (!caps) return taskRejection(res, 422, 'E_UNSUPPORTED_TASK', `unknown engine ${eng}`, { engine: eng });
       /* worker 传输（camoufox）：没有 CDP，把同样的任务交给 camoufox_worker.py，返回形状对齐 CDP 通道 */
       if (caps.transport === 'worker') {
         if (!caps.tasks.includes(type)) {
-          return err(res, 422, 'E_UNSUPPORTED_TASK', `engine ${eng} does not support task ${type}`, { engine: eng, type, supported: caps.tasks });
+          return taskRejection(res, 422, 'E_UNSUPPORTED_TASK', `engine ${eng} does not support task ${type}`, { engine: eng, type, supported: caps.tasks });
         }
         const taskId = b.task_id || crypto.randomUUID();
         if (tasks.has(taskId)) return send(res, 202, { task_id: taskId, status: tasks.get(taskId).status });
         tasks.set(taskId, { status: 'running', at: Date.now() });
         runWorkerTask(s.data.instance, type, b.params || {}, b.timeout_ms)
           .then((out) => tasks.set(taskId, { status: 'succeeded', result: out, at: Date.now() }))
-          .catch((e) => tasks.set(taskId, { status: 'failed', error: String(e.message || e).slice(0, 800), at: Date.now() }));
+          .catch((e) => failTask(taskId, e));
         return send(res, 202, { task_id: taskId, status: 'queued', transport: 'worker' });
       }
       if (caps.transport !== 'cdp') {
-        return err(res, 422, 'E_UNSUPPORTED_TASK', `engine ${eng} has no task channel`, { engine: eng });
+        return taskRejection(res, 422, 'E_UNSUPPORTED_TASK', `engine ${eng} has no task channel`, { engine: eng });
       }
       const cdp = s.data.instance.cdp;
-      if (!cdp) return err(res, 502, 'E_CDP_UNREACHABLE', 'session has no cdp endpoint');
+      if (!cdp) return taskRejection(res, 502, 'E_CDP_UNREACHABLE', 'session has no cdp endpoint');
       const taskId = b.task_id || crypto.randomUUID();
       if (tasks.has(taskId)) return send(res, 202, { task_id: taskId, status: tasks.get(taskId).status });
 
       const args = [DRIVER, '--cdp', cdp].concat(TASK_REGISTRY[type](b.params || {}));
       tasks.set(taskId, { status: 'running', at: Date.now() });
-      exec('node', args, { timeout: b.timeout_ms || 30000, maxBuffer: 8 * 1024 * 1024 })
+      const timeout = b.timeout_ms || 30000;
+      exec('node', args, { timeout, maxBuffer: 8 * 1024 * 1024 })
         .then(({ stdout }) => {
           let out; try { out = JSON.parse(stdout); } catch (e) { out = { raw: stdout.slice(0, 2000) }; }
           tasks.set(taskId, { status: 'succeeded', result: out, at: Date.now() });
         })
         .catch((e) => {
-          const message = String(e.stderr || '').trim() || String(e.stdout || '').trim() || String(e.message);
-          const error = type === 'eval' ? parseTaskError(message) : null;
-          tasks.set(taskId, { status: 'failed', error: error || message.slice(0, 800), at: Date.now() });
+          if (e.killed && e.signal === 'SIGTERM') {
+            return failTask(taskId, new Error(`driver task timeout ${timeout}ms`), 'E_TIMEOUT');
+          }
+          const fallback = e.code === 1 && (type === 'wait' || type === 'extract') ? 'E_TIMEOUT' : 'E_INTERNAL';
+          failTask(taskId, e, fallback);
         });
       return send(res, 202, { task_id: taskId, status: 'queued' });
     }
