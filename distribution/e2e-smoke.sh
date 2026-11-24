@@ -75,17 +75,13 @@ fi
 # ---------------------------------------------------------------- 并发前置探测
 # 只读打开脚本本身作锁，文件描述符由本次运行持有，无需创建锁文件。
 exec 9<"$SRC/e2e-smoke.sh" || { echo "FAIL 无法打开 e2e 自检锁"; exit 2; }
-if command -v flock >/dev/null 2>&1; then
-  flock -n -E 3 9
-else
-  # macOS 没有自带 flock 命令。Perl 对同一个描述符调用系统的非阻塞排他锁。
-  perl -MFcntl=:flock -e '
-    open my $lock, "<&=9" or die "打开 e2e 自检锁: $!\n";
-    exit 0 if flock($lock, LOCK_EX | LOCK_NB);
-    exit 3 if $!{EWOULDBLOCK};
-    die "获取 e2e 自检锁: $!\n";
-  '
-fi
+# Perl 对 shell 持有的描述符获取非阻塞排他锁。
+perl -MFcntl=:flock -e '
+  open my $lock, "<&=9" or die "打开 e2e 自检锁: $!\n";
+  exit 0 if flock($lock, LOCK_EX | LOCK_NB);
+  exit 3 if $!{EWOULDBLOCK};
+  die "获取 e2e 自检锁: $!\n";
+'
 LOCK_RC=$?
 case "$LOCK_RC" in
   0|3) ;;

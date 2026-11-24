@@ -251,17 +251,33 @@ async function probeBrowser(engine) {
       const selector = val('selector');
       if (!selector) throw new Error('--selector required');
       const state = val('state', 'present');
-      if (state !== 'present' && state !== 'absent') throw new Error('--state must be present|absent');
-      const tmo = Math.max(0, parseInt(val('timeout-ms', '30000'), 10) || 30000);
-      const t0 = Date.now();
-      let found = null;
-      for (;;) {
-        found = await c.evalJS(`!!document.querySelector(${JSON.stringify(String(selector))})`).catch(() => null);
-        const met = state === 'present' ? found === true : found === false;
-        if (met || Date.now() - t0 >= tmo) break;
-        await new Promise((r) => setTimeout(r, 200));
+      if (!['present', 'absent', 'visible', 'hidden'].includes(state)) {
+        console.error('--state must be present|absent|visible|hidden');
+        process.exitCode = 2;
+        return;
       }
-      const met = state === 'present' ? found === true : found === false;
+      const tmo = Math.max(0, parseInt(val('timeout-ms', '30000'), 10) || 30000);
+      const expr = `(() => {
+  const el = document.querySelector(${JSON.stringify(selector)});
+  if (!el) return { exists: false, visible: false };
+  const r = el.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  return { exists: true, visible: r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' };
+})()`;
+      const t0 = Date.now();
+      let found, met;
+      for (;;) {
+        const observed = await c.evalJS(expr).catch(() => null);
+        found = observed?.exists ?? null;
+        met = observed !== null && {
+          present: observed.exists,
+          absent: !observed.exists,
+          visible: observed.exists && observed.visible,
+          hidden: !(observed.exists && observed.visible),
+        }[state];
+        if (met || Date.now() - t0 >= tmo) break;
+        await sleep(200);
+      }
       console.log(JSON.stringify({ ok: met, selector, state, found, waited_ms: Date.now() - t0 }));
       process.exitCode = met ? 0 : 1;
     } else if (cmd === 'goto') {

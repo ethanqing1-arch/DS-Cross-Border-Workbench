@@ -118,18 +118,29 @@ def extract(page, params, selectors):
         time.sleep(0.2)
 
 
-def wait_for_selector(page, params):
+def wait_for_selector(page, params, state):
     selector = params['selector']
-    state = params.get('state') or 'present'
-    want_present = state == 'present'
+    expr = """(() => {
+  const el = document.querySelector(%s);
+  if (!el) return { exists: false, visible: false };
+  const r = el.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  return { exists: true, visible: r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' };
+})()""" % json.dumps(selector)
     started = time.monotonic()
     deadline = started + timeout_ms(params, 30000, 0) / 1000
     while True:
         try:
-            found = page.evaluate('selector => !!document.querySelector(selector)', selector)
+            observed = page.evaluate(expr)
         except PlaywrightError:
-            found = None
-        met = found is want_present
+            observed = None
+        found = observed['exists'] if observed is not None else None
+        met = observed is not None and {
+            'present': observed['exists'],
+            'absent': not observed['exists'],
+            'visible': observed['exists'] and observed['visible'],
+            'hidden': not (observed['exists'] and observed['visible']),
+        }[state]
         now = time.monotonic()
         if met or now >= deadline:
             result = {'ok': met, 'selector': selector, 'state': state, 'found': found, 'waited_ms': int((now - started) * 1000)}
@@ -216,9 +227,12 @@ def main():
             elif t == 'wait':
                 if not params.get('selector'):
                     return task_error('E_INTERNAL', '--selector required')
-                if (params.get('state') or 'present') not in ('present', 'absent'):
-                    return task_error('E_INTERNAL', '--state must be present|absent')
-                result, exit_code = wait_for_selector(page, params)
+                state = params.get('state')
+                if state in (None, '', False):
+                    state = 'present'
+                if state not in ('present', 'absent', 'visible', 'hidden'):
+                    return task_error('E_INTERNAL', '--state must be present|absent|visible|hidden')
+                result, exit_code = wait_for_selector(page, params, state)
             elif t == 'click':
                 x, y = float(params.get('x', 10)), float(params.get('y', 10))
                 page.mouse.move(x, y)

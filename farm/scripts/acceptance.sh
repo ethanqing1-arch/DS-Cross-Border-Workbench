@@ -300,8 +300,48 @@ async function checkWaitParity() {
     assert.equal(b.result[key], a.result[key], `Camoufox wait ${key}`);
   }
 }
+async function checkWaitStates() {
+  const [created, session] = await call('/v1/sessions', { account: 'acc-wait-states-worker', engine: 'camoufox', require_check: false });
+  assert.equal(created, 201, JSON.stringify(session));
+  const worker = '/v1/sessions/' + encodeURIComponent(session.session_id) + '/tasks';
+  // 初始空页的 body 在 Camoufox 上高度为 0；用非空盒的 html 做可见样本。
+  const cases = [
+    [{ selector: 'html', state: 'visible', timeout_ms: 1500 }, true, true],
+    [{ selector: '#nope', state: 'visible', timeout_ms: 800 }, false, false],
+    [{ selector: '#nope', state: 'hidden', timeout_ms: 800 }, true, false],
+    [{ selector: 'html', state: 'hidden', timeout_ms: 800 }, false, true],
+    [{ selector: 'body', state: 'bogus' }],
+  ];
+  for (const [params, ok, found] of cases) {
+    const code = ok === undefined ? 'E_INTERNAL' : ok ? undefined : 'E_TIMEOUT';
+    const body = { type: 'wait', params };
+    const a = await submit(cdp, body, code);
+    const b = await submit(worker, body, code);
+    console.log('wait 跨引擎', JSON.stringify({ params, chromium: a, camoufox: b }));
+    const envelope = [code ? 'error' : 'result', 'ok', 'status', 'task_id'].sort();
+    for (const task of [a, b]) {
+      assert.deepEqual(Object.keys(task).sort(), envelope);
+      assert.equal(typeof task.task_id, 'string');
+      if (code) assert.deepEqual(Object.keys(task.error).sort(), ['code', 'message']);
+    }
+    if (code === 'E_INTERNAL') {
+      assert.deepEqual(a.error, { code, message: '--state must be present|absent|visible|hidden' });
+      assert.deepEqual(b.error, a.error);
+      continue;
+    }
+    const expected = { ok, found, selector: params.selector, state: params.state };
+    for (const task of [a, b]) {
+      // 网关在 wait 退出 1 时把引擎的结果 JSON 放在 error.message。
+      const { waited_ms, ...result } = code ? JSON.parse(task.error.message) : task.result;
+      assert(Number.isInteger(waited_ms) && waited_ms >= 0);
+      assert.deepEqual(result, expected);
+    }
+  }
+}
 (async () => {
-  for (const [name, check] of [['wait', checkWaitParity], ['errors', checkErrors], ['extract', checkExtractParity]]) {
+  for (const [name, check] of [
+    ['wait', checkWaitParity], ['wait-states', checkWaitStates], ['errors', checkErrors], ['extract', checkExtractParity],
+  ]) {
     try {
       await check();
       console.log('acceptance pass ' + name);
@@ -319,6 +359,8 @@ NODE
     && ok "Camoufox 与 chromium 的 extract 键集与任务信封一致" || no "extract 跨引擎契约不符"
   grep -Fxq 'acceptance pass wait' "$TMP/acc-tasks.log" \
     && ok "Camoufox 与 chromium 的 wait 结果同形" || no "wait 跨引擎契约不符"
+  grep -Fxq 'acceptance pass wait-states' "$TMP/acc-tasks.log" \
+    && ok "Camoufox 与 chromium 的 wait 四种 state 同形" || no "wait state 跨引擎契约不符"
   node farm.js stop --account acc-smoke >/dev/null 2>&1
   # MCP 适配层冒烟：stdio 喂 initialize → tools/list（断言 7 个工具）→ farm_health（断言 gateway up）
   printf '%s\n' \

@@ -12,7 +12,7 @@
 |---|---|
 | `:28-29` | `OPTS` 新增 `--selector-map`、`--timeout`、`--selector`、`--state`、`--timeout-ms`，否则子命令识别会把选项值当成命令名 |
 | `:103-138` | 新增 `extract` 分支：可选 `--url` 先导航并等 `readyState=complete`；然后按 `--selector-map` 逐个 `document.querySelector` 取 `textContent.trim()`，缺失字段在超时前每 200ms 重试；输出 `{ok,url,fields,missing}` |
-| `:139-155` | 新增 `wait` 分支：`--selector` + `--state present|absent` + `--timeout-ms`（默认 30000），200ms 轮询；输出 `{ok,selector,state,found,waited_ms}` |
+| `:139-155` | `wait` 支持 `--selector` + `--state present\|absent\|visible\|hidden` + `--timeout-ms`（默认 30000），200ms 轮询，输出 `{ok,selector,state,found,waited_ms}` |
 | `:138` | `extract` 字段缺失不再让进程退出码非 0（`ok` 字段已表达）；硬失败只剩导航超时/参数错误 |
 
 请求/返回契约（经网关 `/v1/sessions/:sid/tasks`）：
@@ -21,9 +21,14 @@
 POST {"type":"extract","params":{"url":"https://.../页","selector_map":{"title":"title","h1":"h1"},"timeout_ms":15000}}
 → result {"ok":true,"url":"...","fields":{"title":"...","h1":"..."},"missing":[]}
 
-POST {"type":"wait","params":{"selector":"#result","state":"present","timeout_ms":10000}}
-→ result {"ok":true,"selector":"#result","state":"present","found":true,"waited_ms":12}
+POST {"type":"wait","params":{"selector":"html","state":"visible","timeout_ms":1500}}
+→ result {"ok":true,"selector":"html","state":"visible","found":true,"waited_ms":2}
+
+POST {"type":"wait","params":{"selector":"#nope","state":"hidden","timeout_ms":800}}
+→ result {"ok":true,"selector":"#nope","state":"hidden","found":false,"waited_ms":1}
 ```
+
+`present` 等元素存在，`absent` 等元素缺失。`visible` 要求元素存在、边界框宽高均大于 0，且计算样式满足 `visibility !== 'hidden'`。满足这些条件的 `opacity:0` 元素也算可见。`hidden` 在元素缺失或未达到 `visible` 条件时满足。`found` 表示元素是否存在。
 
 ### gateway/server.js
 
