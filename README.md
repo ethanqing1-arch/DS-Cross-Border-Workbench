@@ -69,13 +69,13 @@ python3 scripts/score_products.py
 
 已有粗筛 CSV 时使用 `--from-csv` 指定文件，也需填写 `--keyword` 和 `--price`。Amazon 搜索不可用时，打分诊断会保留来源故障。
 
-## 验收基线（2026-11-24 实测）
+## 验收基线
 
 | 自检 | 结果 |
 |---|---|
 | `farm/scripts/acceptance.sh --with-browser` | `PASS=72 FAIL=0 WARN=0` / `READY`（网关 19681，控制面 19581） |
-| `distribution/verify.sh` | `PASS=79 FAIL=0 WARN=1` / `READY`（WARN 是「Amazon 真实样本」断言跳过：Amazon 前台 503 时出现，取到样本则为 `WARN=0`） |
-| `distribution/installer-selftest.sh` | macOS 实测 `PASS=6 FAIL=0` / `READY`（含 DMG 卷标校验） |
+| `distribution/verify.sh` | `PASS=100 FAIL=0 WARN=1` / `READY`（2026-11-25 实测，1 条 WARN 来自跳过 Amazon 真实样本断言） |
+| `distribution/installer-selftest.sh` | macOS `PASS=11 FAIL=0` / `READY`（2026-11-25 实测，含 DMG 卷标校验） |
 | `distribution/flow-smoke.sh` | `PASS=9 FAIL=0 WARN=3` / `READY`（四个业务流 + 打分缺列断言。三条 WARN 是三件插件缺源；网关不可达时 L1、L2 各多 1 条，共 5 条） |
 | `distribution/e2e-smoke.sh` | 单跑 `PASS=34 FAIL=0 WARN=1` / `READY`（默认网关 19671，含 `transferSize>0` 与离网 `E_GOTO` 断言。WARN 来自 8 位令牌低于 32 位门槛）。检测到并发浏览器自检时只记 `SKIP`（`exit 3` / `RESULT: SKIPPED`）。 |
 | `farm/scripts/test-proxy-bridge.sh` | `PASS=35 FAIL=0` / `READY`（HTTP + SOCKS5/SOCKS5H，含浏览器产品路径） |

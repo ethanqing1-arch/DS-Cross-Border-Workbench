@@ -239,11 +239,11 @@ GATEWAY_TOKEN="$DSH_SECRET_GATEWAY_TOKEN" bash distribution/e2e-smoke.sh   # 要
 ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --with-browser
 ```
 
-README 里 2026-11-24 的快照基线（数字会随覆盖变化，以脚本实际输出为准）：
+README 的验收快照（数字会随覆盖变化，以脚本实际输出为准）：
 
 ```
 farm/scripts/acceptance.sh --with-browser  PASS=72 FAIL=0 WARN=0 / READY
-distribution/verify.sh                     PASS=79 FAIL=0 WARN=1 / READY（WARN 是 Amazon 真实样本断言跳过）
+distribution/verify.sh                     PASS=100 FAIL=0 WARN=1 / READY（WARN 是 Amazon 真实样本断言跳过）
 distribution/flow-smoke.sh                 PASS=9 FAIL=0 WARN=3 / READY（三条 WARN 是三件插件缺源；网关离线时 L1、L2 各多一条）
 distribution/e2e-smoke.sh                  PASS=34 FAIL=0 WARN=1 / READY（WARN 是令牌 8 位 <32；须单跑）
 ```

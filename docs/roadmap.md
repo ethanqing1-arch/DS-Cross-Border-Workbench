@@ -13,9 +13,9 @@
 
 | 能力 | 状态 | 证据 |
 |---|---|---|
-| 装 | 通 | `bash distribution/verify.sh` → `PASS=79 FAIL=0 WARN=1` / `RESULT: READY`（2026-11-24 本机实测；1 条 WARN 是「Amazon 真实样本」断言跳过，取到样本则为 `WARN=0`）。有可发布的 ZIP/DMG 产物，见 [发布清单](release-checklist.md)。 |
+| 装 | 通 | `bash distribution/verify.sh` → `PASS=100 FAIL=0 WARN=1` / `RESULT: READY`（2026-11-25 本机实测，1 条 WARN 来自跳过 Amazon 真实样本断言）。ZIP 和 DMG 通过验收。[发布清单](release-checklist.md) |
 | 跑 | 关键词可转候选并打分 | 粗筛的原始 JSON 或 CSV 可转为一词一行的候选表，再按可算维度输出证据等级、缺口和结论。`flow-smoke.sh` 校验四类产物及打分缺列样例，`verify.sh` 的 7f 校验覆盖上限、利润红线和估算列。 |
-| 取数 | 前台实测可用，部分指标待补 | Amazon 搜索和商品页可提供需求代理、竞争与风险证据，遇 503 时对应缺值留空。AliExpress 美国区可提供美元货源参考。利润仍需 1688 进价、运费和平均退货率。Amazon SP-API 与 eBay 凭证通过 DS Bot Secrets 填写，L2 同时支持 `DSH_SECRET_` 前缀和裸名，前缀优先。随包自检可验证令牌交换，开发验收使用本地假服务。见[凭证申请与自检](credentials-setup.md)。 |
+| 取数 | 前台实测可用，部分指标待补 | Amazon 搜索和商品页可提供需求代理、竞争与风险证据，遇 503 时对应缺值留空。具备 Brand Analytics 权限时可通过 SP-API 为匹配的候选词补月搜索量。AliExpress 美国区可提供美元货源参考。1688 进价无法自动获取，只能人工填。工作台没有可直接取得实际采购价的公开 API，商品价格页面需要登录态且有反爬限制。利润还需运费和平均退货率。Amazon SP-API 与 eBay 凭证通过 DS Bot Secrets 填写，L2 同时支持 `DSH_SECRET_` 前缀和裸名，前缀优先。随包自检可验证令牌交换，开发验收使用本地假服务。[凭证申请与自检](credentials-setup.md) |
 | 卖 | 待定稿与授权确认 | 品牌名称已定为跨浪（Kualang），图标已定为 03 错位交接，配色仍为占位，三件插件待入包，L3 Amazon skill 授权归属待确认。授权校验与安装包已就绪（默认不启用 licence）。 |
 
 三条容易误判的事实：
@@ -129,8 +129,8 @@ ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --wi
 
 ```bash
 # 装链
-bash distribution/verify.sh                                   # PASS=79 FAIL=0 WARN=1 / READY（WARN 是 Amazon 真实样本断言跳过）
-bash distribution/installer-selftest.sh                       # macOS：PASS=6 FAIL=0 / READY（含 DMG 卷标校验）
+bash distribution/verify.sh                                   # PASS=100 FAIL=0 WARN=1 / READY（WARN 是 Amazon 真实样本断言跳过）
+bash distribution/installer-selftest.sh                       # macOS：PASS=11 FAIL=0 / READY（含 DMG 卷标校验）
 
 # Camoufox 任务契约
 grep -n "camoufox:" farm/contract.js                          # tasks: TASK_TYPES.slice()

@@ -19,7 +19,19 @@ Amazon Catalog Items 的 `getCatalogItem` 需要 **Product Listing**，销售与
 
 eBay 的 Sandbox 和 Production 使用不同的密钥组。启用生产密钥组前，先完成账号删除通知订阅或获准豁免。生产 Browse 取数还需按 Buy APIs 流程申请访问权限。[eBay 凭证后台](https://developer.ebay.com/api-docs/static/oauth-credentials.html) · [免费开发者会员](https://developer.ebay.com/api-docs/sell/static/dev-app.html) · [生产密钥组](https://www.developer.ebay.com/develop/guides/sell/get-started-with-ebay-apis) · [生产访问审批](https://developer.ebay.com/api-docs/buy/static/buy-requirements.html) · [Browse 搜索范围](https://developer.ebay.com/api-docs/buy/browse/resources/item_summary/methods/search)
 
-卖家精灵和 1688 的适配器在规划中。
+卖家精灵有付费 API，已核对公开文档。[卖家精灵 API 调研](seller-sprite-research.md)
+
+**1688 进价无法自动获取，只能人工填入候选表的 `1688进价`。** 工作台没有可直接获取实际采购价的公开 API，商品价格页面需要登录态且有反爬限制。[1688 开放平台](https://aop.alibaba.com/)
+
+## Amazon 月搜索量
+
+搜索查询表现报表需要 **Brand Analytics** 角色、Amazon Brand Registry 注册及目标站点的品牌 ASIN。候选表已有授权品牌 `ASIN` 列时脚本会读取该列，否则以可重复的 `--asin` 参数提供。将下方示例的 ASIN 换成已授权的品牌 ASIN。`--marketplace` 默认 `US`，请与候选关键词的站点一致。[Amazon 报表说明](https://developer-docs.amazon.com/sp-api/docs/report-type-values-analytics#search-query-performance-report)
+
+```bash
+python3 scripts/keyword_volume.py --candidates data/candidates.csv --asin B012345678
+```
+
+脚本请求上一个完整自然月。候选词取 `关键词` 列，粗筛生成的候选表使用 `商品名`。匹配到有效数值后写入 `月搜索量` 和 `月搜索量来源`，默认就地写入，可用 `--out` 另存。报告可能只覆盖与授权品牌 ASIN 相关的关键词。缺凭证、访问被拒或没有可用数值时，脚本输出原因并非零退出，已有候选文件保持原样。
 
 ## 自检
 

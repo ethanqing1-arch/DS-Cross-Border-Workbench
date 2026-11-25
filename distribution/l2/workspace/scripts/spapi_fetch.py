@@ -68,10 +68,11 @@ EXIT_CODES = {
 
 
 class SPAPIError(Exception):
-    def __init__(self, code, **details):
+    def __init__(self, code, *, request_source=None, **details):
         super().__init__(code)
         self.code = code
         self.details = details
+        self.request_source = request_source
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -198,7 +199,7 @@ class SPAPI:
         self.access = None
         self.refresh_at = 0
 
-    def request(self, make_request, deadline=None, *, retry_throttled=True):
+    def request(self, make_request, deadline=None, *, retry_throttled=True, request_source=None):
         for fallback in (2, 4, 8, None) if retry_throttled else (None,):
             request = make_request()
             timeout = 30
@@ -219,7 +220,8 @@ class SPAPI:
                     pause(retry_delay(retry_after, fallback), deadline)
                     continue
                 code = {401: "E_SPAPI_AUTH", 403: "E_SPAPI_AUTH", 429: "E_SPAPI_THROTTLED"}
-                raise SPAPIError(code.get(status, "E_SPAPI_HTTP"), status=status) from None
+                raise SPAPIError(code.get(status, "E_SPAPI_HTTP"), status=status,
+                                 request_source=request_source) from None
             except (OSError, http.client.HTTPException, ValueError):
                 raise SPAPIError("E_SPAPI_NET", message="Request failed or timed out") from None
 
@@ -258,7 +260,7 @@ class SPAPI:
                 headers["Content-Type"] = "application/json"
             return Request(url, data=body, headers=headers, method=method)
 
-        data, _ = self.request(make_request, deadline)
+        data, _ = self.request(make_request, deadline, request_source="SP-API")
         return object_data(data, "SP-API")
 
     def catalog(self, asin):
@@ -269,12 +271,18 @@ class SPAPI:
     def report(self, report_type, days):
         end = datetime.now(timezone.utc).replace(microsecond=0)
         start = end - timedelta(days=days)
-        created = self.api("POST", REPORTS + "/reports", payload={
+        return self.report_for_period(report_type, start, end)
+
+    def report_for_period(self, report_type, start, end, *, options=None):
+        payload = {
             "reportType": report_type,
             "marketplaceIds": [self.market_id],
             "dataStartTime": start.isoformat(),
             "dataEndTime": end.isoformat(),
-        })
+        }
+        if options is not None:
+            payload["reportOptions"] = options
+        created = self.api("POST", REPORTS + "/reports", payload=payload)
         report_id = aws_encode(response_string(created, "reportId"))
         deadline = time.monotonic() + 300
         while True:

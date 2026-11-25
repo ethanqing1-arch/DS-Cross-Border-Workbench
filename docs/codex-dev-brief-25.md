@@ -105,3 +105,121 @@ flow-smoke.sh         == 汇总: PASS=9 FAIL=0 WARN=3 ==    RESULT: READY
 5. 补上月搜索量后的打分表那一行（证明证据等级从 C 升到 B）；
 6. 卖家精灵调研结论一句话 + 依据链接；
 7. `grep -rn "PASS=79" README.md docs/` 的结果：除 `docs/codex-dev-brief-*.md` 历史交接单外必须零命中；再贴 `grep -n "<verify 最终数>\|<installer 最终数>" README.md docs/roadmap.md docs/external-setup.md` 证明四处都对上。
+
+### 2026-11-25 实测收尾
+
+#### 验收原文
+
+`bash distribution/verify.sh`
+
+```text
+-- 7i. 月搜索量适配
+  PASS 7i.1 离线 mock 填入月搜索量 12345，保留其它列并注明来源
+  PASS 7i.2 空报表、无有效数据或日期与整月不符时留空，stderr 有原因
+  PASS 7i.3 就地补数后需求由代理转为一级，打分证据等级 C → B
+  PASS 7i.4 无凭证时非零退出，stderr 列出缺项，候选表逐字节保持原样
+== 汇总: PASS=100 FAIL=0 WARN=1 ==
+RESULT: READY
+```
+
+`bash distribution/flow-smoke.sh`
+
+```text
+== 汇总: PASS=9 FAIL=0 WARN=3 ==
+RESULT: READY
+```
+
+`bash distribution/installer-selftest.sh`
+
+```text
+== 汇总: PASS=11 FAIL=0 ==
+RESULT: READY
+```
+
+本单新增 7i 四条断言，最终 verify 为 `PASS=100`，`100 − 96 = 4`。verify 的 1 条 WARN 来自 Amazon 前台真实样本断言跳过，flow-smoke 的 3 条 WARN 来自插件缺源。全平台安装及 `--check` 分别为 `RESULT: READY（PASS=9 FAIL=0）`。Python 3.9.6 临时副本的四项变异分别被对应断言拦截，覆盖数值偏差、空报表填 0、继续使用需求代理和缺凭证仍写表。
+
+#### Amazon 官方报表契约
+
+[Analytics Reports · Search Query Performance Report](https://developer-docs.amazon.com/sp-api/docs/report-type-values-analytics#search-query-performance-report) 中的关键原文如下。
+
+> `reportType` value: `GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT`
+>
+> `asin` (Required)
+>
+> `reportPeriod`(Required)
+>
+> must correspond to valid first and last days in the specified `reportPeriod`.
+
+`createReport` 参数定义将 `reportType` 和 `marketplaceIds` 标为 `required`。本脚本每份报表请求一个站点，设置 `reportOptions.reportPeriod=MONTH`，用空格拼接 `reportOptions.asin`，遵守 200 字符上限。用 `dataStartTime` 和 `dataEndTime` 指定上一个完整自然月的首尾日期。账号需要 Brand Analytics 角色和 Amazon Brand Registry，报表只覆盖授权品牌 ASIN 关联的搜索词。[createReport](https://developer-docs.amazon.com/sp-api/reference/createreport) · [Search Query Performance Report](https://developer-docs.amazon.com/sp-api/docs/report-type-values-analytics#search-query-performance-report)
+
+官方 JSON Schema 将查询词和搜索量放在 `dataByAsin[].searchQueryData`，同一记录还包含 `asin`、`startDate` 和 `endDate`。示例原文如下。[Amazon 官方 JSON Schema](https://github.com/amzn/selling-partner-api-models/blob/main/schemas/reports/sellingPartnerSearchQueryPerformanceReport.json)
+
+```json
+"searchQuery": "wireless headphones",
+"searchQueryScore": 5,
+"searchQueryVolume": 15000
+```
+
+`searchQueryVolume` 的类型为 `integer`，官方字段说明如下。
+
+> The number of times customers search for a query at a select time period.
+
+Amazon Search Terms Report（`GET_BRAND_ANALYTICS_SEARCH_TERMS_REPORT`）的字段 `dataByDepartmentAndSearchTerm[].searchFrequencyRank` 给出频率排名。实际搜索次数取自 Search Query Performance 的 `searchQueryVolume`。[Amazon Search Terms Report](https://developer-docs.amazon.com/sp-api/docs/report-type-values-analytics#amazon-search-terms-report)
+
+范围例外采用交接单允许的真实缺陷修复。原 `SPAPI.report(report_type, days)` 无法提交上述必填报表选项与自然月边界。调用现在可以传入日期和 `reportOptions`，共用已有的创建、轮询与文档下载流程。SP-API 请求与 LWA、文档下载的 HTTP 403 可在关键词脚本中分辨。
+
+#### 禁网 mock 与打分原文
+
+在临时安装工作区用系统禁网运行 `keyword_volume.py --mock`。候选原有字段逐列比较一致，新增了月搜索量来源。
+
+补数前
+
+```csv
+品类,商品名,关键词,预估售价,月搜索量,搜索结果总数,广告密度,评论数中位数,评论数>1000占比,评分中位数,Amazon证据状态,差异化点
+家居,desk cable clips,,25,,9200,0.25,45,0.05,4.2,Amazon 商品页证据不全,"可开合,免工具"
+```
+
+补数后
+
+```csv
+品类,商品名,关键词,预估售价,月搜索量,搜索结果总数,广告密度,评论数中位数,评论数>1000占比,评分中位数,Amazon证据状态,差异化点,月搜索量来源
+家居,desk cable clips,,25,12345,9200,0.25,45,0.05,4.2,Amazon 商品页证据不全,"可开合,免工具",SP-API Brand Analytics
+```
+
+`score_products.py` 中同一条候选从需求代理 C 升至一级需求证据 B。补数前和补数后的打分行如下。
+
+```csv
+商品名,品类,预估售价,表面毛利,贡献利润,贡献利润率,分层,月搜索量,在售竞品数,供需比,退货率,总分,决策,诊断,红线,差异化点,证据等级,可算维度,缺口
+desk cable clips,家居,25.00,,,,,,,,,64.4,小批量观察,需求代理：搜索结果总数及广告密度/利润未验/Amazon 商品页证据不全,利润未验,"可开合,免工具",C,2/4,利润未验缺少或无有效值：1688进价、运费、平均退货率；风险缺少或无有效值：平均退货率、供应稳定性分（后备缺少或无有效值：上架月龄中位数、FBA占比）
+desk cable clips,家居,25.00,,,,,12345,,,,50.9,小批量观察,利润未验/Amazon 商品页证据不全,利润未验,"可开合,免工具",B,2/4,利润未验缺少或无有效值：1688进价、运费、平均退货率；风险缺少或无有效值：平均退货率、供应稳定性分（后备缺少或无有效值：上架月龄中位数、FBA占比）
+```
+
+真实环境缺少 SP-API 凭证。无凭证 CLI 实测退出码 `2`，`cmp` 确认候选 CSV 逐字节一致。真实请求分支通过本地 HTTP 服务核验了 LWA、月报请求、轮询、gzip 下载、空报表及 HTTP 403。线上 Brand Analytics 报表尚未拉取。无凭证的 stderr 原文如下。
+
+```text
+E_SPAPI_CONFIG missing: SP_API_CLIENT_ID, SP_API_CLIENT_SECRET, SP_API_REFRESH_TOKEN
+```
+
+#### 卖家精灵与 1688
+
+卖家精灵结论为**可以接**，官方付费关键词趋势 API 的 `data[].search` 返回整数搜索量，`data[].time` 给出月份。本单交付调研文档。[关键词选品趋势接口](https://open.sellersprite.com/api/11) · [API 定价](https://open.sellersprite.com/pricing/api/keyword) · [调研文档](seller-sprite-research.md)
+
+凭证文档与路线图均明确 1688 进价只能人工填。工作台没有可直接获取实际采购价的公开 API，商品价格页面需登录且有反爬限制。[1688 开放平台](https://aop.alibaba.com/)
+
+#### 文档数字与工作区
+
+`grep -rn "PASS=79" README.md docs/` 仅命中 `docs/codex-dev-brief-20.md`、`docs/codex-dev-brief-25.md`，过滤交接单后零命中。
+
+以下为 `grep -n "PASS=100 FAIL=0 WARN=1\|PASS=11 FAIL=0" README.md docs/roadmap.md docs/external-setup.md` 的原文。README 的代理自检行也匹配了 `PASS=11 FAIL=0` 前缀，目标数字位于另外六行。
+
+```text
+README.md:77:| `distribution/verify.sh` | `PASS=100 FAIL=0 WARN=1` / `READY`（2026-11-25 实测，1 条 WARN 来自跳过 Amazon 真实样本断言） |
+README.md:78:| `distribution/installer-selftest.sh` | macOS `PASS=11 FAIL=0` / `READY`（2026-11-25 实测，含 DMG 卷标校验） |
+README.md:83:| `farm/scripts/proxy-selftest.sh --worker-proxy` | `PASS=11 FAIL=0 WARN=0 INFO=1` / `READY`（Camoufox worker 经代理连到假上游，venv 缺失时 WARN 跳过） |
+docs/roadmap.md:16:| 装 | 通 | `bash distribution/verify.sh` → `PASS=100 FAIL=0 WARN=1` / `RESULT: READY`（2026-11-25 本机实测，1 条 WARN 来自跳过 Amazon 真实样本断言）。ZIP 和 DMG 通过验收。[发布清单](release-checklist.md) |
+docs/roadmap.md:132:bash distribution/verify.sh                                   # PASS=100 FAIL=0 WARN=1 / READY（WARN 是 Amazon 真实样本断言跳过）
+docs/roadmap.md:133:bash distribution/installer-selftest.sh                       # macOS：PASS=11 FAIL=0 / READY（含 DMG 卷标校验）
+docs/external-setup.md:246:distribution/verify.sh                     PASS=100 FAIL=0 WARN=1 / READY（WARN 是 Amazon 真实样本断言跳过）
+```
+
+`diff -qr distribution/l2/skills distribution/l2/bundle/skills` 零差异。现有打包器通过 Git 路径清单取文件，两个新增路径用 `git add -N` 登记以覆盖发行包验收，暂存区无文件内容。改动停在工作区供验收。

@@ -151,11 +151,11 @@ else
 fi
 # skill 承诺的脚本与话术库必须真的随包装进工作区（曾漏发过）
 L2_MISSING=""
-for f in scripts/cs_router.py scripts/gen_listing.py scripts/ops_report.py scripts/score_products.py scripts/screen_to_candidates.py scripts/spapi_fetch.py scripts/ebay_fetch.py scripts/fetch_router.py scripts/credentials.py scripts/credential_check.py data/faq.json; do
+for f in scripts/cs_router.py scripts/gen_listing.py scripts/ops_report.py scripts/score_products.py scripts/screen_to_candidates.py scripts/spapi_fetch.py scripts/keyword_volume.py scripts/ebay_fetch.py scripts/fetch_router.py scripts/credentials.py scripts/credential_check.py data/faq.json; do
   [ -s "$WS/$f" ] || L2_MISSING="$L2_MISSING $f"
 done
 if [ -z "$L2_MISSING" ]; then
-  ok "L2 工作区随包脚本 10 个 + faq.json 齐全"
+  ok "L2 工作区随包脚本 11 个 + faq.json 齐全"
 else
   bad "L2 工作区缺随包文件：${L2_MISSING# }"
 fi
@@ -1072,6 +1072,149 @@ else
     bad "7h.7 临时生成的真实公钥未能通过默认发布"
     printf '%s\n' "$OUT" | sed 's/^/    /'
   fi
+fi
+
+# ---------------------------------------------------------------- 7i. 月搜索量适配
+echo "-- 7i. 月搜索量适配"
+if OUT="$(python3 -B - "$WS/scripts" "$TMP" 2>&1 <<'PY'
+import codecs
+import csv
+import io
+import json
+import os
+import shutil
+import subprocess
+import sys
+from contextlib import redirect_stderr
+from pathlib import Path
+from unittest.mock import patch
+
+scripts, temporary = map(Path, sys.argv[1:])
+sys.path.insert(0, str(scripts))
+import credentials
+import keyword_volume
+from score_products import prepare
+
+
+def check(label, passed, details):
+    print(f"PASS {label}" if passed else f"FAIL {label}；实际：{details!r}")
+
+
+def read_rows(path):
+    if not path.exists():
+        return []
+    with path.open(encoding="utf-8-sig", newline="") as stream:
+        return list(csv.DictReader(stream))
+
+
+workspace = temporary / "keyword-volume"
+candidates = workspace / "data/candidates.csv"
+candidates.parent.mkdir(parents=True)
+(workspace / "scripts").mkdir()
+scorer = workspace / "scripts/score_products.py"
+shutil.copyfile(scripts / scorer.name, scorer)
+
+fixture = (
+    "品类,商品名,关键词,预估售价,月搜索量,搜索结果总数,广告密度,评论数中位数,"
+    "评论数>1000占比,评分中位数,Amazon证据状态,差异化点\r\n"
+    '家居,desk cable clips,,25,,9200,0.25,45,0.05,4.2,Amazon 商品页证据不全,"可开合,免工具\r备注"\r\n'
+    "家居,different product,another term,20,400,8000,0.15,30,0.02,4.0,,可手填\r\n"
+)
+original = codecs.BOM_UTF8 + fixture.encode("utf-8")
+candidates.write_bytes(original)
+original_rows = read_rows(candidates)
+keys = tuple(credentials.SPAPI_CREDENTIALS.values())
+clean_env = {key: value for key, value in os.environ.items() if key not in keys
+             and key.removeprefix(credentials.PREFIX) not in keys}
+
+
+def run_volume(*args):
+    stderr = io.StringIO()
+    with patch.dict(os.environ, clean_env, clear=True), patch.object(
+            sys, "argv", ["keyword_volume.py", "--candidates", str(candidates), *map(str, args)]), \
+            patch("socket.socket", side_effect=AssertionError("7i 禁用网络")) as socket, redirect_stderr(stderr):
+        status = keyword_volume.main()
+    return status, stderr.getvalue(), socket.call_count
+
+
+def score_candidate():
+    result = subprocess.run([sys.executable, "-B", str(scorer)], capture_output=True, text=True)
+    if result.returncode != 0:
+        return {}
+    return next((row for row in read_rows(workspace / "out/选品打分.csv")
+                 if row.get("商品名") == "desk cable clips"), {})
+
+
+def query(asin, volume):
+    return {
+        "asin": asin, "startDate": "2026-10-01", "endDate": "2026-10-31",
+        "searchQueryData": {"searchQuery": "desk cable clips", "searchQueryScore": 5, "searchQueryVolume": volume},
+    }
+
+
+mock = workspace / "report.json"
+spec = {
+    "reportType": "GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT",
+    "reportOptions": {"reportPeriod": "MONTH", "asin": "B123456789 B987654321"},
+    "dataStartTime": "2026-10-01", "dataEndTime": "2026-10-31", "marketplaceIds": ["ATVPDKIKX0DER"],
+}
+mock.write_text(json.dumps({"reportSpecification": spec, "dataByAsin": [
+    query("B123456789", 12345), query("B987654321", 12345),
+]}), encoding="utf-8")
+alternate = workspace / "enriched.csv"
+actual = run_volume("--mock", mock, "--out", alternate)
+expected_rows = [dict(original_rows[0], 月搜索量="12345", 月搜索量来源="SP-API Brand Analytics"),
+                 dict(original_rows[1], 月搜索量来源="")]
+enriched = read_rows(alternate)
+check("7i.1 离线 mock 填入月搜索量 12345，保留其它列并注明来源",
+      actual == (0, "", 0) and enriched == expected_rows and candidates.read_bytes() == original
+      and alternate.read_bytes().startswith(codecs.BOM_UTF8), (actual, enriched))
+
+empty = workspace / "empty.json"
+empty.write_text(json.dumps({"reportSpecification": spec, "dataByAsin": []}), encoding="utf-8")
+empty_status, empty_error, empty_calls = run_volume("--mock", empty)
+unusable = workspace / "unusable.json"
+unusable.write_text(json.dumps({"dataByAsin": [query("B123456789", 0), query("B987654321", True)]}),
+                    encoding="utf-8")
+invalid_status, invalid_error, invalid_calls = run_volume("--mock", unusable)
+wrong_period = workspace / "wrong-period.json"
+weekly = dict(query("B123456789", 12345), endDate="2026-10-07")
+wrong_period.write_text(json.dumps({"reportSpecification": spec, "dataByAsin": [weekly]}), encoding="utf-8")
+period_status, period_error, period_calls = run_volume("--mock", wrong_period)
+check("7i.2 空报表、无有效数据或日期与整月不符时留空，stderr 有原因",
+      empty_status != 0 and "E_SPAPI_EMPTY" in empty_error and "报表为空" in empty_error
+      and invalid_status != 0 and "无匹配的有效月搜索量" in invalid_error
+      and period_status != 0 and "报表日期与完整自然月不符" in period_error
+      and empty_calls == invalid_calls == period_calls == 0 and candidates.read_bytes() == original,
+      (empty_status, empty_error, invalid_status, invalid_error, period_status, period_error))
+
+score_before = score_candidate()
+actual = run_volume("--mock", mock)
+updated = read_rows(candidates)
+score_after = score_candidate()
+check("7i.3 就地补数后需求由代理转为一级，打分证据等级 C → B",
+      actual == (0, "", 0) and updated == expected_rows and score_before.get("证据等级") == "C"
+      and score_after.get("证据等级") == "B" and score_after.get("月搜索量") == "12345"
+      and prepare(original_rows[0]).sources.get("需求") == "代理" and prepare(updated[0]).sources.get("需求") == "一级",
+      (score_before, score_after))
+
+candidates.write_bytes(original)
+status, error, calls = run_volume()
+check("7i.4 无凭证时非零退出，stderr 列出缺项，候选表逐字节保持原样",
+      status != 0 and "E_SPAPI_CONFIG missing:" in error and all(key in error for key in keys)
+      and calls == 0 and candidates.read_bytes() == original, (status, error))
+PY
+)"; then
+  while IFS= read -r line; do
+    case "$line" in
+      "PASS "*) ok "${line#PASS }" ;;
+      "FAIL "*) bad "${line#FAIL }" ;;
+      *) bad "月搜索量断言输出异常：$line" ;;
+    esac
+  done <<< "$OUT"
+else
+  bad "月搜索量断言执行失败"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
 fi
 
 # ---------------------------------------------------------------- 8. 授权与安装包自检
