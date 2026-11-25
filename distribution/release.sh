@@ -82,7 +82,7 @@ def check_licence(root, allow_placeholder):
     content = key.read_bytes()
     check_private_key(content, LICENCE_PUBLIC_KEY)
     placeholder = b"PLACEHOLDER" in content.partition(b"\n")[0] or not PUBLIC_KEY.search(content)
-    if False and placeholder and not allow_placeholder:
+    if placeholder and not allow_placeholder:
         raise ReleaseRefused("占位公钥，不能对外发布")
     return placeholder
 
