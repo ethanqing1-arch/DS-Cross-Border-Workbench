@@ -151,11 +151,11 @@ else
 fi
 # skill 承诺的脚本与话术库必须真的随包装进工作区（曾漏发过）
 L2_MISSING=""
-for f in scripts/cs_router.py scripts/gen_listing.py scripts/ops_report.py scripts/score_products.py scripts/spapi_fetch.py scripts/ebay_fetch.py scripts/fetch_router.py data/faq.json; do
+for f in scripts/cs_router.py scripts/gen_listing.py scripts/ops_report.py scripts/score_products.py scripts/screen_to_candidates.py scripts/spapi_fetch.py scripts/ebay_fetch.py scripts/fetch_router.py data/faq.json; do
   [ -s "$WS/$f" ] || L2_MISSING="$L2_MISSING $f"
 done
 if [ -z "$L2_MISSING" ]; then
-  ok "L2 工作区随包脚本 7 个 + faq.json 齐全"
+  ok "L2 工作区随包脚本 8 个 + faq.json 齐全"
 else
   bad "L2 工作区缺随包文件：${L2_MISSING# }"
 fi
@@ -719,16 +719,95 @@ with open(sys.argv[1], encoding="utf-8", newline="") as file:
         sys.exit(f"估算打分输入表头未保留前缀：{fields!r}")
 with open(sys.argv[2], encoding="utf-8-sig", newline="") as file:
     rows = list(csv.DictReader(file))
-if not rows or any(row["决策"] != "补数据" for row in rows):
+if not rows or any((row["决策"], row["证据等级"], row["可算维度"]) != ("补数据", "D", "0/4") for row in rows):
     sys.exit(f"打分未保留补数据：{rows!r}")
 for row in rows:
-    if not missing.issubset(row["诊断"].removeprefix("[D] 缺失：").split("、")):
+    if not all(name in row["缺口"] for name in missing):
         sys.exit(f"估算值被打分脚本采信：{row!r}")
 PY
 )"; then
   ok "估算列保留估算_前缀，选品打分仍为补数据"
 else
   bad "估算打分安全闸校验失败"
+  printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
+# ---------------------------------------------------------------- 7f. 证据分层打分
+echo "-- 7f. 证据分层打分"
+if OUT="$(python3 -B - "$WS/scripts" 2>&1 <<'PY'
+import sys
+
+sys.path.insert(0, sys.argv[1])
+from score_products import build
+
+
+def check(label, rows, passed):
+    outcome = f"PASS {label}" if passed else f"FAIL {label}；实际：{rows!r}"
+    print(outcome)
+
+
+def result_for(candidate, *other_candidates):
+    return next(row for row in build([candidate, *other_candidates]) if row["商品名"] == candidate["商品名"])
+
+
+empty = {"商品名": "全缺样例", "预估售价": "20"}
+strong = {
+    "商品名": "四维厚利", "预估售价": "100", "1688进价": "5", "运费": "5", "平均退货率": "0",
+    "月搜索量": "100000", "在售竞品数": "1", "头部评论数": "1", "供应稳定性分": "10",
+}
+weak = {
+    "商品名": "对照组", "预估售价": "30", "1688进价": "25", "运费": "10", "平均退货率": "0.05",
+    "月搜索量": "100", "在售竞品数": "1000", "头部评论数": "8000", "供应稳定性分": "3",
+}
+proxy = {"搜索结果总数": "10000", "广告密度": "1"}
+
+row = result_for(empty)
+check("7f.1 全缺样例为 D、0/4、补数据，分数和利润留空", row,
+      (row["决策"], row["证据等级"], row["可算维度"]) == ("补数据", "D", "0/4")
+      and not row.get("总分") and not row.get("贡献利润"))
+
+two = dict(empty, **proxy, 评论数中位数="5", 评分中位数="3", **{"评论数>1000占比": "0"})
+row = result_for(two)
+proxy_full = dict(strong, **proxy, 商品名="四维代理")
+del proxy_full["月搜索量"]
+full = result_for(proxy_full, weak)
+check("7f.2 需求与竞争两维最多观察，四维含需求代理仍不能上架", (row, full),
+      row["可算维度"] == "2/4" and row["证据等级"] == "C" and row["决策"] in ("小批量观察", "放弃")
+      and full["可算维度"] == "4/4" and full["证据等级"] == "C" and float(full["总分"]) >= 60
+      and not full["红线"] and full["决策"] == "小批量观察")
+
+row = result_for(strong, weak)
+secondary = dict(strong, 商品名="四维含二级", 上架月龄中位数="0", FBA占比="0")
+del secondary["供应稳定性分"]
+full = result_for(secondary, weak)
+check("7f.3 四维齐、贡献利润厚且无红线时可上架测试", (row, full),
+      (row["决策"], row["证据等级"], row["可算维度"], row["红线"]) == ("上架测试", "A", "4/4", "")
+      and (full["决策"], full["证据等级"], full["可算维度"], full["红线"]) == ("上架测试", "B", "4/4", "")
+      and row["贡献利润率"] == "70.0%" and "推广费率=0.15" in row["诊断"])
+
+no_profit = dict(strong, 商品名="利润未验，其他三维满分")
+del no_profit["1688进价"]
+row = result_for(no_profit, weak)
+check("7f.4 利润缺失、其他三维满分时仍只观察，诊断与红线标记利润未验", row,
+      (row["决策"], row["证据等级"], row["可算维度"], row["总分"]) == ("小批量观察", "B", "3/4", "100.0")
+      and not row.get("贡献利润") and "利润未验" in row["诊断"] and row["红线"] == "利润未验"
+      and "1688进价" in row["缺口"])
+
+estimates = dict(empty, **{f"估算_{key}": value for key, value in dict(strong, **proxy).items()})
+row = result_for(estimates)
+check("7f.5 估算_ 列不计入任何维度，结论仍为补数据", row,
+      row == result_for(empty) and (row["决策"], row["证据等级"], row["可算维度"]) == ("补数据", "D", "0/4"))
+PY
+)"; then
+  while IFS= read -r line; do
+    case "$line" in
+      "PASS "*) ok "${line#PASS }" ;;
+      "FAIL "*) bad "${line#FAIL }" ;;
+      *) bad "证据分层断言输出异常：$line" ;;
+    esac
+  done <<< "$OUT"
+else
+  bad "证据分层打分断言执行失败"
   printf '%s\n' "$OUT" | sed 's/^/    /'
 fi
 

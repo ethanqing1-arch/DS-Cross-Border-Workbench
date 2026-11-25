@@ -40,6 +40,29 @@ bash distribution/e2e-smoke.sh         # 装链 + 真 MCP 往返 + 产物落工�
 ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --with-browser
 ```
 
+## 选品打分
+
+打分按需求、竞争、利润、风险四维判断证据，只用可算的维度重新分配权重，并输出证据等级、可算维度和缺口。利润使用售价、1688 进价、运费和退货率，`估算_` 列不参与计算。
+
+| 证据覆盖 | 最高结论 |
+|---|---|
+| 不足两维 | `补数据` |
+| 两至三维 | `小批量观察` |
+| 四维齐，需求使用搜索结果总数代理（C） | `小批量观察` |
+| 四维齐，利润已验且无红线，证据 A 或 B | `上架测试` |
+
+利润不可算时，缺口、诊断和红线均标记「利润未验」。证据指向低分或贡献利润为负时，可以得出 `放弃`。
+
+在已安装 L2 的工作区，可将关键词粗筛的实测指标直接转成一行候选。竞争的二级证据使用评论数中位数、评论数大于 1000 的占比和评分中位数。关键词结论以最后一步生成的打分表为准。
+
+```bash
+python3 .dsh/skills/market-research/scripts/screen_keyword.py "pet slow feeder" --top 10 --out /tmp/kw
+python3 scripts/screen_to_candidates.py --from-json /tmp/kw/raw --keyword "pet slow feeder" --price 20 --out data/candidates.csv
+python3 scripts/score_products.py
+```
+
+已有粗筛 CSV 时使用 `--from-csv` 指定文件，也需填写 `--keyword` 和 `--price`。Amazon 搜索不可用时，打分诊断会保留来源故障。
+
 ## 验收基线（2026-11-24 实测）
 
 | 自检 | 结果 |

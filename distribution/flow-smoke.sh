@@ -111,7 +111,7 @@ PY
 }
 
 check_incomplete_scores() {
-  local out
+  local out detail
   if ! cat > data/candidates.csv <<'CSV'
 品类,商品名,预估售价,头部评论数
 家居,MateeyLife 慢食碗,7.64,10819
@@ -125,10 +125,27 @@ CSV
     bad "打分缺列样例执行失败"
   elif printf '%s\n' "$out" | grep -Eq '上架测试|小批量观察'; then
     bad "打分缺列样例出现正向决策"
-  elif [ "$(printf '%s\n' "$out" | grep -Fc ' |  |  |  |  | 补数据 | [D] 缺失：1688进价、运费、平均退货率、月搜索量、在售竞品数')" -ne 2 ]; then
+  elif ! detail="$(python3 - 'out/选品打分.csv' 2>&1 <<'PY'
+import csv
+import sys
+
+with open(sys.argv[1], encoding="utf-8-sig", newline="") as file:
+    rows = list(csv.DictReader(file))
+empty = ("表面毛利", "贡献利润", "贡献利润率", "分层", "月搜索量", "在售竞品数", "供需比", "退货率", "总分")
+if len(rows) != 2 or any(
+    (row["决策"], row["证据等级"], row["可算维度"]) != ("补数据", "D", "0/4")
+    or any(row[field] for field in empty)
+    or not all(term in row["缺口"] for term in ("需求", "竞争", "利润未验", "风险", "1688进价", "运费"))
+    or "利润未验" not in row["诊断"]
+    for row in rows
+):
+    sys.exit(f"实际打分明细：{rows!r}")
+PY
+)"; then
     bad "打分缺列样例的决策、空白指标或缺失诊断不符"
+    printf '%s\n' "$detail"
   else
-    ok "打分缺列样例两行均为 [D] 补数据，无正向决策"
+    ok "打分缺列样例两行均为 D、0/4、补数据，未输出正向决策"
     return
   fi
   printf '%s\n' "$out"

@@ -132,3 +132,153 @@ python3 scripts/score_products.py
 3. 两次变异测试的原文（改了什么、断言怎么 FAIL 的）；
 4. 一次真实链路跑通的三段输出：粗筛 → candidates.csv → 打分表；
 5. `diff -qr` 镜像结果（应为空）。
+
+### 1. 总装验收
+
+在 macOS 上用 Python 3.9.6 执行 `bash distribution/verify.sh`，退出码为 0。
+
+```text
+== 汇总: PASS=84 FAIL=0 WARN=1 ==
+RESULT: READY
+```
+
+```text
+-- 7f. 证据分层打分
+  PASS 7f.1 全缺样例为 D、0/4、补数据，分数和利润留空
+  PASS 7f.2 需求与竞争两维最多观察，四维含需求代理仍不能上架
+  PASS 7f.3 四维齐、贡献利润厚且无红线时可上架测试
+  PASS 7f.4 利润缺失、其他三维满分时仍只观察，诊断与红线标记利润未验
+  PASS 7f.5 估算_ 列不计入任何维度，结论仍为补数据
+```
+
+唯一的 WARN 是 7d 在仓库中找不到已保存的 Amazon 成功样本，因而跳过对应断言。此次在线实测使用独立临时目录，见第 4 项。
+
+### 2. 业务流冒烟
+
+`bash distribution/flow-smoke.sh` 退出码为 0，三条 WARN 分别是 `prompt-enhancer`、`retrace` 和 `rollback-withdraw` 插件缺源。
+
+```text
+  PASS 打分缺列样例两行均为 D、0/4、补数据，未输出正向决策
+== 汇总: PASS=9 FAIL=0 WARN=3 ==
+RESULT: READY
+```
+
+### 3. 两次变异测试
+
+两次分别从同一份临时源码基线复制，各自运行完整 `bash distribution/verify.sh`。三份临时副本都使用安装器支持的 `$FARM_MCP_PATH` 占位，匹配各自的临时目录。临时基线先通过完整验收。
+
+```text
+== 汇总: PASS=84 FAIL=0 WARN=1 ==
+RESULT: READY
+```
+
+**变异一。** 仅改动利润不可算时的上架放行条件，保留诊断和红线。退出码为 1。以下为变更及目标断言原文。
+
+```diff
+--- a/distribution/l2/workspace/scripts/score_products.py
++++ b/distribution/l2/workspace/scripts/score_products.py
+@@ -244 +244 @@
+-        listing_blocked = True  # 利润未验时，其他维度的高分不能放行上架。
++        listing_blocked = False  # 利润未验时，其他维度的高分不能放行上架。
+```
+
+```text
+  FAIL 7f.4 利润缺失、其他三维满分时仍只观察，诊断与红线标记利润未验；实际：{'商品名': '利润未验，其他三维满分', '品类': '', '差异化点': '', '预估售价': '100.00', '月搜索量': 100000, '在售竞品数': 1, '供需比': '100000.0', '退货率': '0.0%', '总分': '100.0', '决策': '上架测试', '诊断': '利润未验/需求旺/竞争小', '红线': '利润未验', '证据等级': 'B', '可算维度': '3/4', '缺口': '利润未验缺少或无有效值：1688进价'}
+== 汇总: PASS=83 FAIL=1 WARN=1 ==
+RESULT: NOT_READY
+```
+
+**变异二。** 仅把 `num()` 的缺失和解析失败返回值改成 `0.0`。退出码为 1。以下为变更及目标断言原文。
+
+```diff
+--- a/distribution/l2/workspace/scripts/score_products.py
++++ b/distribution/l2/workspace/scripts/score_products.py
+@@ -73 +73 @@
+-        return None
++        return 0.0
+```
+
+```text
+  FAIL 7f.1 全缺样例为 D、0/4、补数据，分数和利润留空；实际：{'商品名': '全缺样例', '品类': '', '差异化点': '', '预估售价': '20.00', '月搜索量': 0, '在售竞品数': 0, '供需比': '0.0', '退货率': '0.0%', '表面毛利': '20.00', '贡献利润': '19.00', '贡献利润率': '95.0%', '分层': '利润款', '总分': '50.0', '决策': '小批量观察', '诊断': '贡献利润厚/供应不稳', '红线': '', '证据等级': 'A', '可算维度': '4/4', '缺口': ''}
+== 汇总: PASS=78 FAIL=6 WARN=1 ==
+RESULT: NOT_READY
+```
+
+### 4. 真实链路
+
+2026-11-25 在线采集 `pet slow feeder`，使用 `--top 10` 和 `--price 20`。Amazon 搜索样本有 10 张卡片，AliExpress 搜索返回 HTTP 200。L2 安装后的 `scripts/screen_to_candidates.py` 用真实 raw 和粗筛 CSV 各跑一次，两份候选表逐字一致，两次打分表也逐字一致。
+
+**粗筛输出**
+
+```text
+Markdown 写入 /tmp/kualang-brief21.KracKh/kw/pet slow feeder-粗筛.md
+CSV 写入 /tmp/kualang-brief21.KracKh/kw/pet slow feeder-粗筛.csv
+
+报告基准时间 2026-11-25T08:23:43+08:00｜样本量 N=10（Amazon 搜索 Top 10）
+- Amazon 搜索页｜采集时间 2026-11-25T08:23:43+08:00｜http=NA（未返回）｜currency_verified=NA（未返回）｜退出码=0｜降级原因原文 {"degraded": null}
+- AliExpress 搜索页｜采集时间 2026-11-25T08:23:47+08:00｜http=200｜currency_verified=true｜退出码=0｜降级原因原文 {"degraded": ["original_price_usd", "sold_text", "sold_count", "rating"]}
+```
+
+```csv
+指标,值,样本量,来源,证据等级,备注
+搜索结果总数,5000,1 页,amazon,B,"原文：5,000"
+广告密度,0.500,10,amazon,B,sponsored_count / count = 5/10
+评论数中位数,6970.0,10/10,amazon,B,
+评论数最大,135894,10/10,amazon,B,
+评论数>1000占比,0.9,10/10,amazon,B,
+评分中位数,4.6,10/10,amazon,B,
+价格带,min $6.39 / P25 $7.47 / 中位 $7.81 / P75 $8.4675 / max $14.19,10/10,amazon,B,
+上架月龄中位数,45.1,7/7,amazon,B,unknown=0
+新品占比(<12个月),0.0,7,amazon,B,分母为能解析出月龄的样本数
+FBA占比,0.5714285714285714,7,amazon,B,fba=4，fbm=0，unknown=3
+卖家数,4,4/7,amazon,B,有效样本 4/7
+货源价中位数,3.965,10/10,aliexpress,B,USD；有效样本 10/10
+货源折扣中位数,85.5,10/10,aliexpress,B,%
+货源销量中位数,26,7/10,aliexpress,B,有效样本 7/10
+零货倍数,2.0,Amazon 10/10；AliExpress 10/10,aliexpress,B,Amazon 价格中位数 / AliExpress 货源价中位数
+```
+
+**`data/candidates.csv`**
+
+```csv
+品类,商品名,月搜索量,在售竞品数,头部评论数,预估售价,1688进价,运费,平均退货率,供应稳定性分,搜索结果总数,广告密度,评论数中位数,评论数>1000占比,评分中位数,上架月龄中位数,FBA占比,推广费率,差异化点,Amazon证据状态
+pet slow feeder,pet slow feeder,,,135894,20,,,,,5000,0.500,6970.0,0.9,4.6,45.1,0.5714285714285714,,,
+```
+
+**打分表**
+
+```text
+贡献利润口径：售价 - 成本 - 平台5% - 运费 - 推广费 - 退货损耗
+
+排名 | 商品名 | 贡献利润 | 贡献利润率 | 分层 | 总分 | 决策 | 诊断 | 证据等级 | 可算维度 | 缺口
+----------------------------------------------------------------------------------------
+1 | pet slow feede |  |  |  | 36.7 | 放弃 | 需求代理：搜索结果总数及广告密度/利润未验/Amazon 搜索页显示竞争强/Amazon 商品页显示进入难度高 | C | 3/4 | 利润未验缺少或无有效值：1688进价、运费、平均退货率
+
+明细写入: /private/tmp/kualang-brief21.KracKh/workspace/out/选品打分.csv
+
+触发红线 1 个：
+  - pet slow feeder：利润未验
+```
+
+```csv
+商品名,品类,预估售价,表面毛利,贡献利润,贡献利润率,分层,月搜索量,在售竞品数,供需比,退货率,总分,决策,诊断,红线,差异化点,证据等级,可算维度,缺口
+pet slow feeder,pet slow feeder,20.00,,,,,,,,,36.7,放弃,需求代理：搜索结果总数及广告密度/利润未验/Amazon 搜索页显示竞争强/Amazon 商品页显示进入难度高,利润未验,,C,3/4,利润未验缺少或无有效值：1688进价、运费、平均退货率
+```
+
+另在离线回放现有 `http_503` 样本时，JSON 和 CSV 两个入口都输出 `补数据`、D、`0/4`，诊断含 `因为 Amazon 不可用（搜索页：http_503）`。粗筛 Markdown 本身带有旧口径的「补数据」提示，关键词结论见打分表。
+
+转换输入以关键词同时填充品类和商品名。另透传两项竞争所需的实测字段 `评论数>1000占比` 和 `评分中位数`。`Amazon证据状态` 仅用于来源诊断。覆盖不足四维且无代理的非「补数据」行归 B。
+
+决策阈值沿用 60 分和 48 分，毛利率与贡献率红线分别沿用 25% 和 8%。贡献利润负值红线按本单采用 `<0`，零贡献利润仍归「放弃」。单关键词的后备评分采用固定尺度。需求代理按对数归一的搜索结果总数和广告密度，以 70% 和 30% 加权，搜索结果数在 10,000 处截顶。竞争按对数归一的评论数中位数（1,000 处截顶）、超 1,000 评论占比、评分除以 5 的均值衡量压力。风险按月龄中位数除以 12 后截顶与 FBA 占比的均值衡量进入难度。10,000 是工程参考值，竞争和风险沿用粗筛已有的 1,000 条评论及 12 月口径作为参考点。
+
+### 5. 镜像核验
+
+仓库中的 L2 bundle 有 `skills/` 镜像。用包含新增脚本的临时源码导出生成 tar.gz 与 ZIP，分别解包核验 `workspace/`。以下三次 `diff -qr` 的退出码均为 0。
+
+```bash
+diff -qr distribution/l2/skills distribution/l2/bundle/skills
+diff -qr distribution/l2/workspace /tmp/kualang-brief21.KracKh/archive-tar/kualang-0.1.0/distribution/l2/workspace
+diff -qr distribution/l2/workspace /tmp/kualang-brief21.KracKh/archive-zip/kualang-0.1.0/distribution/l2/workspace
+```
+
+输出为空。

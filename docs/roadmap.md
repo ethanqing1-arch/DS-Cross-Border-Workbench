@@ -14,8 +14,8 @@
 | 能力 | 状态 | 证据 |
 |---|---|---|
 | 装 | 通 | `bash distribution/verify.sh` → `PASS=79 FAIL=0 WARN=1` / `RESULT: READY`（2026-11-24 本机实测；1 条 WARN 是「Amazon 真实样本」断言跳过，取到样本则为 `WARN=0`） |
-| 跑 | 样例已跑通 | `bash distribution/flow-smoke.sh` → `PASS=9 FAIL=0 WARN=3` / `RESULT: READY`，四类产物通过内容校验（三件插件缺源。网关不可达时 L1、L2 各多 1 条 WARN，共 5 条） |
-| 取数 | 缺外部条件 | eBay 已接 L2 connector（`scripts/ebay_fetch.py` + 假服务自检），其余 6 个平台的 T1 尚未接入降级链。各平台 API 真端点均未验证。无出口代理，`shopee` / `tiktokshop` 选择器标注「未验」。 |
+| 跑 | 关键词可转候选并打分 | 粗筛的原始 JSON 或 CSV 可转为一词一行的候选表，再按可算维度输出证据等级、缺口和结论。`flow-smoke.sh` 校验四类产物及打分缺列样例，`verify.sh` 的 7f 校验覆盖上限、利润红线和估算列。 |
+| 取数 | 前台实测可用，部分指标待补 | Amazon 搜索和商品页可提供需求代理、竞争与风险证据，遇 503 时对应缺值留空。AliExpress 美国区可提供美元货源参考。利润仍需 1688 进价、运费和平均退货率。eBay 已接 L2 connector 并有假服务自检，各平台官方 API 真端点待验证。 |
 | 卖 | 待定稿与授权确认 | 品牌名称已定为跨浪（Kualang），图标已定为 03 错位交接，配色仍为占位，三件插件待入包，L3 Amazon skill 授权归属待确认。授权校验与安装包已就绪（默认不启用 licence）。 |
 
 三条容易误判的事实：
