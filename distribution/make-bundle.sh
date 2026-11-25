@@ -20,6 +20,7 @@ import zipfile
 
 
 ALLOW = ("LICENSE", "README.md", "CONTRIBUTING.md", "VERSION", "distribution", "farm", "docs")
+RELEASE_FILES = (Path("distribution/release.sh"), Path("docs/release-checklist.md"))
 WS = Path("farm/node_modules/ws")
 CAPABILITY = Path("distribution/l1/capability/browser-farm.json")
 PRIVATE = Path("farm/state")
@@ -57,6 +58,8 @@ def bundle_files(root):
         # 只取已纳入版本控制的工作树文件，避免把本地草稿和运行产物发出去。
         tracked = subprocess.check_output(["git", "ls-files", "--cached", "-z", "--", *ALLOW], cwd=root)
         yield from (Path(os.fsdecode(name)) for name in tracked.split(b"\0") if name)
+        # 这两个发行入口在首次引入时，暂存前也必须进入发行包。
+        yield from RELEASE_FILES
         yield from walk(root, WS)
     else:
         for entry in ALLOW:

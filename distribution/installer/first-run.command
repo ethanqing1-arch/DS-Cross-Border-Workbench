@@ -1,4 +1,5 @@
 #!/bin/bash
+set +x
 set -euo pipefail
 export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"
 
@@ -136,6 +137,19 @@ run_step doctor /bin/bash "$dist/doctor.sh"
 run_step install-all /bin/bash "$dist/install-all.sh" "$target"
 run_step verify /bin/bash "$dist/verify.sh"
 
+printf '\n== credentials ==\n'
+python3 -B "$target/scripts/credential_check.py" ||
+  echo '提示：凭证待配置或连通性待确认，安装已完成。'
+if [ -z "${GATEWAY_TOKEN:-}" ] && [ -z "${DSH_SECRET_GATEWAY_TOKEN:-}" ]; then
+  echo 'GATEWAY_TOKEN | 未配置'
+  echo '提示：起网关前需要 GATEWAY_TOKEN。'
+else
+  echo 'GATEWAY_TOKEN | 已配置'
+fi
+printf '请在 DS Bot 的 Settings → Secrets 填写凭证，见 %s/docs/credentials-setup.md。\n' "${dist%/*}"
+echo '填完后，在目标工作区运行 python3 scripts/credential_check.py 复核。'
+
 printf '\n下一步做什么\n'
-printf '  打开工作区 %s，查看 README.md、CHIEF-INIT.md 和 data/ 里的样例。\n' "$target"
-echo '  查看发行目录 docs/trial-kit.md，按指引运行样例。'
+echo '  1. 按 docs/credentials-setup.md 填凭证并复核。'
+echo '  2. 按 docs/release-checklist.md 的试装步骤跑首次取数。'
+printf '  3. 在 %s 运行 python3 scripts/score_products.py，打开生成的打分表。\n' "$target"

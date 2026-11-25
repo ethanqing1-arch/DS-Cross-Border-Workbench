@@ -49,7 +49,7 @@ fi
 verify_entries() {
   local dist="$TMP/zip/$top/distribution" entry
   for entry in verify.sh doctor.sh install-all.sh licence-selftest.sh installer-selftest.sh \
-    make-bundle.sh installer/first-run.command l1/install.sh l1/manifest.json \
+    make-bundle.sh release.sh installer/first-run.command l1/install.sh l1/manifest.json \
     l1/capability/browser-farm.json l1/licence/verify.py l1/plugins/install.js \
     l2/install.sh l2/manifest.json l3/install.sh l3/manifest.json \
     l3/schema/platform.schema.json l3/check-bundle-skills.js \
@@ -116,6 +116,19 @@ if plugin_ok >"$TMP/plugin.log" 2>&1; then
 else
   bad '6. 插件复制、只读校验或缺源 WARN 断言失败'
   cat "$TMP/plugin.log"
+fi
+
+if grep -Eq '^[[:space:]]*python3[[:space:]]+(-B[[:space:]]+)?"\$target/scripts/credential_check\.py"([[:space:]]|$)' \
+    "$TMP/zip/$top/distribution/installer/first-run.command"; then
+  ok '7. 解包后的 first-run.command 调用已安装的 credential_check.py'
+else
+  bad '7. 解包后的 first-run.command 缺少对已安装 credential_check.py 的调用'
+fi
+
+if (source "$SRC/release.sh" && release_tool payload "$TMP/tar/$top" "$TMP/zip/$top"); then
+  ok '8. tar.gz 与 ZIP 均无真实凭证、私钥、farm/state、farm/profiles、.env 或 distribution/out'
+else
+  bad '8. 发行包载荷安全检查失败'
 fi
 
 finish

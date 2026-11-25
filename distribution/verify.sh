@@ -976,9 +976,68 @@ else
   bad "凭证接入层断言执行失败"
 fi
 
+# ---------------------------------------------------------------- 7h. 发布包
+echo "-- 7h. 发布包"
+# 外层 release.sh 已核验当前 ZIP，内层只跑安装相关断言。
+if [ "${KUALANG_RELEASE_CHECK:-}" = "$ROOT" ]; then
+  echo '  INFO 当前处于发行包试装，跳过嵌套发布包核验'
+else
+  RELEASE_GIT="$TMP/release"
+  RELEASE_OUT="$RELEASE_GIT/distribution/out"
+  RELEASE_BASELINE=1
+  if [ -e "$ROOT/.git" ]; then
+    # 只应用根 .gitignore，避免 distribution/.gitignore 掩盖根规则缺失。
+    if mkdir -p "$RELEASE_GIT" &&
+       git -C "$RELEASE_GIT" init -q --template= &&
+       RELEASE_STATUS="$(git -C "$RELEASE_GIT" -c "core.excludesFile=$ROOT/.gitignore" status --porcelain --untracked-files=all)" &&
+       [ -z "$RELEASE_STATUS" ]; then
+      RELEASE_BASELINE=0
+    fi
+  fi
+
+  RELEASE_TOP="kualang-$(cat "$ROOT/VERSION")"
+  RELEASE_ZIP="$RELEASE_OUT/$RELEASE_TOP.zip"
+  RELEASE_UNPACKED="$TMP/release-zip"
+  if OUT="$(bash "$SRC/make-bundle.sh" --out "$RELEASE_OUT" 2>&1)" &&
+     OUT="$(bash "$SRC/release.sh" --out "$RELEASE_OUT" --check 2>&1)"; then
+    ok "7h.1 release.sh --check 退出码 0（临时输出目录）"
+  else
+    bad "7h.1 构建或 release.sh --check 失败"
+    printf '%s\n' "$OUT" | sed 's/^/    /'
+  fi
+
+  if [ -f "$RELEASE_ZIP" ] &&
+     unzip -q "$RELEASE_ZIP" -d "$RELEASE_UNPACKED" &&
+     [ -s "$RELEASE_UNPACKED/$RELEASE_TOP/docs/credentials-setup.md" ]; then
+    ok "7h.2 产物包含 docs/credentials-setup.md"
+  else
+    bad "7h.2 产物缺少 docs/credentials-setup.md 或无法解包"
+  fi
+
+  if (source "$SRC/release.sh" && release_tool payload "$RELEASE_UNPACKED/$RELEASE_TOP"); then
+    ok "7h.3 产物无真实凭证、私钥、farm/state、farm/profiles、.env 或 distribution/out"
+  else
+    bad "7h.3 产物载荷安全检查失败"
+  fi
+
+  if [ ! -e "$ROOT/.git" ]; then
+    echo '  INFO 解包目录跳过 Git 状态检查'
+  elif [ "$RELEASE_BASELINE" -eq 0 ] && [ -f "$RELEASE_ZIP" ] &&
+       RELEASE_STATUS="$(git -C "$RELEASE_GIT" -c "core.excludesFile=$ROOT/.gitignore" status --porcelain --untracked-files=all)" &&
+       [ -z "$RELEASE_STATUS" ]; then
+    ok "7h.4 构建后 git status --porcelain 仍为空（根 .gitignore 忽略 distribution/out/）"
+  else
+    bad "7h.4 构建后 Git 状态检查失败，请检查根 .gitignore 的 distribution/out/ 规则"
+  fi
+fi
+
 # ---------------------------------------------------------------- 8. 授权与安装包自检
 echo "-- 8. 授权与安装包自检"
 for selftest in licence-selftest installer-selftest; do
+  if [ "$selftest" = installer-selftest ] && [ "${KUALANG_RELEASE_CHECK:-}" = "$ROOT" ]; then
+    echo '  INFO 当前处于发行包试装，跳过会重新打包的 installer-selftest.sh'
+    continue
+  fi
   if OUT="$(bash "$SRC/$selftest.sh" 2>&1)" && printf '%s\n' "$OUT" | grep -Fxq 'RESULT: READY'; then
     ok "${selftest}.sh"
   else

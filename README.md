@@ -40,6 +40,12 @@ bash distribution/e2e-smoke.sh         # 装链 + 真 MCP 往返 + 产物落工�
 ACCEPT_PORT=19681 ACCEPT_CONTROL_PORT=19581 bash farm/scripts/acceptance.sh --with-browser
 ```
 
+### 怎么发给别人装
+
+1. 运行 `bash distribution/release.sh` 构建并试装，按清单核对后发送 `distribution/out/` 下的 ZIP。见 [发布清单](docs/release-checklist.md)。
+2. 收件人将 ZIP 解包到独立目录。
+3. 双击解包目录里的 `distribution/installer/first-run.command`。
+
 ## 选品打分
 
 打分按需求、竞争、利润、风险四维判断证据，只用可算的维度重新分配权重，并输出证据等级、可算维度和缺口。利润使用售价、1688 进价、运费和退货率，`估算_` 列不参与计算。
