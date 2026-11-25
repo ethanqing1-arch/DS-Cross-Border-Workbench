@@ -86,6 +86,7 @@ python3 scripts/score_products.py
 - **代理凭据不进 Chromium argv**：Chromium 不认 `--proxy-server` 里的 `user:pass`，凭据由本地桥注入；上游支持 `http://`、`socks5://`、`socks5h://`。
 - **本机 DNS 是 fake-IP**（`example.com → 198.18.0.37`），生产用 `socks5h://`（远程 DNS），否则远端上游连不上 fake-IP 段。
 - **令牌只从 `GATEWAY_TOKEN` / `$DSH_SECRET_GATEWAY_TOKEN` 读**，长度 < 32 位会告警。
+- Amazon SP-API 与 eBay 凭证统一通过 DS Bot 的 **Settings → Secrets** 填写，取数脚本支持 `DSH_SECRET_` 前缀和裸名，前缀优先。见[凭证申请与自检](docs/credentials-setup.md)。
 
 ## 当前闸门（需外部输入）
 

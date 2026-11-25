@@ -113,3 +113,80 @@ CREDENTIALS = ("EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET")
 3. `credential_check.py` 在「全配置」「全缺」两种状态下的完整输出（凭证必须是 mock 值）；
 4. `grep -c` 证明输出里没有凭证原文的那条命令与结果；
 5. `diff -qr` 镜像结果（应为空）。
+
+### 验收实录
+
+使用 macOS 自带的 Python 3.9.6。Amazon LWA、eBay OAuth 和网关版本检查均使用本地回环 mock。网关 mock 按仓库中的 `browser-farm` 版本 `1.1.0` 响应，L3 版本不足负例也通过。
+
+#### 1. `bash distribution/verify.sh`
+
+```text
+-- 7g. 凭证接入层
+  PASS 7g.1 只设 DSH_SECRET_ 前缀，SP-API 和 eBay 通过本地 mock
+  PASS 7g.2 只设裸名，SP-API 和 eBay 通过本地 mock
+  PASS 7g.3 两种形态同时存在且值不同，两平台均使用前缀值
+  PASS 7g.4 自检成功、拒绝和网络失败的输出均无凭证原文（grep -c 为 0）
+  PASS 7g.5 全缺凭证时自检退出码为 2，JSON 的 configured 均为 false
+== 汇总: PASS=89 FAIL=0 WARN=1 ==
+RESULT: READY
+```
+
+1 条 WARN 来自 Amazon 需求侧真实样本缺失。临时副本的变异测试中，7g 分别拦住了忽略前缀、取消裸名兼容、裸名优先、自检回显 mock 凭证、缺凭证误报成功。另用 mock 验证了路由器会分别拦截两种形态的凭证回显，均未落盘。
+
+#### 2. `bash distribution/flow-smoke.sh`
+
+```text
+== 汇总: PASS=9 FAIL=0 WARN=3 ==
+RESULT: READY
+```
+
+3 条 WARN 来自 `prompt-enhancer`、`retrace`、`rollback-withdraw` 插件缺源。
+
+#### 3. `credential_check.py` 完整输出
+
+全配置时五项都用带 `DSH_SECRET_` 前缀的 mock 环境变量。文本与 JSON 两次执行的退出码均为 `0`，stderr 为空。
+
+```text
+SP_API_CLIENT_ID | 已配置 | DSH_SECRET_ | 可达
+SP_API_CLIENT_SECRET | 已配置 | DSH_SECRET_ | 可达
+SP_API_REFRESH_TOKEN | 已配置 | DSH_SECRET_ | 可达
+EBAY_CLIENT_ID | 已配置 | DSH_SECRET_ | 可达
+EBAY_CLIENT_SECRET | 已配置 | DSH_SECRET_ | 可达
+```
+
+```json
+{"credentials": [{"name": "SP_API_CLIENT_ID", "configured": true, "source": "DSH_SECRET_", "connectivity": "reachable"}, {"name": "SP_API_CLIENT_SECRET", "configured": true, "source": "DSH_SECRET_", "connectivity": "reachable"}, {"name": "SP_API_REFRESH_TOKEN", "configured": true, "source": "DSH_SECRET_", "connectivity": "reachable"}, {"name": "EBAY_CLIENT_ID", "configured": true, "source": "DSH_SECRET_", "connectivity": "reachable"}, {"name": "EBAY_CLIENT_SECRET", "configured": true, "source": "DSH_SECRET_", "connectivity": "reachable"}]}
+```
+
+全缺时文本与 JSON 两次执行的退出码均为 `2`，stderr 为空，两个 mock 均未收到请求。
+
+```text
+SP_API_CLIENT_ID | 未配置 | — | 未配置
+SP_API_CLIENT_SECRET | 未配置 | — | 未配置
+SP_API_REFRESH_TOKEN | 未配置 | — | 未配置
+EBAY_CLIENT_ID | 未配置 | — | 未配置
+EBAY_CLIENT_SECRET | 未配置 | — | 未配置
+```
+
+```json
+{"credentials": [{"name": "SP_API_CLIENT_ID", "configured": false, "source": null, "connectivity": "unconfigured"}, {"name": "SP_API_CLIENT_SECRET", "configured": false, "source": null, "connectivity": "unconfigured"}, {"name": "SP_API_REFRESH_TOKEN", "configured": false, "source": null, "connectivity": "unconfigured"}, {"name": "EBAY_CLIENT_ID", "configured": false, "source": null, "connectivity": "unconfigured"}, {"name": "EBAY_CLIENT_SECRET", "configured": false, "source": null, "connectivity": "unconfigured"}]}
+```
+
+#### 4. 凭证原文命中数
+
+自检 stdout 与 stderr 从标准输入传给 `grep`，待匹配的 mock 值通过 `MOCK_PATTERNS` 环境变量传给进程替换。上面的全配置和全缺输出合并检查时得到以下结果。`grep` 退出码为 `1`，表示没有匹配行。
+
+```text
+$ grep -F -c -f <(printf "%s\n" "$MOCK_PATTERNS")
+0
+```
+
+#### 5. 镜像比对
+
+使用包含本次新增文件的临时源码副本生成 tar.gz 与 ZIP。下面三次比对均退出 `0`，输出为空。`$TAR_WORKSPACE` 与 `$ZIP_WORKSPACE` 分别指向两份解包后的 L2 工作区。
+
+```bash
+diff -qr distribution/l2/skills distribution/l2/bundle/skills
+diff -qr distribution/l2/workspace "$TAR_WORKSPACE"
+diff -qr distribution/l2/workspace "$ZIP_WORKSPACE"
+```

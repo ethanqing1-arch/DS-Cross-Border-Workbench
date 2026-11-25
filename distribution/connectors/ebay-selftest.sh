@@ -40,7 +40,7 @@ def require(condition, message):
 
 def run_client(base, args, variables):
     result = subprocess.run(
-        [sys.executable, str(client), *args, "--base-url", base],
+        [sys.executable, "-B", str(client), *args, "--base-url", base],
         env={**clean_env, **variables}, capture_output=True, text=True, timeout=30,
     )
     require(all(value not in result.stdout and value not in result.stderr for value in fixture_values),

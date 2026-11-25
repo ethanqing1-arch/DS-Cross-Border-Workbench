@@ -151,11 +151,11 @@ else
 fi
 # skill 承诺的脚本与话术库必须真的随包装进工作区（曾漏发过）
 L2_MISSING=""
-for f in scripts/cs_router.py scripts/gen_listing.py scripts/ops_report.py scripts/score_products.py scripts/screen_to_candidates.py scripts/spapi_fetch.py scripts/ebay_fetch.py scripts/fetch_router.py data/faq.json; do
+for f in scripts/cs_router.py scripts/gen_listing.py scripts/ops_report.py scripts/score_products.py scripts/screen_to_candidates.py scripts/spapi_fetch.py scripts/ebay_fetch.py scripts/fetch_router.py scripts/credentials.py scripts/credential_check.py data/faq.json; do
   [ -s "$WS/$f" ] || L2_MISSING="$L2_MISSING $f"
 done
 if [ -z "$L2_MISSING" ]; then
-  ok "L2 工作区随包脚本 8 个 + faq.json 齐全"
+  ok "L2 工作区随包脚本 10 个 + faq.json 齐全"
 else
   bad "L2 工作区缺随包文件：${L2_MISSING# }"
 fi
@@ -385,7 +385,7 @@ fi
 
 # ---------------------------------------------------------------- 7b. 降级链
 echo "-- 7b. 降级链"
-if OUT="$(bash "$CONN/router-selftest.sh" 2>&1)" && printf '%s\n' "$OUT" | grep -Fxq 'RESULT: READY'; then
+if OUT="$(PYTHONDONTWRITEBYTECODE=1 bash "$CONN/router-selftest.sh" 2>&1)" && printf '%s\n' "$OUT" | grep -Fxq 'RESULT: READY'; then
   ok "降级链自检（T1 / T3 / E_NO_TIER）"
 else
   bad "降级链自检"
@@ -809,6 +809,171 @@ PY
 else
   bad "证据分层打分断言执行失败"
   printf '%s\n' "$OUT" | sed 's/^/    /'
+fi
+
+# ---------------------------------------------------------------- 7g. 凭证接入层
+echo "-- 7g. 凭证接入层"
+if OUT="$(python3 -B - "$WS/scripts" "$CONN" "$TMP" 2>&1 <<'PY'
+import base64
+import io
+import json
+import os
+import subprocess
+import sys
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
+from pathlib import Path
+from threading import Thread
+from unittest.mock import patch
+from urllib.parse import parse_qs
+
+scripts, connectors, temporary = sys.argv[1:]
+sys.path[:0] = [scripts, connectors]
+import credential_check
+import ebay_fetch
+import ebay_mock
+import spapi_fetch
+import spapi_mock
+
+
+bare = {
+    "SP_API_CLIENT_ID": "mock-id", "SP_API_CLIENT_SECRET": "mock-secret",
+    "SP_API_REFRESH_TOKEN": "mock-refresh", "EBAY_CLIENT_ID": "mock-id",
+    "EBAY_CLIENT_SECRET": "mock-secret",
+}
+prefixed = {"DSH_SECRET_" + name: value for name, value in bare.items()}
+wrong_bare = {name: f"unused-fixture-{index}" for index, name in enumerate(bare)}
+clean_env = {name: value for name, value in os.environ.items()
+             if name not in bare and not name.startswith("DSH_SECRET_")}
+expected_lwa = {"grant_type": ["refresh_token"], "client_id": [bare["SP_API_CLIENT_ID"]],
+                "client_secret": [bare["SP_API_CLIENT_SECRET"]],
+                "refresh_token": [bare["SP_API_REFRESH_TOKEN"]]}
+
+
+class StrictLwaHandler(spapi_mock.Handler):
+    def do_POST(self):
+        self.server.stats["lwa_requests"] += 1
+        size = int(self.headers.get("Content-Length", "0"))
+        form = parse_qs(self.rfile.read(size).decode("ascii"))
+        if (self.path == "/auth/o2/token" and form == expected_lwa
+                and self.headers.get_content_type() == "application/x-www-form-urlencoded"):
+            self.send_json(200, {"access_token": spapi_mock.ACCESS, "expires_in": 3600})
+        else:
+            self.send_json(401, {"error": "Invalid mock credentials"})
+
+
+@contextmanager
+def serving(server):
+    with server:
+        worker = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
+        worker.start()
+        try:
+            yield
+        finally:
+            server.shutdown()
+            worker.join()
+
+
+def token_counts():
+    return spapi.stats["lwa_requests"], ebay.stats["token_requests"]
+
+
+def fetchers_accept(variables):
+    before_spapi, before_ebay = token_counts()
+    for name, base, arguments, count in (
+        ("spapi_fetch.py", spapi.base_url, ["catalog", "--asin", "B0MOCK0001"], 1),
+        ("ebay_fetch.py", ebay_url, ["search", "--q", "earbuds", "--limit", "2"], 2),
+    ):
+        result = subprocess.run(
+            [sys.executable, "-B", str(Path(scripts) / name), *arguments,
+             "--base-url", base, "--out", temporary],
+            env={**clean_env, **variables}, capture_output=True, encoding="utf-8", timeout=10,
+        )
+        if result.returncode != 0 or result.stderr or json.loads(result.stdout)["items"] != count:
+            return False
+    return token_counts() == (before_spapi + 1, before_ebay + 1)
+
+
+def run_checker(variables, *args):
+    stdout, stderr = io.StringIO(), io.StringIO()
+    with patch.dict(os.environ, {**clean_env, **variables}, clear=True), \
+         patch.object(sys, "argv", ["credential_check.py", *args]), \
+         patch.object(spapi_fetch, "LWA_URL", spapi.base_url + "/auth/o2/token"), \
+         patch.dict(ebay_fetch.ORIGINS, {"sandbox": ebay_url, "production": ebay_url}), \
+         redirect_stdout(stdout), redirect_stderr(stderr):
+        code = credential_check.main()
+    return code, stdout.getvalue(), stderr.getvalue()
+
+
+def grep_for_credentials(output):
+    patterns = {*bare.values(), *wrong_bare.values(), spapi_mock.ACCESS,
+                base64.b64encode(b"mock-id:mock-secret").decode("ascii")}
+    return subprocess.run(
+        ["bash", "-c", 'grep -F -c -f <(printf "%s\\n" "$MOCK_PATTERNS")'],
+        input=output, env={**clean_env, "MOCK_PATTERNS": "\n".join(sorted(patterns))},
+        capture_output=True, encoding="utf-8", timeout=5,
+    )
+
+
+def checker_redacts():
+    before_spapi, before_ebay = token_counts()
+    code, stdout, stderr = run_checker({**wrong_bare, **prefixed}, "--json", "--env", "production")
+    text_code, text_out, text_err = run_checker(bare)
+    failed, rejected_out, rejected_err = run_checker(wrong_bare)
+    with patch("socket.create_connection", side_effect=OSError(bare["SP_API_CLIENT_SECRET"])):
+        offline, offline_out, offline_err = run_checker(bare)
+    grep = grep_for_credentials("\n".join((stdout, stderr, text_out, text_err,
+                                           rejected_out, rejected_err, offline_out, offline_err)))
+    rows = json.loads(stdout)["credentials"]
+    return (code == text_code == 0 and not (stderr or text_err or rejected_err or offline_err)
+            and all(row["configured"] is True for row in rows)
+            and [(row["name"], row["source"], row["connectivity"]) for row in rows]
+            == [(name, "DSH_SECRET_", "reachable") for name in bare]
+            and text_out.splitlines() == [f"{name} | 已配置 | 裸名 | 可达" for name in bare]
+            and failed == offline == 2 and rejected_out == offline_out
+            and rejected_out.splitlines() == [f"{name} | 已配置 | 裸名 | 不可达" for name in bare]
+            and token_counts() == (before_spapi + 3, before_ebay + 3)
+            and grep.returncode == 1 and grep.stdout.strip() == "0")
+
+
+def checker_reports_missing():
+    before = token_counts()
+    code, stdout, stderr = run_checker({}, "--json")
+    rows = json.loads(stdout)["credentials"]
+    return (code == 2 and not stderr and token_counts() == before
+            and [row["name"] for row in rows] == list(bare)
+            and all(row["configured"] is False and row["source"] is None
+                    and row["connectivity"] == "unconfigured" for row in rows))
+
+
+def check(label, test, *args):
+    try:
+        passed = test(*args)
+    except Exception:
+        passed = False
+    print(f"{'PASS' if passed else 'FAIL'} {label}")
+
+
+spapi = spapi_mock.MockServer()
+spapi.RequestHandlerClass = StrictLwaHandler
+with serving(spapi), serving(ebay := ebay_mock.MockServer()):
+    ebay_url = f"http://127.0.0.1:{ebay.server_port}"
+    check("7g.1 只设 DSH_SECRET_ 前缀，SP-API 和 eBay 通过本地 mock", fetchers_accept, prefixed)
+    check("7g.2 只设裸名，SP-API 和 eBay 通过本地 mock", fetchers_accept, bare)
+    check("7g.3 两种形态同时存在且值不同，两平台均使用前缀值",
+          fetchers_accept, {**wrong_bare, **prefixed})
+    check("7g.4 自检成功、拒绝和网络失败的输出均无凭证原文（grep -c 为 0）", checker_redacts)
+    check("7g.5 全缺凭证时自检退出码为 2，JSON 的 configured 均为 false", checker_reports_missing)
+PY
+)"; then
+  while IFS= read -r line; do
+    case "$line" in
+      "PASS "*) ok "${line#PASS }" ;;
+      "FAIL "*) bad "${line#FAIL }" ;;
+      *) bad "凭证接入层断言输出异常" ;;
+    esac
+  done <<< "$OUT"
+else
+  bad "凭证接入层断言执行失败"
 fi
 
 # ---------------------------------------------------------------- 8. 授权与安装包自检

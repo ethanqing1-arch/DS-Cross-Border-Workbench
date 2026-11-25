@@ -26,6 +26,8 @@ credentials = {
     "SP_API_REFRESH_TOKEN": "mock-refresh",
 }
 fixture_values = (*credentials.values(), "mock-token", "denied-id")
+credential_names = set(credentials) | {"DSH_SECRET_" + name for name in credentials}
+clean_env = {name: value for name, value in os.environ.items() if name not in credential_names}
 opener = build_opener(ProxyHandler({}))
 passed = 0
 failed = 0
@@ -41,13 +43,9 @@ def require(condition, message):
 
 
 def run_client(args, variables):
-    env = dict(os.environ)
-    for name in credentials:
-        env.pop(name, None)
-    env.update(variables)
     result = subprocess.run(
-        [sys.executable, str(client), *args],
-        env=env, capture_output=True, text=True, timeout=30,
+        [sys.executable, "-B", str(client), *args],
+        env={**clean_env, **variables}, capture_output=True, text=True, timeout=30,
     )
     require(all(value not in result.stdout and value not in result.stderr
                 for value in fixture_values), "客户端输出含凭证值")
@@ -187,9 +185,8 @@ print("== SP-API 本地假服务自检 ==", flush=True)
 with tempfile.TemporaryDirectory(prefix="dsh-spapi-", dir="/tmp") as root:
     port_file = Path(root) / "port"
     out = Path(root) / "out"
-    mock_env = {name: value for name, value in os.environ.items() if name not in credentials}
     with subprocess.Popen([sys.executable, str(src / "spapi_mock.py"), "--port-file", str(port_file)],
-                          env=mock_env) as server:
+                          env=clean_env) as server:
         try:
             run_cases(server, port_file, out)
         except TestFailure as error:

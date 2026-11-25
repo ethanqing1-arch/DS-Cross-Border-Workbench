@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from credentials import CREDENTIAL_NAMES, PREFIX
+
 
 SCRIPTS = Path(__file__).resolve().parent
 DISTRIBUTION = SCRIPTS.parent.parent.parent
@@ -23,7 +25,6 @@ EBAY_ERRORS = {
     6: "E_EBAY_NET",
 }
 T3_ERRORS = {2: "blocked", 3: "empty"}
-CREDENTIAL_NAMES = {"EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET", "GATEWAY_TOKEN"}
 
 
 class ConfigError(Exception):
@@ -177,7 +178,7 @@ def route_search(args, route, override, credentials):
 
 def main():
     credentials = {value for name, value in os.environ.items() if value
-                   and (name in CREDENTIAL_NAMES or name.startswith("DSH_SECRET_"))}
+                   and (name in CREDENTIAL_NAMES or name.startswith(PREFIX))}
     try:
         args = parse_args()
         if (not re.fullmatch(r"[a-z][a-z0-9_-]*", args.platform) or not args.q.strip()

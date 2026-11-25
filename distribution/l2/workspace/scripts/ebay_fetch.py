@@ -6,7 +6,6 @@ import base64
 import http.client
 import json
 import math
-import os
 import re
 import sys
 import tempfile
@@ -19,6 +18,8 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
+import credentials
+
 
 ORIGINS = {
     "sandbox": "https://api.sandbox.ebay.com",
@@ -26,7 +27,7 @@ ORIGINS = {
 }
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 MARKETPLACES = ("EBAY_US", "EBAY_GB", "EBAY_DE", "EBAY_AU")
-CREDENTIALS = ("EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET")
+CREDENTIALS = credentials.EBAY_CREDENTIALS
 SCOPE = "https://api.ebay.com/oauth/api_scope"
 
 EXIT_CODES = {
@@ -70,14 +71,14 @@ def retry_delay(header, fallback):
 
 class EbayClient:
     def __init__(self, environment, base_url):
-        credentials = {name: os.environ.get(name) for name in CREDENTIALS}
-        missing = [name for name, value in credentials.items() if not value]
+        resolved = {name: credentials.resolve(name) for name in CREDENTIALS}
+        missing = credentials.missing(resolved)
         if missing:
             raise EbayError("E_EBAY_CONFIG", missing=missing)
-        client_id, client_secret = (credentials[name] for name in CREDENTIALS)
+        client_id, client_secret = (resolved[name] for name in CREDENTIALS)
         basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode("ascii")
         self.basic = basic
-        self.sensitive_values = {client_id, client_secret, basic}
+        self.sensitive_values = credentials.sensitive_values(CREDENTIALS) | {basic}
 
         self.origin = ORIGINS[environment] if base_url is None else base_url.rstrip("/")
         try:
@@ -96,8 +97,8 @@ class EbayClient:
         self.access = None
         self.expires_at = 0
 
-    def request_json(self, make_request):
-        for fallback in (2, 4, 8, None):
+    def request_json(self, make_request, *, retry_throttled=True):
+        for fallback in (2, 4, 8, None) if retry_throttled else (None,):
             request = make_request()
             try:
                 with self.opener.open(request, timeout=30) as response:
@@ -123,7 +124,7 @@ class EbayClient:
                 raise EbayError("E_EBAY_HTTP", message="Expected a JSON object")
             return data
 
-    def application_token(self):
+    def application_token(self, *, retry_throttled=True):
         now = time.monotonic()
         if now < self.expires_at - 60:
             return self.access, math.ceil(self.expires_at - now)
@@ -137,7 +138,7 @@ class EbayClient:
                 "Authorization": f"Basic {self.basic}",
             },
         )
-        data = self.request_json(lambda: request)
+        data = self.request_json(lambda: request, retry_throttled=retry_throttled)
         access, lifetime = data.get("access_token"), data.get("expires_in")
         if (not isinstance(access, str) or not re.fullmatch(r"[!-~]+", access)
                 or type(lifetime) is not int or lifetime <= 0):

@@ -8,7 +8,6 @@ import hmac
 import http.client
 import json
 import math
-import os
 import re
 import sys
 import tempfile
@@ -21,14 +20,12 @@ from urllib.error import HTTPError
 from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
+import credentials
+
 
 LWA_URL = "https://api.amazon.com/auth/o2/token"
 REPORTS = "/reports/2021-06-30"
-CREDENTIALS = {
-    "client_id": "SP_API_CLIENT_ID",
-    "client_secret": "SP_API_CLIENT_SECRET",
-    "refresh_token": "SP_API_REFRESH_TOKEN",
-}
+CREDENTIALS = credentials.SPAPI_CREDENTIALS
 ENDPOINTS = {
     "NA": ("us-east-1", "https://sellingpartnerapi-na.amazon.com"),
     "EU": ("eu-west-1", "https://sellingpartnerapi-eu.amazon.com"),
@@ -181,10 +178,12 @@ def sign_request(method, path, query, body, host, region, client_id, access):
 
 class SPAPI:
     def __init__(self, marketplace, base_url):
-        self.credentials = {field: os.environ.get(var) for field, var in CREDENTIALS.items()}
-        missing = [var for field, var in CREDENTIALS.items() if not self.credentials[field]]
+        resolved = {name: credentials.resolve(name) for name in CREDENTIALS.values()}
+        missing = credentials.missing(resolved)
         if missing:
             raise SPAPIError("E_SPAPI_CONFIG", missing=missing)
+        self.credentials = {field: resolved[name] for field, name in CREDENTIALS.items()}
+        self.sensitive_values = credentials.sensitive_values(CREDENTIALS.values())
         market_region, self.market_id = MARKETPLACES[marketplace]
         self.region, default_origin = ENDPOINTS[market_region]
         self.origin = base_url.rstrip("/") if base_url is not None else default_origin
@@ -199,8 +198,8 @@ class SPAPI:
         self.access = None
         self.refresh_at = 0
 
-    def request(self, make_request, deadline=None):
-        for attempt, fallback in enumerate((2, 4, 8, None)):
+    def request(self, make_request, deadline=None, *, retry_throttled=True):
+        for fallback in (2, 4, 8, None) if retry_throttled else (None,):
             request = make_request()
             timeout = 30
             if deadline is not None:
@@ -224,7 +223,7 @@ class SPAPI:
             except (OSError, http.client.HTTPException, ValueError):
                 raise SPAPIError("E_SPAPI_NET", message="Request failed or timed out") from None
 
-    def access_token(self, deadline):
+    def access_token(self, deadline, *, retry_throttled=True):
         now = time.monotonic()
         if now >= self.refresh_at:
             data = urlencode({"grant_type": "refresh_token", **self.credentials}).encode()
@@ -232,7 +231,7 @@ class SPAPI:
                 "Content-Type": "application/x-www-form-urlencoded",
                 "Accept": "application/json",
             })
-            body, _ = self.request(lambda: request, deadline)
+            body, _ = self.request(lambda: request, deadline, retry_throttled=retry_throttled)
             result = object_data(body, "LWA")
             access = response_string(result, "access_token")
             expires = result.get("expires_in")
@@ -310,7 +309,7 @@ class SPAPI:
     def save(self, path, data):
         serialized = json.dumps(data)
         summary_path = json.dumps(str(path))
-        for value in (*self.credentials.values(), self.access):
+        for value in (*self.sensitive_values, self.access):
             escaped_value = json.dumps(value)[1:-1]
             if escaped_value in serialized or escaped_value in summary_path:
                 raise SPAPIError("E_SPAPI_HTTP", message="Credential material in output")
