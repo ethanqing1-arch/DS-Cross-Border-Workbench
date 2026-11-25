@@ -51,14 +51,24 @@ README.md:78   installer-selftest.sh  写的 PASS=6    → 实测 PASS=8 FAIL=0
 
 ### T4 文档数字同步
 
-把实测值写回（这些数是我刚跑出来的，不要自己重编）：
+**当前实测基线（我刚跑的，brief-24 之后）**：
 
-| 文件 | 行 | 现值 | 改成 |
-|---|---|---|---|
-| `README.md` | 77 | `PASS=79 FAIL=0 WARN=1` | `PASS=93 FAIL=0 WARN=1` |
-| `README.md` | 78 | `PASS=6 FAIL=0` | `PASS=8 FAIL=0` |
-| `docs/roadmap.md` | 装/跑 两行 | 仍是 79 / 9 | verify `PASS=93 FAIL=0 WARN=1`、installer `PASS=8` |
-| `docs/external-setup.md` | verify 基线 | 79 | 93 |
+```
+verify.sh             == 汇总: PASS=96 FAIL=0 WARN=1 ==   RESULT: READY
+installer-selftest.sh == 汇总: PASS=11 FAIL=0 ==          RESULT: READY
+flow-smoke.sh         == 汇总: PASS=9 FAIL=0 WARN=3 ==    RESULT: READY
+```
+
+**写回文档的数必须是这一单做完后的最终实测值**（T5 会新增 7i 断言，verify 的 PASS 数会从 96 往上加；不许照抄 96，也不许照抄旧值）。四处一起对齐，别只改一处：
+
+| 文件 | 现值（错的） | 改成 |
+|---|---|---|
+| `README.md` | `PASS=79 FAIL=0 WARN=1` | 你最后跑出来的 verify 实测值 |
+| `README.md` | `PASS=6 FAIL=0` | installer-selftest 最终实测值（本单不加断言，应为 11） |
+| `docs/roadmap.md` 装行与核查行 | `PASS=79` / `PASS=6` | 同上两个最终值 |
+| `docs/external-setup.md` verify 基线 | `PASS=79` | verify 最终值 |
+
+改完在收尾写清楚：最终 verify 是 `PASS=<N>`，其中几条是本单 7i 新增的（写清 N−96 等于几条）。
 
 （先自己 `grep -n "PASS=79\|PASS=6" README.md docs/*.md` 核对行号，别照抄我的行号。）
 
@@ -94,4 +104,4 @@ README.md:78   installer-selftest.sh  写的 PASS=6    → 实测 PASS=8 FAIL=0
 4. `keyword_volume.py --mock` 前后候选表的两行原文（证明 `月搜索量` 被填、其它列没被改）；
 5. 补上月搜索量后的打分表那一行（证明证据等级从 C 升到 B）；
 6. 卖家精灵调研结论一句话 + 依据链接；
-7. `grep -n "PASS=93\|PASS=8" README.md docs/*.md` 的结果（证明四处都对上了）。
+7. `grep -rn "PASS=79" README.md docs/` 的结果：除 `docs/codex-dev-brief-*.md` 历史交接单外必须零命中；再贴 `grep -n "<verify 最终数>\|<installer 最终数>" README.md docs/roadmap.md docs/external-setup.md` 证明四处都对上。
