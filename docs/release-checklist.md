@@ -3,6 +3,7 @@
 ## 构建前
 
 - [ ] `git status --porcelain` 输出为空，`VERSION` 已从上次发布版本递增。
+- [ ] `distribution/l1/licence/public.pem` 已替换为真实公钥（首行无 `PLACEHOLDER`，文件内含 `BEGIN PUBLIC KEY`）。替换前只能用 `--allow-placeholder-licence` 构建及核验内部试装包，核验时会打印 `WARN 本包仅供内部试装：含占位授权公钥`。
 - [ ] `bash distribution/verify.sh` 和 `bash distribution/flow-smoke.sh` 均以 `FAIL=0`、`RESULT: READY` 结束。
 - [ ] 本地已有 `farm/node_modules/ws`，构建和端到端试装使用本地依赖。按需在 macOS 上加 `--dmg`。
 
@@ -15,7 +16,8 @@ bash distribution/release.sh --dmg
 ## 检查产物
 
 - [ ] 包内有 `LICENSE`、`VERSION`、`distribution/`、`docs/`、`farm/` 和 `MANIFEST.sha256`。
-- [ ] 包内无真实凭证或令牌、任何私钥（包括 `*.pem` 私钥）、`.env` 及其变体、`farm/state/`（包括 `farm/state/*.db`）、`farm/profiles/` 或 `distribution/out/`。离线授权用的 `distribution/l1/licence/public.pem` 是公钥。
+- [ ] 包内唯一允许的 `.pem` 路径是离线授权公钥 `distribution/l1/licence/public.pem`。所有文件都不得含私钥标记，包括改用其他后缀的文件。
+- [ ] 包内无真实凭证或令牌、`.env` 及其变体、`farm/state/`（包括 `farm/state/*.db`）、`farm/profiles/` 或 `distribution/out/`。
 
 ## 发出去之前
 

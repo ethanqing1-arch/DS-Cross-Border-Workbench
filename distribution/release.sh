@@ -18,8 +18,11 @@ CREDENTIALS = {
     "SP_API_CLIENT_ID", "SP_API_CLIENT_SECRET", "SP_API_REFRESH_TOKEN",
     "EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET", "GATEWAY_TOKEN", "PROXY_URL",
 }
-PRIVATE_KEY = re.compile(rb"^-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----\r?$", re.MULTILINE)
-PUBLIC_PEM = re.compile(rb"^-----BEGIN (?:PUBLIC KEY|RSA PUBLIC KEY|CERTIFICATE)-----\r?$", re.MULTILINE)
+LICENCE_PUBLIC_KEY = "distribution/l1/licence/public.pem"
+PRIVATE_KEY_MARKER = rb"\bBEGIN (?:[A-Z0-9]+ )*PRIVATE KEY\b"
+PRIVATE_KEY_HEADER = re.compile(rb"-----" + PRIVATE_KEY_MARKER + rb"-----")
+EARLY_PRIVATE_KEY = re.compile(PRIVATE_KEY_MARKER)
+PUBLIC_KEY = re.compile(rb"^-----BEGIN PUBLIC KEY-----\r?$", re.MULTILINE)
 PLATFORM_CREDENTIAL = re.compile(
     rb"\bamzn1\.(?:application-oa2-client|oa2-client)\.[0-9a-f]{32}\b"
     rb"|\bAtz[ar]\|[A-Za-z0-9_~.=-]{16,}"
@@ -32,15 +35,26 @@ ENV_CREDENTIALS = {
 }
 
 
+class ReleaseRefused(ValueError):
+    pass
+
+
 def check_path(path):
     parts = tuple(part.lower() for part in path.parts)
     if parts[:2] in {("farm", "state"), ("distribution", "out")} or any(
         part in {".dsh", ".env", ".netrc", ".npmrc", "profiles", "credentials.json", "secrets.json"}
         or part.startswith(".env.") or ".db" in part
         or part.endswith((".key", ".p12", ".pfx", ".sqlite", ".sqlite3"))
+        or (part.endswith(".pem") and path.as_posix() != LICENCE_PUBLIC_KEY)
         for part in parts
     ):
-        raise ValueError(f"发行包含禁止路径：{path}")
+        raise ReleaseRefused(f"发行包含禁止路径：{path}")
+
+
+def check_private_key(content, name):
+    first_lines = content.split(b"\n", 5)[:5]
+    if PRIVATE_KEY_HEADER.search(content) or any(EARLY_PRIVATE_KEY.search(line) for line in first_lines):
+        raise ReleaseRefused(f"发行包含私钥：{name}")
 
 
 def check_payload(root):
@@ -50,19 +64,30 @@ def check_payload(root):
         name = path.relative_to(root)
         check_path(name)
         if path.is_symlink():
-            raise ValueError(f"发行包含符号链接：{name}")
+            raise ReleaseRefused(f"发行包含符号链接：{name}")
         if not path.is_file():
             continue
         content = path.read_bytes()
-        if PRIVATE_KEY.search(content) or (path.suffix.lower() == ".pem" and not PUBLIC_PEM.search(content)):
-            raise ValueError(f"发行包含私钥或无法识别的 PEM：{name}")
+        check_private_key(content, name)
         if content.startswith(b"SQLite format 3\0"):
-            raise ValueError(f"发行包含 SQLite 数据库：{name}")
+            raise ReleaseRefused(f"发行包含 SQLite 数据库：{name}")
         if PLATFORM_CREDENTIAL.search(content) or any(value in content for value in ENV_CREDENTIALS):
-            raise ValueError(f"发行包疑似含真实凭证：{name}")
+            raise ReleaseRefused(f"发行包疑似含真实凭证：{name}")
 
 
-def unpack(archive, destination):
+def check_licence(root, allow_placeholder):
+    key = root / LICENCE_PUBLIC_KEY
+    if key.resolve() != key:
+        raise ReleaseRefused(f"发行包含符号链接：{LICENCE_PUBLIC_KEY}")
+    content = key.read_bytes()
+    check_private_key(content, LICENCE_PUBLIC_KEY)
+    placeholder = b"PLACEHOLDER" in content.partition(b"\n")[0] or not PUBLIC_KEY.search(content)
+    if False and placeholder and not allow_placeholder:
+        raise ReleaseRefused("占位公钥，不能对外发布")
+    return placeholder
+
+
+def unpack(archive, destination, allow_placeholder):
     top = archive.stem
     root = destination / top
     names = set()
@@ -109,12 +134,14 @@ def unpack(archive, destination):
         raise ValueError("ZIP 版本与随包 VERSION 不一致")
     check_payload(root)
     print("PASS 发行包通过凭证、私钥、台账、profile 与输出目录检查")
+    if check_licence(root, allow_placeholder):
+        print("WARN 本包仅供内部试装：含占位授权公钥")
     return root
 
 
-def check_install(archive, temp):
+def check_install(archive, temp, allow_placeholder):
     print(f"== 核验 ZIP {archive} ==")
-    root = unpack(archive, temp / "unpacked")
+    root = unpack(archive, temp / "unpacked", allow_placeholder)
     installer = root / "distribution/installer/first-run.command"
     if not installer.is_file() or not os.access(installer, os.X_OK):
         raise ValueError("ZIP 中 first-run.command 缺失或不可执行")
@@ -135,6 +162,7 @@ def release(root, argv):
     parser.add_argument("--out", type=Path, default=root / "distribution/out", help="发行包目录")
     parser.add_argument("--dmg", action="store_true", help="构建时另产 macOS DMG")
     parser.add_argument("--check", action="store_true", help="只核验现有 ZIP")
+    parser.add_argument("--allow-placeholder-licence", action="store_true", help="允许构建及核验含占位授权公钥的内部试装包")
     args = parser.parse_args(argv)
     output = args.out.resolve()
     version = (root / "VERSION").read_text(encoding="utf-8").strip()
@@ -146,15 +174,21 @@ def release(root, argv):
         # macOS 的临时目录可能经过符号链接，与 verify 比较前先解析路径。
         temp = Path(temporary).resolve()
         if args.check:
-            check_install(output / (top + ".zip"), temp)
+            check_install(output / (top + ".zip"), temp, args.allow_placeholder_licence)
         else:
+            check_licence(root, args.allow_placeholder_licence)
             pending = temp / "artifacts"
             command = ["/bin/bash", str(root / "distribution/make-bundle.sh"), "--out", str(pending)]
             if args.dmg:
                 command.append("--dmg")
             print("== 构建发行包 ==")
-            subprocess.run(command, check=True)
-            check_install(pending / (top + ".zip"), temp)
+            result = subprocess.run(command, stderr=subprocess.PIPE, text=True)
+            # make-bundle.sh 会先于 ZIP 核验拒绝标准的私钥头。
+            if result.returncode and result.stderr.startswith("FAIL 发行文件含私钥："):
+                raise ReleaseRefused(result.stderr.rstrip().removeprefix("FAIL "))
+            sys.stderr.write(result.stderr)
+            result.check_returncode()
+            check_install(pending / (top + ".zip"), temp, args.allow_placeholder_licence)
             output.mkdir(parents=True, exist_ok=True)
             for artifact in sorted(pending.iterdir()):
                 final = output / artifact.name
@@ -167,10 +201,15 @@ def release(root, argv):
 
 try:
     if sys.argv[1] == "payload":
-        for directory in sys.argv[2:]:
-            check_payload(Path(directory))
+        parser = argparse.ArgumentParser(prog="bash distribution/release.sh payload")
+        parser.add_argument("directories", metavar="dir", type=Path, nargs="+")
+        for directory in parser.parse_args(sys.argv[2:]).directories:
+            check_payload(directory)
     else:
         release(Path(sys.argv[2]), sys.argv[3:])
+except ReleaseRefused as error:
+    print(f"FAIL {error}", file=sys.stderr)
+    sys.exit(3)
 except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError, zipfile.BadZipFile) as error:
     sys.exit(f"FAIL {error}")
 PY
@@ -178,5 +217,9 @@ PY
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   ROOT="$(cd "$(dirname "$0")/.." && pwd -P)" || exit 1
-  release_tool release "$ROOT" "$@"
+  if [ "${1:-}" = payload ]; then
+    release_tool "$@"
+  else
+    release_tool release "$ROOT" "$@"
+  fi
 fi

@@ -83,3 +83,113 @@ part.endswith((".key", ".p12", ".pfx", ".sqlite", ".sqlite3"))
 3. 当前仓库（占位公钥）跑 `release.sh` 的完整输出与退出码；
 4. 两次变异测试原文；
 5. `git status` 证明仓库里没有新增私钥文件。
+
+### 验收原文
+
+`bash distribution/verify.sh` 退出码 `0`。
+
+```text
+  WARN 跳过 Amazon 真实样本需求侧断言（本轮未能取到可用样本，见 docs/amazon-throttle.md）
+  PASS 7h.5 默认拒绝使用占位公钥构建（退出码 3）
+  PASS 7h.6 显式允许内部试装并警告（退出码 0），默认核验拒绝占位包（退出码 3）
+  PASS 7h.7 临时生成的真实公钥无需开关即可构建（退出码 0）
+== 汇总: PASS=96 FAIL=0 WARN=1 ==
+RESULT: READY
+```
+
+`bash distribution/installer-selftest.sh` 退出码 `0`。
+
+```text
+  PASS 9. 拒绝白名单外的 evil.pem（退出码 3）
+  PASS 10. 拒绝含私钥标记的 notes.txt（退出码 3）
+  PASS 11. 放行 distribution/l1/licence/public.pem（退出码 0）
+== 汇总: PASS=11 FAIL=0 ==
+RESULT: READY
+```
+
+当前仓库运行 `bash distribution/release.sh`，退出码 `3`。完整输出如下。
+
+```text
+FAIL 占位公钥，不能对外发布
+```
+
+### 两次变异测试
+
+变异仅在仓库外的解包副本上执行。
+
+第一次移除 `.pem` 精确路径白名单，验证全放行和全拒绝两种结果。
+
+全放行时 `bash distribution/installer-selftest.sh` 退出码 `1`。
+
+```text
+  FAIL 9. 拒绝白名单外的 evil.pem（退出码 0，期望 3）
+  PASS 10. 拒绝含私钥标记的 notes.txt（退出码 3）
+  PASS 11. 放行 distribution/l1/licence/public.pem（退出码 0）
+== 汇总: PASS=10 FAIL=1 ==
+RESULT: NOT_READY
+```
+
+全拒绝时 `bash distribution/installer-selftest.sh` 退出码 `1`。
+
+```text
+FAIL 发行包含禁止路径：distribution/l1/licence/public.pem
+  FAIL 9. 拒绝白名单外的 evil.pem（退出码 3，期望 3）
+FAIL 发行包含禁止路径：distribution/l1/licence/public.pem
+  FAIL 10. 拒绝含私钥标记的 notes.txt（退出码 3，期望 3）
+FAIL 发行包含禁止路径：distribution/l1/licence/public.pem
+FAIL 发行包含禁止路径：distribution/l1/licence/public.pem
+  FAIL 11. 未放行 distribution/l1/licence/public.pem
+== 汇总: PASS=7 FAIL=4 ==
+RESULT: NOT_READY
+```
+
+第二次禁用占位公钥拦截。`bash distribution/verify.sh` 退出码 `1`。
+
+```text
+  FAIL 7h.5 默认拒绝使用占位公钥构建（退出码 0，期望 3）
+  FAIL 7h.6 内部试装或占位包核验结果异常（构建退出码 0，核验退出码 0）
+  PASS 7h.7 临时生成的真实公钥无需开关即可构建（退出码 0）
+== 汇总: PASS=93 FAIL=2 WARN=1 ==
+RESULT: NOT_READY
+```
+
+### 补充验收
+
+`bash distribution/flow-smoke.sh` 退出码 `0`。
+
+```text
+  WARN 插件缺源：prompt-enhancer
+  WARN 插件缺源：retrace
+  WARN 插件缺源：rollback-withdraw
+== 汇总: PASS=9 FAIL=0 WARN=3 ==
+RESULT: READY
+```
+
+无公钥头的副本默认构建和默认核验均退出 `3`。显式允许后，ZIP、tar.gz 和 DMG 可构建，ZIP 核验打印内部试装警告。核验前后的产物 inode、mtime 和 SHA256 一致。无效参数退出 `2`，核验不存在的 ZIP 退出 `1`。
+
+### Git 工作区
+
+`git status --porcelain=v1 --untracked-files=all` 原文如下。
+
+```text
+ M distribution/installer-selftest.sh
+ M distribution/release.sh
+ M distribution/verify.sh
+ M docs/codex-dev-brief-24.md
+ M docs/release-checklist.md
+```
+
+五个范围内文件均为未暂存修改。仓库中未新增私钥或其他文件。
+
+### 独立复跑补记
+
+总验收、安装自检和业务流冒烟复跑结果与上文一致。默认发布退出 `3`，未创建 `distribution/out/`。
+
+在另一个 `mktemp` 副本中复跑占位闸门变异，使用随包的农场路径占位变量和本机空端口。Git 状态检查按解包目录规则跳过，网关相关断言产生预期警告。原始输出如下，退出码为 `1`。
+
+```text
+  FAIL 7h.5 默认拒绝使用占位公钥构建（退出码 0，期望 3）
+  FAIL 7h.6 内部试装或占位包核验结果异常（构建退出码 0，核验退出码 0）
+== 汇总: PASS=92 FAIL=2 WARN=3 ==
+RESULT: NOT_READY
+```

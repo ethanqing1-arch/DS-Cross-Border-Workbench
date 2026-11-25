@@ -999,7 +999,7 @@ else
   RELEASE_ZIP="$RELEASE_OUT/$RELEASE_TOP.zip"
   RELEASE_UNPACKED="$TMP/release-zip"
   if OUT="$(bash "$SRC/make-bundle.sh" --out "$RELEASE_OUT" 2>&1)" &&
-     OUT="$(bash "$SRC/release.sh" --out "$RELEASE_OUT" --check 2>&1)"; then
+     OUT="$(bash "$SRC/release.sh" --out "$RELEASE_OUT" --check --allow-placeholder-licence 2>&1)"; then
     ok "7h.1 release.sh --check 退出码 0（临时输出目录）"
   else
     bad "7h.1 构建或 release.sh --check 失败"
@@ -1028,6 +1028,49 @@ else
     ok "7h.4 构建后 git status --porcelain 仍为空（根 .gitignore 忽略 distribution/out/）"
   else
     bad "7h.4 构建后 Git 状态检查失败，请检查根 .gitignore 的 distribution/out/ 规则"
+  fi
+
+  RELEASE_FIXTURE="$RELEASE_UNPACKED/$RELEASE_TOP"
+  RELEASE_SCRIPT="$RELEASE_FIXTURE/distribution/release.sh"
+  RELEASE_KEY="$RELEASE_FIXTURE/distribution/l1/licence/public.pem"
+  PLACEHOLDER_OUT="$TMP/release-placeholder"
+  # 当前仓库已经替换为真实公钥时，在解包副本上重建占位场景。
+  if [ -f "$RELEASE_KEY" ] &&
+     { head -n 1 "$RELEASE_KEY" | grep -Fq 'PLACEHOLDER' ||
+       { printf '%s\n' '# PLACEHOLDER'; cat "$SRC/l1/licence/public.pem"; } > "$RELEASE_KEY"; }; then
+    OUT="$(bash "$RELEASE_SCRIPT" --out "$PLACEHOLDER_OUT" 2>&1)"; RC=$?
+    if [ "$RC" -eq 3 ] && [ ! -e "$PLACEHOLDER_OUT" ] &&
+       printf '%s\n' "$OUT" | grep -Fq '占位公钥'; then
+      ok "7h.5 默认拒绝使用占位公钥构建（退出码 3）"
+    else
+      bad "7h.5 默认拒绝使用占位公钥构建（退出码 ${RC}，期望 3）"
+      printf '%s\n' "$OUT" | sed 's/^/    /'
+    fi
+
+    OUT="$(bash "$RELEASE_SCRIPT" --out "$PLACEHOLDER_OUT" --allow-placeholder-licence 2>&1)"; RC=$?
+    CHECK_OUT="$(bash "$SRC/release.sh" --out "$PLACEHOLDER_OUT" --check 2>&1)"; CHECK_RC=$?
+    if [ "$RC" -eq 0 ] && [ "$CHECK_RC" -eq 3 ] &&
+       printf '%s\n' "$OUT" | grep -Fxq 'WARN 本包仅供内部试装：含占位授权公钥' &&
+       printf '%s\n' "$CHECK_OUT" | grep -Fq '占位公钥'; then
+      ok "7h.6 显式允许内部试装并警告（退出码 0），默认核验拒绝占位包（退出码 3）"
+    else
+      bad "7h.6 内部试装或占位包核验结果异常（构建退出码 ${RC}，核验退出码 ${CHECK_RC}）"
+      printf '%s\n%s\n' "$OUT" "$CHECK_OUT" | sed 's/^/    /'
+    fi
+  else
+    bad "7h.5 无法准备占位公钥载荷"
+    bad "7h.6 无法准备占位公钥载荷"
+  fi
+
+  OUT=
+  if bash "$SRC/l1/licence/keygen.sh" "$TMP/release-private.pem" > "$RELEASE_KEY" &&
+     OUT="$(bash "$RELEASE_SCRIPT" --out "$TMP/release-real" 2>&1)" &&
+     [ -f "$TMP/release-real/$RELEASE_TOP.zip" ] &&
+     printf '%s\n' "$OUT" | grep -Fxq 'RESULT: READY'; then
+    ok "7h.7 临时生成的真实公钥无需开关即可构建（退出码 0）"
+  else
+    bad "7h.7 临时生成的真实公钥未能通过默认发布"
+    printf '%s\n' "$OUT" | sed 's/^/    /'
   fi
 fi
 

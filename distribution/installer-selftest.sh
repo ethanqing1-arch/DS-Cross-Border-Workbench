@@ -131,4 +131,36 @@ else
   bad '8. 发行包载荷安全检查失败'
 fi
 
+expect_payload_refused() {
+  local label="$1" reason="$2" out rc
+  out="$(bash "$SRC/release.sh" payload "$TMP/payload" 2>&1)"; rc=$?
+  if [ "$rc" -eq 3 ] && printf '%s\n' "$out" | grep -Fxq "FAIL ${reason}"; then
+    ok "${label}（退出码 3）"
+  else
+    bad "${label}（退出码 ${rc}，期望 3）"
+    printf '%s\n' "$out"
+  fi
+}
+
+if cp -R "$TMP/zip/$top" "$TMP/payload" &&
+   cp "$TMP/payload/distribution/l1/licence/public.pem" "$TMP/payload/evil.pem"; then
+  expect_payload_refused '9. 拒绝白名单外的 evil.pem' '发行包含禁止路径：evil.pem'
+else
+  bad '9. 无法准备 evil.pem 载荷样本'
+fi
+
+if [ -d "$TMP/payload" ] && rm -f "$TMP/payload/evil.pem" &&
+   printf '%s\n' '自检样本' 'BEGIN RSA PRIVATE KEY' > "$TMP/payload/notes.txt"; then
+  expect_payload_refused '10. 拒绝含私钥标记的 notes.txt' '发行包含私钥：notes.txt'
+else
+  bad '10. 无法准备 notes.txt 载荷样本'
+fi
+
+if [ -f "$TMP/zip/$top/distribution/l1/licence/public.pem" ] &&
+   bash "$SRC/release.sh" payload "$TMP/zip/$top"; then
+  ok '11. 放行 distribution/l1/licence/public.pem（退出码 0）'
+else
+  bad '11. 未放行 distribution/l1/licence/public.pem'
+fi
+
 finish
